@@ -11,7 +11,7 @@ The following should be added to `~/.bashrc` and (?) `~/.bash_profile` (replacin
     }
     export -f spedas
 
-Creating a symbolic link to the EFW examples is also convenient. In `rbsp/`, type `ln -s packages/spdsw_r20105_2016-02-22/idl/general/missions/rbsp/efw/examples/ examples`. 
+Creating a symbolic link to the EFW examples is also convenient. In `rbsp/`, type `ln -s packages/spdsw_r20105_2016-02-22/idl/general/missions/rbsp/efw/examples/ examples`. IDL **does** seem to respect symbolic links. 
 
 Bleeding-edge SPEDAS software comes from `http://themis.ssl.berkeley.edu/socware/bleeding_edge/`. 
 
