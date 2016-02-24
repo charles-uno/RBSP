@@ -33,6 +33,31 @@ from subprocess import Popen, PIPE
 
 def main():
 
+  src = '/home/user1/mceachern/Desktop/rbsp/'
+  run = '/home/user1/mceachern/Desktop/rbsp/run/'
+  out = '/media/My Passport/RBSP/pickles/'
+
+  os.chdir(run)
+
+  temp = io.readsav(run + 'temp.sav')
+
+  for key, arr in temp.items():
+
+    print key, arr.shape
+
+    with open(run + key + '.pkl', 'wb') as handle:
+        pickle.dump(arr, handle, protocol=-1)
+
+    print 'created ' + run + key + '.pkl'
+
+    # sanity check
+    with open(run + key + '.pkl', 'rb') as handle:
+      print pickle.load(handle).shape
+
+  return
+
+
+
   module('load idl')
 
   src = '/home/user1/mceachern/Desktop/rbsp/'
