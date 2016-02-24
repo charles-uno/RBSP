@@ -1,10 +1,11 @@
 # RBSP
 
-The following should be added to `~/.bashrc` and (?) `~/.bash_profile` (replacing the data storage path and the include path as appropriate). 
+The following should be added to `~/.bashrc` and (?) `~/.bash_profile` (replacing the data storage path, the include path, and the root path as appropriate). 
 
     function spedas {
       module load idl
       export ROOT_DATA_DIR="/export/scratch/users/mceachern/rbsp"
+      idl -e "PREF_SET, 'IDL_DLM_PATH', '<IDL_DEFAULT>'+PATH_SEP(/SEARCH_PATH)+'~/Desktop/rbsp/incl', /COMMIT"
       ROOTDIR=~/Desktop/rbsp/packages/
       idl $* -IDL_PATH "+$ROOTDIR:<IDL_DEFAULT>"
     }
