@@ -4,7 +4,7 @@
 
 ; Here, we rework the crib sheet from Aaron into a form that's easier for the Python script to handle. 
 
-date = '2012-10-10/10:00:01'
+date = '2012-10-10'
 timespan, date
 
 probe = 'a'
@@ -109,29 +109,36 @@ store_data, 'e_sp', data=tmpp
 ; Remove corotation electric field. 
 dif_data, evar, rbspx + '_E_coro_mgse', newname=rbspx + '_efw_esvy_mgse_vxb_removed_coro_removed_spinfit'
 
-; Grab the position and the electric and magnetic fields. 
+; Grab the electric and magnetic fields and rotate them to GSE. 
 get_data, rbspx + '_Lvec', data=wgse
 wgse = wgse.y
-rbsp_mgse2gse, rbspx + '_efw_esvy_mgse_vxb_removed_spinfit', wgse, newname='efield_spinfit_gse'
+rbsp_mgse2gse, rbspx + '_efw_esvy_mgse_vxb_removed_spinfit', wgse, newname='egse'
 rbsp_mgse2gse, rbspx + '_mag_mgse', wgse, newname='bfield_gse'
 
-; Interpolate to a common set of times. 
-tinterpol_mxn, 'bfield_gse', 'efield_spinfit_gse', newname='bfield_gse'
-tinterpol_mxn, rbspx + '_state_pos_gse', 'efield_spinfit_gse', newname=rbspx + '_state_pos_gse'
+; Interpolate magnetic field and position to match electric field time steps. 
+tinterpol_mxn, 'bfield_gse', 'egse', newname='bgse'
+tinterpol_mxn, rbspx + '_state_pos_gse', 'egse', newname='xgse'
+tinterpol_mxn, rbspx + '_state_lshell', 'egse', newname='lshell'
+tinterpol_mxn, rbspx + '_state_mlt', 'egse', newname='mlt'
+tinterpol_mxn, rbspx + '_state_mlat', 'egse', newname='mlat'
 
-print, 'POSITION'
-get_data, rbspx + '_state_pos_gse', data=xgse
-help, xgse, /st
+; Grab final values, print out the properties of each, and save them. 
+get_data, 'egse', time, egse
+get_data, 'bgse', time, bgse
+get_data, 'xgse', time, xgse
+get_data, 'lshell', time, lshell
+get_data, 'mlt', time, mlt
+get_data, 'mlat', time, mlat
 
-print, 'ELECTRIC FIELD'
-get_data, 'efield_spinfit_gse', data=egse
+help, time, /st
 help, egse, /st
-
-print, 'MAGNETIC FIELD'
-get_data, 'bfield_gse', data=bgse
 help, bgse, /st
+help, xgse, /st
+help, lshell, /st
+help, mlt, /st
+help, mlat, /st
 
-print, time_string( timerange() )
+save, time, xgse, lshell, mlt, mlat, egse, bgse, filename='~/Desktop/rbsp/run/temp.sav'
 
 ; -----------------------------------------------------------------------------
 ; -------------- Plotting stuff -- nice for debugging, but not actually needed. 
@@ -145,7 +152,7 @@ tplot_options, 'xticklen', 0.08
 tplot_options, 'yticklen', 0.02
 tplot_options, 'xthick', 2
 tplot_options, 'ythick', 2
-tplot, rbspx + '_' + ['vxb_mgse',evar]
+tplot, rbspx + '_' + ['vxb_mgse', evar]
 ylim, 'B2Bx_ratio', 0, 10
 options, 'B2Bx_ratio', 'ytitle', 'By/Bx (black)!CBz/Bx (red)'
 options, 'rat', 'ytitle', '|Espinaxis|/!C|Espinplane|'

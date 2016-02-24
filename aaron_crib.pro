@@ -262,8 +262,6 @@ pro aaron_crib,date,probe,no_spice_load=no_spice_load,suffix=suffix,$
            if keyword_set(eu) then timebar,eu.x + eu.y
         endif
 
-
-
 ;--------------------------------------------------
 ;--------------------------------------------------
 ;--------------------------------------------------
@@ -281,11 +279,17 @@ tinterpol_mxn,'rbsp'+probe+'_state_pos_gse','efield_spinfit_gse',newname='rbsp'+
 
 
 ;;These are the three tplot variables you requested.
-tplot,['rbsp'+probe+'_state_pos_gse','efield_spinfit_gse','bfield_gse']
+tplot,['rbsp'+probe+'_state_pos_gse',$
+       'rbsp'+probe+'_state_mlt',$
+       'rbsp'+probe+'_state_lshell',$
+       'rbsp'+probe+'_state_mlat',$
+       'efield_spinfit_gse',$
+       'bfield_gse']
 
 ;--------------------------------------------------
 ;--------------------------------------------------
 ;--------------------------------------------------
+
 
 end
 
