@@ -140,46 +140,42 @@ help, mlat, /st
 
 save, time, xgse, lshell, mlt, mlat, egse, bgse, filename='~/Desktop/rbsp/run/temp.sav'
 
-; -----------------------------------------------------------------------------
-; -------------- Plotting stuff -- nice for debugging, but not actually needed. 
-; -----------------------------------------------------------------------------
-
-store_data, 'B2Bx_ratio', data={ x:edata.x, y:[ [By2Bx], [Bz2Bx] ] }
-!p.charsize = 1.2
-tplot_options, 'xmargin', [20., 15.]
-tplot_options, 'ymargin', [3, 6]
-tplot_options, 'xticklen', 0.08
-tplot_options, 'yticklen', 0.02
-tplot_options, 'xthick', 2
-tplot_options, 'ythick', 2
-tplot, rbspx + '_' + ['vxb_mgse', evar]
-ylim, 'B2Bx_ratio', 0, 10
-options, 'B2Bx_ratio', 'ytitle', 'By/Bx (black)!CBz/Bx (red)'
-options, 'rat', 'ytitle', '|Espinaxis|/!C|Espinplane|'
-options, 'e_sp', 'ytitle', '|Espinplane|'
-options, 'e_sa', 'ytitle', '|Espinaxis|'
-options, 'angles', 'ytitle', 'angle b/t Ey & Bo!CEz & Bo (red)'
-ylim, evar, -10, 10
-ylim, rbspx + '_mag_mgse', -200,200
-ylim, ['e_sa', 'e_sp', 'rat'], 0, 10
-options, evar, 'labels', ['xMGSE', 'yMGSE', 'zMGSE']
-tplot_options, 'title', 'RBSP-' + probe + ' ' + date
-tplot,[rbspx + '_mag_mgse', $
-       rbspx + '_mag_mgse_smoothed', $
-       rbspx + '_efw_esvy_mgse_vxb_removed_spinfit', $
-       rbspx + '_efw_esvy_mgse_vxb_removed_coro_removed_spinfit', $
-       rbspx + '_E_coro_mgse', $
-       'angles', $
-       'rat', $
-       'e_sa', $
-       'e_sp']
-if keyword_set(eu) then timebar, eu.x
-if keyword_set(eu) then timebar, eu.x + eu.y
-tplot,[rbspx + '_state_pos_gse','efield_spinfit_gse','bfield_gse']
-wait, 10
-
-; -----------------------------------------------------------------------------
-; -----------------------------------------------------------------------------
-; -----------------------------------------------------------------------------
+;; -----------------------------------------------------------------------------
+;; -------------------------------------------------------------------- Plotting
+;; -----------------------------------------------------------------------------
+;
+;store_data, 'B2Bx_ratio', data={ x:edata.x, y:[ [By2Bx], [Bz2Bx] ] }
+;!p.charsize = 1.2
+;tplot_options, 'xmargin', [20., 15.]
+;tplot_options, 'ymargin', [3, 6]
+;tplot_options, 'xticklen', 0.08
+;tplot_options, 'yticklen', 0.02
+;tplot_options, 'xthick', 2
+;tplot_options, 'ythick', 2
+;tplot, rbspx + '_' + ['vxb_mgse', evar]
+;ylim, 'B2Bx_ratio', 0, 10
+;options, 'B2Bx_ratio', 'ytitle', 'By/Bx (black)!CBz/Bx (red)'
+;options, 'rat', 'ytitle', '|Espinaxis|/!C|Espinplane|'
+;options, 'e_sp', 'ytitle', '|Espinplane|'
+;options, 'e_sa', 'ytitle', '|Espinaxis|'
+;options, 'angles', 'ytitle', 'angle b/t Ey & Bo!CEz & Bo (red)'
+;ylim, evar, -10, 10
+;ylim, rbspx + '_mag_mgse', -200,200
+;ylim, ['e_sa', 'e_sp', 'rat'], 0, 10
+;options, evar, 'labels', ['xMGSE', 'yMGSE', 'zMGSE']
+;tplot_options, 'title', 'RBSP-' + probe + ' ' + date
+;tplot,[rbspx + '_mag_mgse', $
+;       rbspx + '_mag_mgse_smoothed', $
+;       rbspx + '_efw_esvy_mgse_vxb_removed_spinfit', $
+;       rbspx + '_efw_esvy_mgse_vxb_removed_coro_removed_spinfit', $
+;       rbspx + '_E_coro_mgse', $
+;       'angles', $
+;       'rat', $
+;       'e_sa', $
+;       'e_sp']
+;if keyword_set(eu) then timebar, eu.x
+;if keyword_set(eu) then timebar, eu.x + eu.y
+;tplot,[rbspx + '_state_pos_gse','efield_spinfit_gse','bfield_gse']
+;wait, 10
 
 
