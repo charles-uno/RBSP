@@ -1,6 +1,6 @@
 # RBSP
 
-The following should be added to `~/.bashrc` and (?) `~/.bash_profile`
+The following should be added to `~/.bashrc` and (?) `~/.bash_profile` (replacing the data storage path and the include path as appropriate). 
 
     function spedas {
       module load idl
