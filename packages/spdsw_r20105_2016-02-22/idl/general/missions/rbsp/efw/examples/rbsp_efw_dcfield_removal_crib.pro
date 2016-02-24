@@ -68,7 +68,8 @@ pro rbsp_efw_dcfield_removal_crib,probe,no_spice_load=no_spice_load,noplot=noplo
   x = timerange()
   date = strmid(time_string(x[0]),0,10)
 
-
+; Default model is 't96'
+  if ~keyword_set(model) then model = 't96'
 
   if ~keyword_set(cadence) then cadence = '1sec'
 
