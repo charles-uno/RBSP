@@ -43,18 +43,19 @@ def main():
   os.chdir(run)
 
   # Loop over the two satellites. 
-  for sat in ('a', 'b')[0:1]:
+  for probe in ('a', 'b')[0:1]:
+
     # Loop over the events seen by each one. 
-    for event in read(src + 'events/events_' + sat + '.txt')[19:20]:
+    for event in read(src + 'events/events_' + probe + '.txt')[19:20]:
 
-#      # Nuke the run directory. Save stderr. 
-#      [ os.remove(x) for x in os.listdir(run) if x!='stdoe.txt' ]
-
-      date, time = event.split('/')
-      print date, time
+      # Nuke the run directory, except for the captured IDL output. 
+      [ os.remove(x) for x in os.listdir(run) if x!='stdoe.txt' ]
 
       # Create a directory to hold the data. 
-      name = event.replace('/', '_').replace('-', '').replace(':', '') + '/'
+      name = probe + '_' + event.replace('/', '_').translate(None, '-:') + '/'
+
+      print name
+
       if os.path.isdir(out + name):
         print '\tDATA ALREADY EXISTS'
         continue
@@ -63,7 +64,8 @@ def main():
 
       # Create and execute an IDL script to grab position, electric field, and
       # magnetic field data for the event, and dump it into a sav file. 
-      out, err = spedas( idlcode(sat=sat, date=date) )
+      date, time = event.split('/')
+      out, err = spedas( idlcode(probe=probe, date=date) )
       print out, err
 
       # Read in the IDL output. 
@@ -149,15 +151,6 @@ def main():
 
   day = 86400
 
-
-  '''
-  temp = io.readsav(run + 'temp.sav')
-  for key, arr in temp.items():
-    print key, arr.shape
-    with open(run + key + '.pkl', 'wb') as handle:
-        pickle.dump(arr, handle, protocol=-1)
-    print 'created ' + run + key + '.pkl'
-    '''
   key = 'time'
   with open(run + key + '.pkl', 'rb') as handle:
     t = pickle.load(handle)
@@ -178,22 +171,15 @@ def main():
   return
 
 
-
+  '''
   module('load idl')
-
   src = '/home/user1/mceachern/Desktop/rbsp/'
   out = '/media/My Passport/RBSP/pickles/'
-
   for sat in ('a', 'b')[:1]:
-
     events = read(src + 'events/events_' + sat + '.txt')[:1]
-
     for event in events:
-
       print 'event: ', event
       name = event.replace('/', '_').replace('-', '').replace(':', '') + '/'
-
-      '''
       if os.path.exists('temp.pro'):
         os.remove('temp.pro')
 #      print '\tcreating pro script to download the data as a sav file'
@@ -202,14 +188,9 @@ def main():
       out, err = bash('idl -e @temp -IDL_PATH +~/Desktop/RBSP/packages/:<IDL_DEFAULT>')
       print '\tReading the IDL data into Python...'
       sav = io.readsav('/home/user1/mceachern/Desktop/RBSP/temp.sav')
-      '''
-
       # Save position to out + name + 'x.pkl'
       # etc
-
       print out + name + 'x.pkl'
-
-      '''
       # Tuples are safer to pickle than dictionaries. 
       print '\tCreating a pickle: ', pklpath
       with open(pklpath, 'wb') as handle:
@@ -219,48 +200,47 @@ def main():
 #        x = dict( pickle.load(handle) )
 #      print all( sav['time'] == x['time'] )
 #      print all( sav['bgse'].flatten() == x['bgse'].flatten() )
-
   # Now let's look at an event. 
   with open(pklpath, 'rb') as handle:
     x = dict( pickle.load(handle) )
-
   t = x['time']
   # Ten minutes compared to a day. 
   N = (600*t.size)/(24*3600)
   t = t[:N] - t[0]
-
   BX = x['bgse'][0][:N]
   BY = x['bgse'][1][:N]
   BZ = x['bgse'][2][:N]
-
   BX = BX - np.mean(BX)
   BY = BY - np.mean(BY)
   BZ = BZ - np.mean(BZ)
-
   plt.plot(t, BX)
   plt.plot(t, BY)
   plt.plot(t, BZ)
-
   plt.show()
-
   return ( 'rbsp_efw_init\n' +
            'timespan,\'' + date + '\'\n' +
            'rbsp_load_emfisis,probe=' + sat + ',coord=\'gse\',cadence=\'hires\',level=\'l3\'\n' + 
            'get_data,1,time,bgse\n' + 
            'save,time,bgse,filename=\'~/Desktop/rbsp/run/temp.sav\'' )
-
-  '''
-
   return
+  '''
 
 # #############################################################################
 # ############################################################# IDL Script Text
 # #############################################################################
 
-def idlcode(sat, date):
+# This routine reads in a bunch of IDL commands from crib.pro then modifies
+# them slightly and returns them. 
+def idlcode(probe, date):
+  # Read in the crib sheet. 
   crib = read('../crib.pro')
-  for line in crib[:20]:
-    print line
+  # Find the lines that define the date and the probe. 
+  idate = np.argmax( [ line.startswith('date = ') for line in crib ] )
+  iprobe = np.argmax( [ line.startswith('probe = ') for line in crib ] )
+  # Change those lines to describe this event. 
+  crib[idate] = 'date = \'' + date + '\''
+  crib[iprobe] = 'probe = \'' + probe + '\''
+  # Return the list of IDL commands as a newline-delimited string. 
   return '\n'.join(crib)
 
 # #############################################################################
