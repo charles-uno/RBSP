@@ -31,28 +31,149 @@ from subprocess import Popen, PIPE
 # ######################################################################## Main
 # #############################################################################
 
+
 def main():
 
+  # Keep everything nicely organized. 
   src = '/home/user1/mceachern/Desktop/rbsp/'
   run = '/home/user1/mceachern/Desktop/rbsp/run/'
   out = '/media/My Passport/RBSP/pickles/'
 
+  # Any files that get dumped should get dumped into the run directory. 
   os.chdir(run)
 
+  # Loop over the two satellites. 
+  for sat in ('a', 'b')[0:1]:
+    # Loop over the events seen by each one. 
+    for event in read(src + 'events/events_' + sat + '.txt')[19:20]:
+
+#      # Nuke the run directory. Save stderr. 
+#      [ os.remove(x) for x in os.listdir(run) if x!='stdoe.txt' ]
+
+      date, time = event.split('/')
+      print date, time
+
+      # Create a directory to hold the data. 
+      name = event.replace('/', '_').replace('-', '').replace(':', '') + '/'
+      if os.path.isdir(out + name):
+        print '\tDATA ALREADY EXISTS'
+        continue
+      else:
+        os.mkdir(out + name)
+
+      # Create and execute an IDL script to grab position, electric field, and
+      # magnetic field data for the event, and dump it into a sav file. 
+      out, err = spedas( idlcode(sat=sat, date=date) )
+      print out, err
+
+      # Read in the IDL output. 
+      if not os.path.exists('temp.sav'):
+        print '\tNO DATA'
+        continue
+      else:
+        temp = io.readsav('temp.sav')
+
+      # Re-write the data in pickle format. 
+      for key, arr in temp.items():
+        with open(out + name + key + '.pkl', 'wb') as handle:
+          pickle.dump(arr, handle, protocol=-1)
+        print '\tcreated ' + out + name + key + '.pkl'
+
+
+  '''
+  key = 'time'
+  with open(run + key + '.pkl', 'rb') as handle:
+    t = pickle.load(handle)
+
+  t = t - t[0]
+
+  print t
+
+  i0 = np.argmax(t > t0)
+  i1 = np.argmax(t > t1)
+
+  print t[i0:i1]
+  print t[i0:i1].size'''
+
+
+  return
+
+
+  ''' 
+  # Create the IDL script to grab this event. 
+  append(idlcode(sat=sat, date=date), 'temp.pro')
+  # Call the IDL routine to download the event data and save it in temp.sav. 
+      out, err = bash('idl -e @temp -IDL_PATH +~/Desktop/RBSP/packages/:<IDL_DEFAULT>')
+
+
+
+      if os.path.exists('temp.pro'):
+        os.remove('temp.pro')
+#      print '\tcreating pro script to download the data as a sav file'
+      append( pro(sat=sat, event=event) )
+      print '\tDownloading the data using SPEDAS... '
+      out, err = bash('idl -e @temp -IDL_PATH +~/Desktop/RBSP/packages/:<IDL_DEFAULT>')
+      print '\tReading the IDL data into Python...'
+      sav = io.readsav('/home/user1/mceachern/Desktop/RBSP/temp.sav')
+      '''
+
+
+
+  hh, mm, ss = [ int(x) for x in time.split(':') ]
+  t0 = ss + 60*mm + 3600*hh
+  # Events are 10 minutes long by construction.  
+  t1 = t0 + 600
+
+  print event
+  print date, time
+  print hh, mm, ss
+  print t0, t1
+
+
+
+
+  return
+
+
+
+
+  date = '2012-10-10'
+
+  time = '09:50:01'
+
+  hh, mm, ss = [ int(x) for x in time.split(':') ]
+
+  t0 = ss + 60*mm + 3600*hh
+  # Events are 10 minutes long by construction.  
+  t1 = t0 + 600
+
+  day = 86400
+
+
+  '''
   temp = io.readsav(run + 'temp.sav')
-
   for key, arr in temp.items():
-
     print key, arr.shape
-
     with open(run + key + '.pkl', 'wb') as handle:
         pickle.dump(arr, handle, protocol=-1)
-
     print 'created ' + run + key + '.pkl'
+    '''
+  key = 'time'
+  with open(run + key + '.pkl', 'rb') as handle:
+    t = pickle.load(handle)
 
-    # sanity check
-    with open(run + key + '.pkl', 'rb') as handle:
-      print pickle.load(handle).shape
+  t = t - t[0]
+
+  print t
+
+  i0 = np.argmax(t > t0)
+  i1 = np.argmax(t > t1)
+
+  print t[i0:i1]
+  print t[i0:i1].size
+
+
+
 
   return
 
@@ -121,43 +242,66 @@ def main():
   plt.plot(t, BZ)
 
   plt.show()
+
+  return ( 'rbsp_efw_init\n' +
+           'timespan,\'' + date + '\'\n' +
+           'rbsp_load_emfisis,probe=' + sat + ',coord=\'gse\',cadence=\'hires\',level=\'l3\'\n' + 
+           'get_data,1,time,bgse\n' + 
+           'save,time,bgse,filename=\'~/Desktop/rbsp/run/temp.sav\'' )
+
   '''
 
   return
 
 # #############################################################################
-# ########################################################### 
+# ############################################################# IDL Script Text
 # #############################################################################
 
-def pro(sat, event):
-  return ( 'rbsp_efw_init\n' +
-           'timespan,\'' + event + '\'\n' +
-           'rbsp_load_emfisis,probe=' + sat + ',coord=\'gse\',cadence=\'hires\',level=\'l3\'\n' + 
-           'get_data,1,time,bgse\n' + 
-           'save,time,bgse,filename=\'~/Desktop/RBSP/temp.sav\'' )
+def idlcode(sat, date):
+  crib = read('../crib.pro')
+  for line in crib[:20]:
+    print line
+  return '\n'.join(crib)
 
 # #############################################################################
 # ############################################################ Helper Functions
 # #############################################################################
 
+# Append text to a file. 
 def append(text, filename=None):
   if filename is not None:
     with open(filename, 'a') as fileobj:
       fileobj.write(text + '\n')
   return text
 
-def read(filename):
-  with open(filename, 'r') as fileobj:
-    return [ x.strip() for x in fileobj.readlines() ]
-
+# Make a call as if from the command line. 
 def bash(command, save='stdoe.txt'):
   out, err = Popen(command.split(), stdout=PIPE, stderr=PIPE).communicate()
   return append(out, save), append(err, save)
 
+# Load, unload, or list modules. 
 def module(command, save='stdoe.txt'):
   out, err = bash('/usr/bin/modulecmd python ' + command, save=save)
   exec out
   return err
+
+# Read in a file as a list of lines. 
+def read(filename):
+  with open(filename, 'r') as fileobj:
+    return [ x.strip() for x in fileobj.readlines() ]
+
+# Dump a bunch of commands into a (temporary) IDL batch file, load IDL, and
+# execute that batch file. 
+def spedas(command):
+  if os.path.exists('temp.pro'):
+    os.remove('temp.pro')
+  module('load idl')
+  os.environ['ROOT_DATA_DIR'] = '/export/scratch/users/mceachern/RBSP/'
+  append('PREF_SET, \'IDL_DLM_PATH\', \'<IDL_DEFAULT>\' + ' + 
+         'PATH_SEP(/SEARCH_PATH) + \'~/Desktop/rbsp/incl\', /COMMIT',
+         'temp.pro')
+  append(command, 'temp.pro')
+  return bash('idl -e @temp -IDL_PATH +~/Desktop/rbsp/packages/:<IDL_DEFAULT>')
 
 # ########################################################### For Importability
 # #############################################################################
