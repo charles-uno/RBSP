@@ -37,8 +37,11 @@ def main():
   rundir = '/home/user1/mceachern/Desktop/rbsp/run/'
   outdir = '/media/My Passport/RBSP/pickles/'
 
-  # Any files that get dumped should get dumped into the run directory. 
+  # Any files that get dumped should get dumped into the run directory. Make
+  # sure to always start with a fresh log. 
   os.chdir(rundir)
+  if os.path.exists('log.txt'):
+    os.remove('log.txt')
 
   # Loop over the two satellites. 
   for probe in ('a', 'b'):
@@ -46,17 +49,20 @@ def main():
     # Loop over the events seen by each one. 
     for event in read(srcdir + 'events/events_' + probe + '.txt'):
 
-      # Nuke the run directory, except for the captured IDL output. 
-      [ os.remove(x) for x in os.listdir(rundir) if x!='stdoe.txt' ]
+      # Nuke the run directory. 
+      [ os.remove(x) for x in os.listdir(rundir) if x not in ('log.txt',) ]
 
       # The data directory is indexed by the event timestamp. 
       name = probe + '_' + event.replace('/', '_').translate(None, '-:') + '/'
 
-      print name
+      append(name, 'log.txt')
 
+      # Check if we've already done this one. 
       if os.path.isdir(outdir + name):
-        print '\tDATA ALREADY EXISTS'
+        append('\tDATA ALREADY EXISTS', 'log.txt')
         continue
+      else:
+        os.mkdir(outdir + name)
 
       # Create and execute an IDL script to grab position, electric field, and
       # magnetic field data for the event, and dump it into a sav file. 
@@ -65,22 +71,27 @@ def main():
 #      print out
 #      print err
 
+      # If IDL crashes, don't save any data. But leave the directory, so we
+      # know not to bother with this event next time. 
       if 'Variable is undefined: RBSPX' in err:
-        print '\tBAD DATA'
+        append('\tBAD DATA', 'log.txt')
+        continue
 
       # Read in the IDL output. 
       if not os.path.exists('temp.sav'):
-        print '\tNO DATA'
+        append('\tNO DATA', 'log.txt')
         continue
       else:
         temp = io.readsav('temp.sav')
 
       # Re-write the data in pickle format. 
-      os.mkdir(outdir + name)
+      print name
       for key, arr in temp.items():
         with open(outdir + name + key + '.pkl', 'wb') as handle:
           pickle.dump(arr, handle, protocol=-1)
-        print '\tcreated ' + outdir + name + key + '.pkl'
+        append('\tcreated ' + outdir + name + key + '.pkl', 'log.txt')
+        print '\tcreated '+ outdir + name + key + '.pkl'
+
   return
 
 # #############################################################################

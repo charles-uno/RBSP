@@ -23,6 +23,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+
+from plotmod import *
+
 # #############################################################################
 # ############################################################ Helper Functions
 # #############################################################################
@@ -38,11 +41,11 @@ def load(datadir):
 # Based on the pickle directory name, return the probe name and the start and
 # end time of the event, in seconds from midnight. Note that all events are ten
 # minutes long by construction. 
-def ptt(pkldir):
+def pdtt(pkldir):
   probe, date, time = pkldir.split('_')
   hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
   t0 = ss + 60*mm + 3600*hh
-  return probe, t0, t0 + 600
+  return probe, date, t0, t0 + 600
 
 # Take a rolling average of the magnetic field to estimate the background
 # field. The average gets truncated at the edges -- notably, none of Lei's
@@ -76,6 +79,17 @@ def unitvecs(X, B0):
   yhat = unit( np.cross(zhat, rhat, axis=0) )
   return np.cross(yhat, zhat, axis=0), yhat, zhat
 
+# Put the slashes back into a date string. 
+def calendar(date):
+  return date[0:4] + '/' + date[4:6] + '/' + date[6:8]
+
+# Compute clock time from a count of seconds from midnight. 
+def clock(sfm):
+  hh = sfm/3600
+  mm = (sfm%3600)/60
+  ss = sfm%60
+  return znt(hh, 2) + ':' + znt(mm, 2) + ':' + znt(ss, 2)
+
 # #############################################################################
 # ######################################################################## Main
 # #############################################################################
@@ -88,20 +102,15 @@ def main():
   # Each event has its own directory full of pickles. 
   for pkldir in os.listdir(outdir):
 
-    print pkldir + '/'
-
     # Load all of the pickles in this directory. Offset the time array to start
     # at midnight (rather than in 1970). 
     data = load(outdir + pkldir + '/')
     data['time'] = data['time'] - data['time'][0]
 
-    for key, arr in data.items():
-      print '\t' + key, arr.shape
-
     # Get the probe name and the timestamp from the directory name. From the
     # timestamps, find the data indeces corresponding to the start and end of
     # the event. 
-    probe, t0, t1 = ptt(pkldir)
+    probe, date, t0, t1 = pdtt(pkldir)
     i0, i1 = np.argmax(data['time'] > t0), np.argmax(data['time'] > t1)
 
     # Slice the event out of the full day of data. Also compute a ten-minute
@@ -109,6 +118,7 @@ def main():
     t     = data['time'][i0:i1]
     BGSE  = data['bgse'][:, i0:i1]
     B0GSE = getbg( data['time'], data['bgse'] )[:, i0:i1]
+    EGSE  = data['egse'][:, i0:i1]
     XGSE  = data['xgse'][:, i0:i1]
 
     # Compute the dipole coordinate directions. The zhat unit vector lines up
@@ -124,52 +134,33 @@ def main():
     By = dot(yhat, BGSE - B0GSE)
     Bz = dot(zhat, BGSE - B0GSE)
 
-    plt.plot(t, Bx, label='Bx')
-    plt.plot(t, By, label='By')
-    plt.plot(t, Bz, label='Bz')
+    Ex = dot(xhat, EGSE)
+    Ey = dot(yhat, EGSE)
+    Ez = dot(zhat, EGSE)
 
-    plt.legend()
-    plt.show()
+    PW = plotWindow(nrows=2, ncols=-2)
 
+    title = notex( 'RBSP-' + probe.upper() + ' on ' + calendar(date) + ' from ' + clock(t0) + ' to ' + clock(t1) )
 
+    tcoord = (t - t[0])/60
 
+    print 'min tcoord = ', tcoord[0]
+    print 'max tcoord = ', tcoord[-1]
 
-#    By = np.sum(yhat*B, axis=0)
-#    Bz = np.sum(zhat*B, axis=0)
-#    Bz0 = np.sum(zhat*B0, axis=0)
+    PW.setParams( x=tcoord, xlabel=notex('Time (min)'), xlims=(0, 10), xticks=range(11), xticklabels=('$0$', '', '$2$', '', '$4$', '', '$6$', '', '$8$', '', '$10$'), title=title )
+#    PW.setParams( x=tcoord, xlabel=notex('Time (s)'), title=title )
 
+    PW[0].setParams(ylabel=notex('Magnetic Field (nT)'))
+    PW[0].setLine(Bx, 'b')
+    PW[0].setLine(By, 'r')
+    PW[0].setLine(Bz, 'g')
 
+    PW[1].setParams(ylabel=notex('Electric Field (\\frac{mV}{m})'))
+    PW[1].setLine(Ex, 'b')
+    PW[1].setLine(Ey, 'r')
+    PW[1].setLine(Ez, 'g')
 
-    print 'xhat'
-    print xhat[:, 0]
-    print np.sum( xhat[:, 0]**2 )
-
-    print 'yhat'
-    print yhat[:, 0]
-    print np.sum( yhat[:, 0]**2 )
-
-    print 'zhat'
-    print zhat[:, 0]
-    print np.sum( zhat[:, 0]**2 )
-
-    print 'xhat dot yhat = ', np.sum( xhat[:, 0]*yhat[:, 0] )
-    print 'yhat dot zhat = ', np.sum( yhat[:, 0]*zhat[:, 0] )
-    print 'zhat dot xhat = ', np.sum( zhat[:, 0]*xhat[:, 0] )
-
-
-
-    return
-
-
-
-#    # Do a linear fit to get the background magnetic field. 
-#    B0 = np.zeros( B.shape )
-#    for i in range(3):
-#      slope, inter = np.polyfit(t, B[i, :], 1)
-#      B0[i, :] = inter + slope*t
-
-
-
+    PW.render()
 
     return
 
