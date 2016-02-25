@@ -8,10 +8,8 @@
 # #################################################################### Synopsis
 # #############################################################################
 
-# This routine uses IDL to interface with NASA's data server, grab the electric
-# and magnetic field for a list of events, clean up the data, and output it as
-# SAV files. Those files are then loaded and re-saved as pickles for later
-# analysis in Python. 
+# This routine reads in pickles created by grabber.py, rotates the data into
+# the coordinates we want, and plots it. 
 
 # #############################################################################
 # ######################################################### Load Python Modules
@@ -21,10 +19,9 @@ try:
   import cPickle as pickle
 except ImportError:
   import pickle
+import matplotlib.pyplot as plt
 import numpy as np
 import os
-from scipy import io
-from subprocess import Popen, PIPE
 
 # #############################################################################
 # ######################################################################## Main
@@ -80,6 +77,63 @@ def main():
         with open(outdir + name + key + '.pkl', 'wb') as handle:
           pickle.dump(arr, handle, protocol=-1)
         print '\tcreated ' + outdir + name + key + '.pkl'
+
+  '''
+
+  # Let's look at a bit of data as a sanity check. 
+  for pkldir in os.listdir(outdir):
+
+    print pkldir + '/'
+
+    # The directory gives the event's timestamp. 
+    probe, date, time = pkldir.split('_')
+    hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
+    # Get the number of seconds from midnight to the start and end of the
+    # event. Events are ten minutes long by construction. 
+    t0 = ss + 60*mm + 3600*hh
+    t1 = t0 + 600
+
+    # Load the pickle files into a dictionary of arrays. 
+    data = {}
+    for pklname in os.listdir(outdir + pkldir):
+      with open(outdir + pkldir + '/' + pklname, 'rb') as handle:
+        data[ pklname[:-4] ] = pickle.load(handle)
+        print '\tloaded ' + pklname
+
+    # Find the indeces that correspond to the start and end of the event. 
+    today = data['time'] - data['time'][0]
+    i0 = np.argmax(today > t0)
+    i1 = np.argmax(today > t1)
+
+    print 'number of time steps for this ten-minute window: ', i1-i0
+
+
+    t = today[i0:i1]
+    bx = data['bgse'][0, i0:i1]
+    by = data['bgse'][1, i0:i1]
+    bz = data['bgse'][2, i0:i1]
+    ex = data['egse'][0, i0:i1]
+    ey = data['egse'][1, i0:i1]
+    ez = data['egse'][2, i0:i1]
+    x = data['xgse'][0, i0:i1]
+    y = data['xgse'][1, i0:i1]
+    z = data['xgse'][2, i0:i1]
+    lshell = data['lshell'][i0:i1]
+    mlt = data['mlt'][i0:i1]
+    mlat = data['mlat'][i0:i1]
+
+    # Plot a sanity check. 
+    for index, label in enumerate( ('BX', 'BY', 'BZ') ):
+
+      field = data['bgse'][index, i0:i1]
+      slope, inter = np.polyfit(t, field, 1)
+      linfit = slope*t + inter
+      plt.plot(t, field - linfit, label=label)
+
+    plt.legend()
+    plt.show()
+
+  '''
   return
 
 # #############################################################################
