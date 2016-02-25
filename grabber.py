@@ -30,7 +30,6 @@ from subprocess import Popen, PIPE
 # ######################################################################## Main
 # #############################################################################
 
-
 def main():
 
   # Keep everything nicely organized. 
@@ -50,7 +49,7 @@ def main():
       # Nuke the run directory, except for the captured IDL output. 
       [ os.remove(x) for x in os.listdir(rundir) if x!='stdoe.txt' ]
 
-      # Create a directory to hold the data. 
+      # The data directory is indexed by the event timestamp. 
       name = probe + '_' + event.replace('/', '_').translate(None, '-:') + '/'
 
       print name
@@ -58,8 +57,6 @@ def main():
       if os.path.isdir(outdir + name):
         print '\tDATA ALREADY EXISTS'
         continue
-      else:
-        os.mkdir(outdir + name)
 
       # Create and execute an IDL script to grab position, electric field, and
       # magnetic field data for the event, and dump it into a sav file. 
@@ -67,6 +64,9 @@ def main():
       out, err = spedas( idlcode(probe=probe, date=date) )
 #      print out
 #      print err
+
+      if 'Variable is undefined: RBSPX' in err:
+        print '\tBAD DATA'
 
       # Read in the IDL output. 
       if not os.path.exists('temp.sav'):
@@ -76,6 +76,7 @@ def main():
         temp = io.readsav('temp.sav')
 
       # Re-write the data in pickle format. 
+      os.mkdir(outdir + name)
       for key, arr in temp.items():
         with open(outdir + name + key + '.pkl', 'wb') as handle:
           pickle.dump(arr, handle, protocol=-1)
@@ -140,8 +141,8 @@ def spedas(command):
   append(command, 'temp.pro')
   return bash('idl -e @temp -IDL_PATH +~/Desktop/rbsp/packages/:<IDL_DEFAULT>')
 
-# ########################################################### For Importability
 # #############################################################################
+# ########################################################### For Importability
 # #############################################################################
 
 if __name__=='__main__':

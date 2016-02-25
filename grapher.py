@@ -24,178 +24,208 @@ import numpy as np
 import os
 
 # #############################################################################
+# ############################################################ Helper Functions
+# #############################################################################
+
+# Load all of the pickles in a directory into a dictionary. 
+def load(datadir):
+  data = {}
+  for pklname in os.listdir(datadir):
+    with open(datadir + pklname, 'rb') as handle:
+      data[ pklname[:-4] ] = pickle.load(handle)
+  return data
+
+# Based on the pickle directory name, return the probe name and the start and
+# end time of the event, in seconds from midnight. Note that all events are ten
+# minutes long by construction. 
+def ptt(pkldir):
+  probe, date, time = pkldir.split('_')
+  hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
+  t0 = ss + 60*mm + 3600*hh
+  return probe, t0, t0 + 600
+
+# Take a rolling average of the magnetic field to estimate the background
+# field. The average gets truncated at the edges -- notably, none of Lei's
+# events happen within ten minutes of midnight. 
+def getbg(t, B, tavg=600):
+  B0 = np.empty(B.shape)
+  for i in range( B.shape[1] ):
+    # Find indeces five minutes in the past and five minutes in the future. 
+    ipas = np.argmax( t > t[i] - tavg/2 )
+    ifut = np.argmax( t > t[i] + tavg/2 )
+    # If we're looking for something past the edge of the array, argmax will
+    # return 0. That a problem for the upper bound. 
+    ifut = ifut if ifut>0 else B.shape[1]
+    # Take the average. 
+    B0[:, i] = np.average(B[:, ipas:ifut], axis=1)
+  return B0
+
+# Dot product of a pair of vectors or a pair of arrays of vectors. 
+def dot(v0, v1, axis=0):
+  return np.sum(v0*v1, axis=axis)
+
+# Scale a vector, or an array of vectors, to unit vectors. 
+def unit(v):
+  return v/np.sqrt( dot(v, v) )
+
+# The background magnetic field defines zhat. The azimuthal direction yhat is
+# normal to the plane defined by zhat and rhat (as long as zhat and rhat are
+# not parallel). The "radial" direction xhat is normal to zhat and yhat. 
+def unitvecs(X, B0):
+  rhat, zhat = unit(X), unit(B0)
+  yhat = unit( np.cross(zhat, rhat, axis=0) )
+  return np.cross(yhat, zhat, axis=0), yhat, zhat
+
+# #############################################################################
 # ######################################################################## Main
 # #############################################################################
 
-
 def main():
 
-  # Keep everything nicely organized. 
-  srcdir = '/home/user1/mceachern/Desktop/rbsp/'
-  rundir = '/home/user1/mceachern/Desktop/rbsp/run/'
+  # Location of the output directories. 
   outdir = '/media/My Passport/RBSP/pickles/'
 
-  # Any files that get dumped should get dumped into the run directory. 
-  os.chdir(rundir)
-
-  # Loop over the two satellites. 
-  for probe in ('a', 'b'):
-
-    # Loop over the events seen by each one. 
-    for event in read(srcdir + 'events/events_' + probe + '.txt'):
-
-      # Nuke the run directory, except for the captured IDL output. 
-      [ os.remove(x) for x in os.listdir(rundir) if x!='stdoe.txt' ]
-
-      # Create a directory to hold the data. 
-      name = probe + '_' + event.replace('/', '_').translate(None, '-:') + '/'
-
-      print name
-
-      if os.path.isdir(outdir + name):
-        print '\tDATA ALREADY EXISTS'
-        continue
-      else:
-        os.mkdir(outdir + name)
-
-      # Create and execute an IDL script to grab position, electric field, and
-      # magnetic field data for the event, and dump it into a sav file. 
-      date, time = event.split('/')
-      out, err = spedas( idlcode(probe=probe, date=date) )
-#      print out
-#      print err
-
-      # Read in the IDL output. 
-      if not os.path.exists('temp.sav'):
-        print '\tNO DATA'
-        continue
-      else:
-        temp = io.readsav('temp.sav')
-
-      # Re-write the data in pickle format. 
-      for key, arr in temp.items():
-        with open(outdir + name + key + '.pkl', 'wb') as handle:
-          pickle.dump(arr, handle, protocol=-1)
-        print '\tcreated ' + outdir + name + key + '.pkl'
-
-  '''
-
-  # Let's look at a bit of data as a sanity check. 
+  # Each event has its own directory full of pickles. 
   for pkldir in os.listdir(outdir):
 
     print pkldir + '/'
 
-    # The directory gives the event's timestamp. 
-    probe, date, time = pkldir.split('_')
-    hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
-    # Get the number of seconds from midnight to the start and end of the
-    # event. Events are ten minutes long by construction. 
-    t0 = ss + 60*mm + 3600*hh
-    t1 = t0 + 600
+    # Load all of the pickles in this directory. Offset the time array to start
+    # at midnight (rather than in 1970). 
+    data = load(outdir + pkldir + '/')
+    data['time'] = data['time'] - data['time'][0]
 
-    # Load the pickle files into a dictionary of arrays. 
-    data = {}
-    for pklname in os.listdir(outdir + pkldir):
-      with open(outdir + pkldir + '/' + pklname, 'rb') as handle:
-        data[ pklname[:-4] ] = pickle.load(handle)
-        print '\tloaded ' + pklname
+    for key, arr in data.items():
+      print '\t' + key, arr.shape
 
-    # Find the indeces that correspond to the start and end of the event. 
-    today = data['time'] - data['time'][0]
-    i0 = np.argmax(today > t0)
-    i1 = np.argmax(today > t1)
+    # Get the probe name and the timestamp from the directory name. From the
+    # timestamps, find the data indeces corresponding to the start and end of
+    # the event. 
+    probe, t0, t1 = ptt(pkldir)
+    i0, i1 = np.argmax(data['time'] > t0), np.argmax(data['time'] > t1)
 
-    print 'number of time steps for this ten-minute window: ', i1-i0
+    # Slice the event out of the full day of data. Also compute a ten-minute
+    # rolling average of the magnetic field to estimate the background field. 
+    t     = data['time'][i0:i1]
+    BGSE  = data['bgse'][:, i0:i1]
+    B0GSE = getbg( data['time'], data['bgse'] )[:, i0:i1]
+    XGSE  = data['xgse'][:, i0:i1]
 
+    # Compute the dipole coordinate directions. The zhat unit vector lines up
+    # with the background magnetic field, yhat is azimuthally eastward, and
+    # xhat completes the orthonormal coordinate system. 
+    xhat, yhat, zhat = unitvecs(XGSE, B0GSE)
 
-    t = today[i0:i1]
-    bx = data['bgse'][0, i0:i1]
-    by = data['bgse'][1, i0:i1]
-    bz = data['bgse'][2, i0:i1]
-    ex = data['egse'][0, i0:i1]
-    ey = data['egse'][1, i0:i1]
-    ez = data['egse'][2, i0:i1]
-    x = data['xgse'][0, i0:i1]
-    y = data['xgse'][1, i0:i1]
-    z = data['xgse'][2, i0:i1]
-    lshell = data['lshell'][i0:i1]
-    mlt = data['mlt'][i0:i1]
-    mlat = data['mlat'][i0:i1]
+    # Compute the electric and magnetic field components in dipole coordinates.
+    # The background magnetic field -- which lies in the zhat direction by
+    # construction -- is kept separate. 
+    B0 = dot(zhat, B0GSE)
+    Bx = dot(xhat, BGSE - B0GSE)
+    By = dot(yhat, BGSE - B0GSE)
+    Bz = dot(zhat, BGSE - B0GSE)
 
-    # Plot a sanity check. 
-    for index, label in enumerate( ('BX', 'BY', 'BZ') ):
-
-      field = data['bgse'][index, i0:i1]
-      slope, inter = np.polyfit(t, field, 1)
-      linfit = slope*t + inter
-      plt.plot(t, field - linfit, label=label)
+    plt.plot(t, Bx, label='Bx')
+    plt.plot(t, By, label='By')
+    plt.plot(t, Bz, label='Bz')
 
     plt.legend()
     plt.show()
 
-  '''
+
+
+
+#    By = np.sum(yhat*B, axis=0)
+#    Bz = np.sum(zhat*B, axis=0)
+#    Bz0 = np.sum(zhat*B0, axis=0)
+
+
+
+    print 'xhat'
+    print xhat[:, 0]
+    print np.sum( xhat[:, 0]**2 )
+
+    print 'yhat'
+    print yhat[:, 0]
+    print np.sum( yhat[:, 0]**2 )
+
+    print 'zhat'
+    print zhat[:, 0]
+    print np.sum( zhat[:, 0]**2 )
+
+    print 'xhat dot yhat = ', np.sum( xhat[:, 0]*yhat[:, 0] )
+    print 'yhat dot zhat = ', np.sum( yhat[:, 0]*zhat[:, 0] )
+    print 'zhat dot xhat = ', np.sum( zhat[:, 0]*xhat[:, 0] )
+
+
+
+    return
+
+
+
+#    # Do a linear fit to get the background magnetic field. 
+#    B0 = np.zeros( B.shape )
+#    for i in range(3):
+#      slope, inter = np.polyfit(t, B[i, :], 1)
+#      B0[i, :] = inter + slope*t
+
+
+
+
+    return
+
+    lshell = data['lshell'][i0:i1]
+    mlt = data['mlt'][i0:i1]
+    mlat = data['mlat'][i0:i1]
+
   return
 
+
+
+
+# Started on an event class... I think that's overkill. We're not going to be
+# doing any serious computation here. 
+'''
+class eventObj:
+
+  def __init__(self, datadir):
+
+    # The data directory gives which probe this is, as well as the timestamp. 
+    self.probe, self.date, self.time = datadir.split('/')[-1].split('_')
+
+    # Read in the pickles. This is the whole day of data, in GSE coordinates. 
+    self.load(datadir)
+
+    # Use a ten minute running average to get the background magnetic field. 
+    # That's the zhat direction. 
+    self.setzhat()
+
+    pickles = self.load(datadir)
+
+
+  # Based on the pickle directory name, return the probe name and the start and
+  # end time of the event, in seconds from midnight. Note that all events are
+  # ten minutes long by construction. 
+  def ptt(pkldir):
+    probe, date, time = pkldir.split('_')
+    hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
+    t0 = ss + 60*mm + 3600*hh
+    return probe, t0, t0 + 600
+
+  def load(self, datadir):
+    data = {}
+    for pklname in os.listdir(datadir):
+      with open(datadir + pklname, 'rb') as handle:
+        data[ pklname[:-4] ] = pickle.load(handle)
+'''
+
+'''
+# Make sure the given variable is a 3-by-N array.  
+def is3d(x):
+  return isinstance(x, np.ndarray) and len(x.shape)==2 and x[0]==3
+'''
+
 # #############################################################################
-# ############################################################# IDL Script Text
-# #############################################################################
-
-# This routine reads in a bunch of IDL commands from crib.pro then modifies
-# them slightly and returns them. 
-def idlcode(probe, date):
-  # Read in the crib sheet. 
-  crib = read('../crib.pro')
-  # Find the lines that define the date and the probe. 
-  idate = np.argmax( [ line.startswith('date = ') for line in crib ] )
-  iprobe = np.argmax( [ line.startswith('probe = ') for line in crib ] )
-  # Change those lines to describe this event. 
-  crib[idate] = 'date = \'' + date + '\''
-  crib[iprobe] = 'probe = \'' + probe + '\''
-  # Return the list of IDL commands as a newline-delimited string. 
-  return '\n'.join(crib)
-
-# #############################################################################
-# ############################################################ Helper Functions
-# #############################################################################
-
-# Append text to a file. 
-def append(text, filename=None):
-  if filename is not None:
-    with open(filename, 'a') as fileobj:
-      fileobj.write(text + '\n')
-  return text
-
-# Make a call as if from the command line. 
-def bash(command, save='stdoe.txt'):
-  out, err = Popen(command.split(), stdout=PIPE, stderr=PIPE).communicate()
-  return append(out, save), append(err, save)
-
-# Load, unload, or list modules. 
-def module(command, save='stdoe.txt'):
-  out, err = bash('/usr/bin/modulecmd python ' + command, save=save)
-  exec out
-  return err
-
-# Read in a file as a list of lines. 
-def read(filename):
-  with open(filename, 'r') as fileobj:
-    return [ x.strip() for x in fileobj.readlines() ]
-
-# Dump a bunch of commands into a (temporary) IDL batch file, load IDL, and
-# execute that batch file. 
-def spedas(command):
-  if os.path.exists('temp.pro'):
-    os.remove('temp.pro')
-  module('load idl')
-  os.environ['ROOT_DATA_DIR'] = '/export/scratch/users/mceachern/RBSP/'
-  append('PREF_SET, \'IDL_DLM_PATH\', \'<IDL_DEFAULT>\' + ' + 
-         'PATH_SEP(/SEARCH_PATH) + \'~/Desktop/rbsp/incl\', /COMMIT',
-         'temp.pro')
-  append(command, 'temp.pro')
-  return bash('idl -e @temp -IDL_PATH +~/Desktop/rbsp/packages/:<IDL_DEFAULT>')
-
 # ########################################################### For Importability
-# #############################################################################
 # #############################################################################
 
 if __name__=='__main__':
