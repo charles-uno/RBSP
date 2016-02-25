@@ -35,38 +35,39 @@ from subprocess import Popen, PIPE
 def main():
 
   # Keep everything nicely organized. 
-  src = '/home/user1/mceachern/Desktop/rbsp/'
-  run = '/home/user1/mceachern/Desktop/rbsp/run/'
-  out = '/media/My Passport/RBSP/pickles/'
+  srcdir = '/home/user1/mceachern/Desktop/rbsp/'
+  rundir = '/home/user1/mceachern/Desktop/rbsp/run/'
+  outdir = '/media/My Passport/RBSP/pickles/'
 
   # Any files that get dumped should get dumped into the run directory. 
-  os.chdir(run)
+  os.chdir(rundir)
 
   # Loop over the two satellites. 
-  for probe in ('a', 'b')[0:1]:
+  for probe in ('a', 'b'):
 
     # Loop over the events seen by each one. 
-    for event in read(src + 'events/events_' + probe + '.txt')[19:20]:
+    for event in read(srcdir + 'events/events_' + probe + '.txt'):
 
       # Nuke the run directory, except for the captured IDL output. 
-      [ os.remove(x) for x in os.listdir(run) if x!='stdoe.txt' ]
+      [ os.remove(x) for x in os.listdir(rundir) if x!='stdoe.txt' ]
 
       # Create a directory to hold the data. 
       name = probe + '_' + event.replace('/', '_').translate(None, '-:') + '/'
 
       print name
 
-      if os.path.isdir(out + name):
+      if os.path.isdir(outdir + name):
         print '\tDATA ALREADY EXISTS'
         continue
       else:
-        os.mkdir(out + name)
+        os.mkdir(outdir + name)
 
       # Create and execute an IDL script to grab position, electric field, and
       # magnetic field data for the event, and dump it into a sav file. 
       date, time = event.split('/')
       out, err = spedas( idlcode(probe=probe, date=date) )
-      print out, err
+#      print out
+#      print err
 
       # Read in the IDL output. 
       if not os.path.exists('temp.sav'):
@@ -77,153 +78,67 @@ def main():
 
       # Re-write the data in pickle format. 
       for key, arr in temp.items():
-        with open(out + name + key + '.pkl', 'wb') as handle:
+        with open(outdir + name + key + '.pkl', 'wb') as handle:
           pickle.dump(arr, handle, protocol=-1)
-        print '\tcreated ' + out + name + key + '.pkl'
-
-
-  '''
-  key = 'time'
-  with open(run + key + '.pkl', 'rb') as handle:
-    t = pickle.load(handle)
-
-  t = t - t[0]
-
-  print t
-
-  i0 = np.argmax(t > t0)
-  i1 = np.argmax(t > t1)
-
-  print t[i0:i1]
-  print t[i0:i1].size'''
-
-
-  return
-
-
-  ''' 
-  # Create the IDL script to grab this event. 
-  append(idlcode(sat=sat, date=date), 'temp.pro')
-  # Call the IDL routine to download the event data and save it in temp.sav. 
-      out, err = bash('idl -e @temp -IDL_PATH +~/Desktop/RBSP/packages/:<IDL_DEFAULT>')
-
-
-
-      if os.path.exists('temp.pro'):
-        os.remove('temp.pro')
-#      print '\tcreating pro script to download the data as a sav file'
-      append( pro(sat=sat, event=event) )
-      print '\tDownloading the data using SPEDAS... '
-      out, err = bash('idl -e @temp -IDL_PATH +~/Desktop/RBSP/packages/:<IDL_DEFAULT>')
-      print '\tReading the IDL data into Python...'
-      sav = io.readsav('/home/user1/mceachern/Desktop/RBSP/temp.sav')
-      '''
-
-
-
-  hh, mm, ss = [ int(x) for x in time.split(':') ]
-  t0 = ss + 60*mm + 3600*hh
-  # Events are 10 minutes long by construction.  
-  t1 = t0 + 600
-
-  print event
-  print date, time
-  print hh, mm, ss
-  print t0, t1
-
-
-
-
-  return
-
-
-
-
-  date = '2012-10-10'
-
-  time = '09:50:01'
-
-  hh, mm, ss = [ int(x) for x in time.split(':') ]
-
-  t0 = ss + 60*mm + 3600*hh
-  # Events are 10 minutes long by construction.  
-  t1 = t0 + 600
-
-  day = 86400
-
-  key = 'time'
-  with open(run + key + '.pkl', 'rb') as handle:
-    t = pickle.load(handle)
-
-  t = t - t[0]
-
-  print t
-
-  i0 = np.argmax(t > t0)
-  i1 = np.argmax(t > t1)
-
-  print t[i0:i1]
-  print t[i0:i1].size
-
-
-
-
-  return
-
+        print '\tcreated ' + outdir + name + key + '.pkl'
 
   '''
-  module('load idl')
-  src = '/home/user1/mceachern/Desktop/rbsp/'
-  out = '/media/My Passport/RBSP/pickles/'
-  for sat in ('a', 'b')[:1]:
-    events = read(src + 'events/events_' + sat + '.txt')[:1]
-    for event in events:
-      print 'event: ', event
-      name = event.replace('/', '_').replace('-', '').replace(':', '') + '/'
-      if os.path.exists('temp.pro'):
-        os.remove('temp.pro')
-#      print '\tcreating pro script to download the data as a sav file'
-      append( pro(sat=sat, event=event) )
-      print '\tDownloading the data using SPEDAS... '
-      out, err = bash('idl -e @temp -IDL_PATH +~/Desktop/RBSP/packages/:<IDL_DEFAULT>')
-      print '\tReading the IDL data into Python...'
-      sav = io.readsav('/home/user1/mceachern/Desktop/RBSP/temp.sav')
-      # Save position to out + name + 'x.pkl'
-      # etc
-      print out + name + 'x.pkl'
-      # Tuples are safer to pickle than dictionaries. 
-      print '\tCreating a pickle: ', pklpath
-      with open(pklpath, 'wb') as handle:
-        pickle.dump(sav.items(), handle, protocol=-1)
-#      print '\tsanity check... '
-#      with open(pklpath, 'rb') as handle:
-#        x = dict( pickle.load(handle) )
-#      print all( sav['time'] == x['time'] )
-#      print all( sav['bgse'].flatten() == x['bgse'].flatten() )
-  # Now let's look at an event. 
-  with open(pklpath, 'rb') as handle:
-    x = dict( pickle.load(handle) )
-  t = x['time']
-  # Ten minutes compared to a day. 
-  N = (600*t.size)/(24*3600)
-  t = t[:N] - t[0]
-  BX = x['bgse'][0][:N]
-  BY = x['bgse'][1][:N]
-  BZ = x['bgse'][2][:N]
-  BX = BX - np.mean(BX)
-  BY = BY - np.mean(BY)
-  BZ = BZ - np.mean(BZ)
-  plt.plot(t, BX)
-  plt.plot(t, BY)
-  plt.plot(t, BZ)
-  plt.show()
-  return ( 'rbsp_efw_init\n' +
-           'timespan,\'' + date + '\'\n' +
-           'rbsp_load_emfisis,probe=' + sat + ',coord=\'gse\',cadence=\'hires\',level=\'l3\'\n' + 
-           'get_data,1,time,bgse\n' + 
-           'save,time,bgse,filename=\'~/Desktop/rbsp/run/temp.sav\'' )
-  return
+
+  # Let's look at a bit of data as a sanity check. 
+  for pkldir in os.listdir(outdir):
+
+    print pkldir + '/'
+
+    # The directory gives the event's timestamp. 
+    probe, date, time = pkldir.split('_')
+    hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
+    # Get the number of seconds from midnight to the start and end of the
+    # event. Events are ten minutes long by construction. 
+    t0 = ss + 60*mm + 3600*hh
+    t1 = t0 + 600
+
+    # Load the pickle files into a dictionary of arrays. 
+    data = {}
+    for pklname in os.listdir(outdir + pkldir):
+      with open(outdir + pkldir + '/' + pklname, 'rb') as handle:
+        data[ pklname[:-4] ] = pickle.load(handle)
+        print '\tloaded ' + pklname
+
+    # Find the indeces that correspond to the start and end of the event. 
+    today = data['time'] - data['time'][0]
+    i0 = np.argmax(today > t0)
+    i1 = np.argmax(today > t1)
+
+    print 'number of time steps for this ten-minute window: ', i1-i0
+
+
+    t = today[i0:i1]
+    bx = data['bgse'][0, i0:i1]
+    by = data['bgse'][1, i0:i1]
+    bz = data['bgse'][2, i0:i1]
+    ex = data['egse'][0, i0:i1]
+    ey = data['egse'][1, i0:i1]
+    ez = data['egse'][2, i0:i1]
+    x = data['xgse'][0, i0:i1]
+    y = data['xgse'][1, i0:i1]
+    z = data['xgse'][2, i0:i1]
+    lshell = data['lshell'][i0:i1]
+    mlt = data['mlt'][i0:i1]
+    mlat = data['mlat'][i0:i1]
+
+    # Plot a sanity check. 
+    for index, label in enumerate( ('BX', 'BY', 'BZ') ):
+
+      field = data['bgse'][index, i0:i1]
+      slope, inter = np.polyfit(t, field, 1)
+      linfit = slope*t + inter
+      plt.plot(t, field - linfit, label=label)
+
+    plt.legend()
+    plt.show()
+
   '''
+  return
 
 # #############################################################################
 # ############################################################# IDL Script Text
