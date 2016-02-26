@@ -22,79 +22,8 @@ except ImportError:
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-
-from random import randrange
-
 from plotmod import *
-
-# #############################################################################
-# ############################################################ Helper Functions
-# #############################################################################
-
-# Load all of the pickles in a directory into a dictionary. 
-def load(datadir):
-  data = {}
-  for pklname in os.listdir(datadir):
-    with open(datadir + pklname, 'rb') as handle:
-      data[ pklname[:-4] ] = pickle.load(handle)
-  return data
-
-# Based on the pickle directory name, return the probe name and the start and
-# end time of the event, in seconds from midnight. Note that all events are ten
-# minutes long by construction. 
-def pdtt(pkldir):
-  probe, date, time = pkldir.split('_')
-  hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
-  t0 = ss + 60*mm + 3600*hh
-  return probe, date, t0, t0 + 600
-
-# Take a rolling average of the magnetic field to estimate the background
-# field. The average gets truncated at the edges -- notably, none of Lei's
-# events happen within ten minutes of midnight. 
-def getbg(t, B, tavg=600):
-  B0 = np.empty(B.shape)
-  for i in range( B.shape[1] ):
-    # Find indeces five minutes in the past and five minutes in the future. 
-    ipas = np.argmax( t > t[i] - tavg/2 )
-    ifut = np.argmax( t > t[i] + tavg/2 )
-    # If we're looking for something past the edge of the array, argmax will
-    # return 0. That a problem for the upper bound. 
-    ifut = ifut if ifut>0 else B.shape[1]
-    # Take the average. 
-    B0[:, i] = np.average(B[:, ipas:ifut], axis=1)
-  return B0
-
-# Dot product of a pair of vectors or a pair of arrays of vectors. 
-def dot(v0, v1, axis=0):
-  return np.sum(v0*v1, axis=axis)
-
-# Scale a vector, or an array of vectors, to unit vectors. 
-def unit(v):
-  return v/np.sqrt( dot(v, v) )
-
-# The background magnetic field defines zhat. The azimuthal direction yhat is
-# normal to the plane defined by zhat and rhat (as long as zhat and rhat are
-# not parallel). The "radial" direction xhat is normal to zhat and yhat. 
-def unitvecs(X, B0):
-  rhat, zhat = unit(X), unit(B0)
-  yhat = unit( np.cross(zhat, rhat, axis=0) )
-  return np.cross(yhat, zhat, axis=0), yhat, zhat
-
-# Put the slashes back into a date string. 
-def calendar(date):
-  return date[0:4] + '--' + date[4:6] + '--' + date[6:8]
-
-# Compute clock time from a count of seconds from midnight. 
-def clock(sfm, seconds=False):
-  hh = sfm/3600
-  if seconds:
-    mm = (sfm%3600)/60
-    ss = sfm%60
-    return znt(hh, 2) + ':' + znt(mm, 2) + ':' + znt(ss, 2)
-  else:
-    mm = int( format( (sfm%3600)/60., '.0f') )
-    return znt(hh, 2) + ':' + znt(mm, 2)
-
+from random import choice
 
 # #############################################################################
 # ######################################################################## Main
@@ -106,7 +35,8 @@ def main():
   outdir = '/media/My Passport/RBSP/pickles/'
 
   # Each event has its own directory full of pickles. 
-  for pkldir in os.listdir(outdir)[2:3]:
+#  for pkldir in [ choice( os.listdir(outdir) ) ]:
+  for pkldir in sorted( os.listdir(outdir) )[:1]:
 
     # Load all of the pickles in this directory. Offset the time array to start
     # at midnight (rather than in 1970). 
@@ -130,9 +60,11 @@ def main():
     # Compute the dipole coordinate directions. The zhat unit vector lines up
     # with the background magnetic field, yhat is azimuthally eastward, and
     # xhat completes the orthonormal coordinate system. 
-    xhat, yhat, zhat = unitvecs(XGSE, B0GSE)
+    zhat = unit(B0GSE)
+    yhat = unit( np.cross(zhat, XGSE, axis=0) )
+    xhat = np.cross(yhat, zhat, axis=0)
 
-    # Compute the electric and magnetic field components in dipole coordinates.
+    # Rotate electric and magnetic fields to dipole coordinates.
     Bx = dot(xhat, BGSE - B0GSE)
     By = dot(yhat, BGSE - B0GSE)
     Bz = dot(zhat, BGSE - B0GSE)
@@ -149,7 +81,8 @@ def main():
     ylabels = ( notex('Poloidal (\\frac{mV}{m}) (nT)'), 
                 notex('Poloidal FFT (\\frac{mV}{m}) (nT)'), 
                 notex('Toroidal (\\frac{mV}{m}) (nT)'), 
-                notex('Field-Aligned (\\frac{mV}{m}) (nT)') )
+                notex('Field-Aligned (\\frac{mV}{m}) (nT)') 
+              )
     PW = plotWindow(nrows=len(ylabels), ncols=-2)
 
     # Set the title and labels. 
@@ -157,7 +90,7 @@ def main():
     xlabel = notex( 'Time (hh:mm) on ' + calendar(date) )
     collabel = ( notex( 'RBSP--' + probe.upper() ) + ' \\qquad L \\!=\\! ' +
                  format(L, '.1f') + ' \\qquad ' + notex( clock(3600*MLT) +
-                 ' MLT') + ' \\qquad ' + format(mlat, '.1f') + '^\\circ' +
+                 ' MLT') + ' \\qquad ' + format(mlat, '.0f') + '^\\circ' +
                  notex(' Magnetic Latitude') )
     PW.setParams(title=title, collabels=[collabel], xlabel=xlabel)
     [ PW[i].setParams(ylabel=ylbl) for i, ylbl in enumerate(ylabels) ]
@@ -171,41 +104,55 @@ def main():
     # Add the field components to the plot. 
     PW[0].setLine(Ey, 'b')
     PW[0].setLine(Bx, 'r')
-
     PW[2].setLine(Ex, 'b')
     PW[2].setLine(By, 'r')
-
     PW[3].setLine(Ez, 'b')
     PW[3].setLine(Bz, 'r')
 
-    # Let's do a quick Fourier transform of the poloidal components and plot
-    # the strongest component (in the Pc4 range) right under the poloidal
-    # waveforms. That will let us estimate the phase offset. 
+    # Let's do a quick Fourier transform of the poloidal components. This
+    # should make it easier to estimate
     dt, trange = t[1] - t[0], t[-1] - t[0]
     def harm(n):
       return np.exp(2j*np.pi*n*t/trange)
 
-    # We only want frequencies within the Pc4 band: 45 to 150 seconds. 
+    # Look only at components in the Pc4 frequency range. 
     nmin, nmax = 600/150, 600/30
     Bweights = np.zeros(nmax, dtype=np.complex)
     Eweights = np.zeros(nmax, dtype=np.complex)
 
+    # Compute harmonic weights. 
     for n in range(nmin, nmax):
       Bweights[n] = np.sum(Bx*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
       Eweights[n] = np.sum(Ey*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
 
-    nB, nE = np.argmax( np.abs(Bweights) ), np.argmax( np.abs(Eweights) )
-
+    # Use a nice, fine grid to draw the reconstituted fields. 
     tfine = np.linspace(t[0], t[-1], 1000)
     def harmfine(n):
       return np.exp(2j*np.pi*n*tfine/trange)
 
-    PW[1].setParams(x=(tfine-tfine[0])/60)
-    PW[1].setLine( np.real( harmfine(nE)*Eweights[nE] ) , 'b' )
-    PW[1].setLine( np.real( harmfine(nB)*Bweights[nB] ) , 'r' )
+    # Do we want to show the whole reconstituted waveform, or just the single
+    # strongest harmonic? 
+    if False:
+      # Sum the harmonics. 
+      BFFT, EFFT = np.zeros(1000), np.zeros(1000)
+      for n in range(nmin, nmax):
+        BFFT = BFFT + np.real( harmfine(n)*Bweights[n] )
+        EFFT = EFFT + np.real( harmfine(n)*Eweights[n] )
+      # Plot the reconstituted waveforms. 
+      PW[1].setParams(x=(tfine-tfine[0])/60)
+      PW[1].setLine(BFFT, 'r')
+      PW[1].setLine(EFFT, 'b')
+    else:
+      nB, nE = np.argmax( np.abs(Bweights) ), np.argmax( np.abs(Eweights) )
+      PW[1].setParams(x=(tfine-tfine[0])/60)
+      PW[1].setLine( np.real( harmfine(nE)*Eweights[nE] ) , 'b' )
+      PW[1].setLine( np.real( harmfine(nB)*Bweights[nB] ) , 'r' )
 
     # Save the plot as an image. 
-    PW.render()
+    if '-i' in argv:
+      PW.render('/home/user1/mceachern/Desktop/plots/INSITU/' + name + '.png')
+    else:
+      PW.render()
 
   return
 
@@ -253,6 +200,66 @@ class eventObj:
 def is3d(x):
   return isinstance(x, np.ndarray) and len(x.shape)==2 and x[0]==3
 '''
+
+# #############################################################################
+# ############################################################ Helper Functions
+# #############################################################################
+
+# Put the slashes back into a date string. 
+def calendar(date):
+  return date[0:4] + '--' + date[4:6] + '--' + date[6:8]
+
+# Compute clock time from a count of seconds from midnight. 
+def clock(sfm, seconds=False):
+  hh = sfm/3600
+  if seconds:
+    mm = (sfm%3600)/60
+    ss = sfm%60
+    return znt(hh, 2) + ':' + znt(mm, 2) + ':' + znt(ss, 2)
+  else:
+    mm = int( format( (sfm%3600)/60., '.0f') )
+    return znt(hh, 2) + ':' + znt(mm, 2)
+
+# Load all of the pickles in a directory into a dictionary. 
+def load(datadir):
+  data = {}
+  for pklname in os.listdir(datadir):
+    with open(datadir + pklname, 'rb') as handle:
+      data[ pklname[:-4] ] = pickle.load(handle)
+  return data
+
+# Based on the pickle directory name, return the probe name and the start and
+# end time of the event, in seconds from midnight. Note that all events are ten
+# minutes long by construction. 
+def pdtt(pkldir):
+  probe, date, time = pkldir.split('_')
+  hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
+  t0 = ss + 60*mm + 3600*hh
+  return probe, date, t0, t0 + 600
+
+# Take a rolling average of the magnetic field to estimate the background
+# field. The average gets truncated at the edges -- notably, none of Lei's
+# events happen within ten minutes of midnight. 
+def getbg(t, B, tavg=600):
+  B0 = np.empty(B.shape)
+  for i in range( B.shape[1] ):
+    # Find indeces five minutes in the past and five minutes in the future. 
+    ipas = np.argmax( t > t[i] - tavg/2 )
+    ifut = np.argmax( t > t[i] + tavg/2 )
+    # If we're looking for something past the edge of the array, argmax will
+    # return 0. That a problem for the upper bound. 
+    ifut = ifut if ifut>0 else B.shape[1]
+    # Take the average. 
+    B0[:, i] = np.average(B[:, ipas:ifut], axis=1)
+  return B0
+
+# Dot product of a pair of vectors or a pair of arrays of vectors. 
+def dot(v0, v1, axis=0):
+  return np.sum(v0*v1, axis=axis)
+
+# Scale a vector, or an array of vectors, to unit vectors. 
+def unit(v):
+  return v/np.sqrt( dot(v, v) )
 
 # #############################################################################
 # ########################################################### For Importability

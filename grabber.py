@@ -25,6 +25,7 @@ import numpy as np
 import os
 from scipy import io
 from subprocess import Popen, PIPE
+from sys import stdout
 
 # #############################################################################
 # ######################################################################## Main
@@ -37,11 +38,8 @@ def main():
   rundir = '/home/user1/mceachern/Desktop/rbsp/run/'
   outdir = '/media/My Passport/RBSP/pickles/'
 
-  # Any files that get dumped should get dumped into the run directory. Make
-  # sure to always start with a fresh log. 
+  # Any files that get dumped should get dumped into the run directory. 
   os.chdir(rundir)
-  if os.path.exists('log.txt'):
-    os.remove('log.txt')
 
   # Loop over the two satellites. 
   for probe in ('a', 'b'):
@@ -50,16 +48,16 @@ def main():
     for event in read(srcdir + 'events/events_' + probe + '.txt'):
 
       # Nuke the run directory. 
-      [ os.remove(x) for x in os.listdir(rundir) if x not in ('log.txt',) ]
+      [ os.remove(x) for x in os.listdir(rundir) if x not in ('stdoe.txt',) ]
 
       # The data directory is indexed by the event timestamp. 
       name = probe + '_' + event.replace('/', '_').translate(None, '-:') + '/'
-
-      append(name, 'log.txt')
+      print name,
+      stdout.flush()
 
       # Check if we've already done this one. 
       if os.path.isdir(outdir + name):
-        append('\tDATA ALREADY EXISTS', 'log.txt')
+        print '\tDATA ALREADY EXISTS'
         continue
       else:
         os.mkdir(outdir + name)
@@ -71,26 +69,25 @@ def main():
 #      print out
 #      print err
 
-      # If IDL crashes, don't save any data. But leave the directory, so we
-      # know not to bother with this event next time. 
-      if 'Variable is undefined: RBSPX' in err:
-        append('\tBAD DATA', 'log.txt')
-        continue
+#      # If IDL crashes, don't save any data. But leave the directory, so we
+#      # know not to bother with this event next time. 
+#      if 'Variable is undefined: RBSPX' in err:
+#        print '\tBAD DATA'
+#        continue
 
       # Read in the IDL output. 
       if not os.path.exists('temp.sav'):
-        append('\tNO DATA', 'log.txt')
+        print '\tNO DATA'
         continue
       else:
         temp = io.readsav('temp.sav')
 
       # Re-write the data in pickle format. 
-      print name
       for key, arr in temp.items():
         with open(outdir + name + key + '.pkl', 'wb') as handle:
           pickle.dump(arr, handle, protocol=-1)
-        append('\tcreated ' + outdir + name + key + '.pkl', 'log.txt')
-        print '\tcreated '+ outdir + name + key + '.pkl'
+        print '\t' + key,
+      print ''
 
   return
 

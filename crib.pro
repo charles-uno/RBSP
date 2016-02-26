@@ -4,7 +4,7 @@
 
 ; Here, we rework the crib sheet from Aaron into a form that's easier for the Python script to handle. 
 
-date = '2012-10-10'
+date = '2014-02-19'
 timespan, date
 
 probe = 'a'
