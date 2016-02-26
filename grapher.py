@@ -36,7 +36,7 @@ def main():
 
   # Each event has its own directory full of pickles. 
 #  for pkldir in [ choice( os.listdir(outdir) ) ]:
-  for pkldir in sorted( os.listdir(outdir) )[:1]:
+  for pkldir in sorted( os.listdir(outdir) )[:200]:
 
     # Load all of the pickles in this directory. Offset the time array to start
     # at midnight (rather than in 1970). 
@@ -150,7 +150,7 @@ def main():
 
     # Save the plot as an image. 
     if '-i' in argv:
-      PW.render('/home/user1/mceachern/Desktop/plots/INSITU/' + name + '.png')
+      PW.render('/home/user1/mceachern/Desktop/plots/INSITU/' + pkldir + '.png')
     else:
       PW.render()
 
