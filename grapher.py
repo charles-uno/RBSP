@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+from random import randrange
 
 from plotmod import *
 
@@ -81,14 +82,19 @@ def unitvecs(X, B0):
 
 # Put the slashes back into a date string. 
 def calendar(date):
-  return date[0:4] + '/' + date[4:6] + '/' + date[6:8]
+  return date[0:4] + '--' + date[4:6] + '--' + date[6:8]
 
 # Compute clock time from a count of seconds from midnight. 
-def clock(sfm):
+def clock(sfm, seconds=False):
   hh = sfm/3600
-  mm = (sfm%3600)/60
-  ss = sfm%60
-  return znt(hh, 2) + ':' + znt(mm, 2) + ':' + znt(ss, 2)
+  if seconds:
+    mm = (sfm%3600)/60
+    ss = sfm%60
+    return znt(hh, 2) + ':' + znt(mm, 2) + ':' + znt(ss, 2)
+  else:
+    mm = int( format( (sfm%3600)/60., '.0f') )
+    return znt(hh, 2) + ':' + znt(mm, 2)
+
 
 # #############################################################################
 # ######################################################################## Main
@@ -100,7 +106,7 @@ def main():
   outdir = '/media/My Passport/RBSP/pickles/'
 
   # Each event has its own directory full of pickles. 
-  for pkldir in os.listdir(outdir):
+  for pkldir in os.listdir(outdir)[2:3]:
 
     # Load all of the pickles in this directory. Offset the time array to start
     # at midnight (rather than in 1970). 
@@ -127,46 +133,79 @@ def main():
     xhat, yhat, zhat = unitvecs(XGSE, B0GSE)
 
     # Compute the electric and magnetic field components in dipole coordinates.
-    # The background magnetic field -- which lies in the zhat direction by
-    # construction -- is kept separate. 
-    B0 = dot(zhat, B0GSE)
     Bx = dot(xhat, BGSE - B0GSE)
     By = dot(yhat, BGSE - B0GSE)
     Bz = dot(zhat, BGSE - B0GSE)
-
     Ex = dot(xhat, EGSE)
     Ey = dot(yhat, EGSE)
     Ez = dot(zhat, EGSE)
 
-    PW = plotWindow(nrows=2, ncols=-2)
+    # Also compute the probe's average position. 
+    L = np.average( data['lshell'][i0:i1] )
+    MLT = np.average( data['mlt'][i0:i1] )
+    mlat = np.average( data['mlat'][i0:i1] )
 
-    title = notex( 'RBSP-' + probe.upper() + ' on ' + calendar(date) + ' from ' + clock(t0) + ' to ' + clock(t1) )
+    # Set up a plot window. Use double-wide columns. 
+    ylabels = ( notex('Poloidal (\\frac{mV}{m}) (nT)'), 
+                notex('Poloidal FFT (\\frac{mV}{m}) (nT)'), 
+                notex('Toroidal (\\frac{mV}{m}) (nT)'), 
+                notex('Field-Aligned (\\frac{mV}{m}) (nT)') )
+    PW = plotWindow(nrows=len(ylabels), ncols=-2)
 
-    tcoord = (t - t[0])/60
+    # Set the title and labels. 
+    title = notex('In Situ Electric (Blue) and Magnetic (Red) Fields')
+    xlabel = notex( 'Time (hh:mm) on ' + calendar(date) )
+    collabel = ( notex( 'RBSP--' + probe.upper() ) + ' \\qquad L \\!=\\! ' +
+                 format(L, '.1f') + ' \\qquad ' + notex( clock(3600*MLT) +
+                 ' MLT') + ' \\qquad ' + format(mlat, '.1f') + '^\\circ' +
+                 notex(' Magnetic Latitude') )
+    PW.setParams(title=title, collabels=[collabel], xlabel=xlabel)
+    [ PW[i].setParams(ylabel=ylbl) for i, ylbl in enumerate(ylabels) ]
 
-    print 'min tcoord = ', tcoord[0]
-    print 'max tcoord = ', tcoord[-1]
+    # Manually set the ticks and tick labels on the x axis. 
+    xticks, xticklabels = range(11), ['']*11
+    for i in range(1, 11, 2):
+      xticklabels[i] = '$' + notex( clock(t[0] + 60*i) ) + '$'
+    PW.setParams(x=( t - t[0] )/60, xticks=xticks, xticklabels=xticklabels)
 
-    PW.setParams( x=tcoord, xlabel=notex('Time (min)'), xlims=(0, 10), xticks=range(11), xticklabels=('$0$', '', '$2$', '', '$4$', '', '$6$', '', '$8$', '', '$10$'), title=title )
-#    PW.setParams( x=tcoord, xlabel=notex('Time (s)'), title=title )
+    # Add the field components to the plot. 
+    PW[0].setLine(Ey, 'b')
+    PW[0].setLine(Bx, 'r')
 
-    PW[0].setParams(ylabel=notex('Magnetic Field (nT)'))
-    PW[0].setLine(Bx, 'b')
-    PW[0].setLine(By, 'r')
-    PW[0].setLine(Bz, 'g')
+    PW[2].setLine(Ex, 'b')
+    PW[2].setLine(By, 'r')
 
-    PW[1].setParams(ylabel=notex('Electric Field (\\frac{mV}{m})'))
-    PW[1].setLine(Ex, 'b')
-    PW[1].setLine(Ey, 'r')
-    PW[1].setLine(Ez, 'g')
+    PW[3].setLine(Ez, 'b')
+    PW[3].setLine(Bz, 'r')
 
+    # Let's do a quick Fourier transform of the poloidal components and plot
+    # the strongest component (in the Pc4 range) right under the poloidal
+    # waveforms. That will let us estimate the phase offset. 
+    dt, trange = t[1] - t[0], t[-1] - t[0]
+    def harm(n):
+      return np.exp(2j*np.pi*n*t/trange)
+
+    # We only want frequencies within the Pc4 band: 45 to 150 seconds. 
+    nmin, nmax = 600/150, 600/30
+    Bweights = np.zeros(nmax, dtype=np.complex)
+    Eweights = np.zeros(nmax, dtype=np.complex)
+
+    for n in range(nmin, nmax):
+      Bweights[n] = np.sum(Bx*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
+      Eweights[n] = np.sum(Ey*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
+
+    nB, nE = np.argmax( np.abs(Bweights) ), np.argmax( np.abs(Eweights) )
+
+    tfine = np.linspace(t[0], t[-1], 1000)
+    def harmfine(n):
+      return np.exp(2j*np.pi*n*tfine/trange)
+
+    PW[1].setParams(x=(tfine-tfine[0])/60)
+    PW[1].setLine( np.real( harmfine(nE)*Eweights[nE] ) , 'b' )
+    PW[1].setLine( np.real( harmfine(nB)*Bweights[nB] ) , 'r' )
+
+    # Save the plot as an image. 
     PW.render()
-
-    return
-
-    lshell = data['lshell'][i0:i1]
-    mlt = data['mlt'][i0:i1]
-    mlat = data['mlat'][i0:i1]
 
   return
 
