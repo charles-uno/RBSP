@@ -35,47 +35,25 @@ def main():
   outdir = '/media/My Passport/RBSP/pickles/'
 
   # Each event has its own directory full of pickles. 
-#  for pkldir in [ choice( os.listdir(outdir) ) ]:
-  for pkldir in sorted( os.listdir(outdir) )[:200]:
+  pkldirs = sorted( os.listdir(outdir) )[:200] if '-i' in argv else sorted( os.listdir(outdir) )[:1]
+  for pkldir in pkldirs:
 
-    # Load all of the pickles in this directory. Offset the time array to start
-    # at midnight (rather than in 1970). 
-    data = load(outdir + pkldir + '/')
-    data['time'] = data['time'] - data['time'][0]
+    # From a directory, construct an event object. 
+    ev = event(outdir + pkldir + '/')
 
-    # Get the probe name and the timestamp from the directory name. From the
-    # timestamps, find the data indeces corresponding to the start and end of
-    # the event. 
-    probe, date, t0, t1 = pdtt(pkldir)
-    i0, i1 = np.argmax(data['time'] > t0), np.argmax(data['time'] > t1)
+    date = ev.date
 
-    # Slice the event out of the full day of data. Also compute a ten-minute
-    # rolling average of the magnetic field to estimate the background field. 
-    t     = data['time'][i0:i1]
-    BGSE  = data['bgse'][:, i0:i1]
-    B0GSE = getbg( data['time'], data['bgse'] )[:, i0:i1]
-    EGSE  = data['egse'][:, i0:i1]
-    XGSE  = data['xgse'][:, i0:i1]
+    probe = ev.probe
 
-    # Compute the dipole coordinate directions. The zhat unit vector lines up
-    # with the background magnetic field, yhat is azimuthally eastward, and
-    # xhat completes the orthonormal coordinate system. 
-    zhat = unit(B0GSE)
-    yhat = unit( np.cross(zhat, XGSE, axis=0) )
-    xhat = np.cross(yhat, zhat, axis=0)
+    L = np.average( ev.get('lshell') )
+    MLT = np.average( ev.get('MLT') )
+    mlat = np.average( ev.get('mlat') )
 
-    # Rotate electric and magnetic fields to dipole coordinates.
-    Bx = dot(xhat, BGSE - B0GSE)
-    By = dot(yhat, BGSE - B0GSE)
-    Bz = dot(zhat, BGSE - B0GSE)
-    Ex = dot(xhat, EGSE)
-    Ey = dot(yhat, EGSE)
-    Ez = dot(zhat, EGSE)
+    Bx, By, Bz = ev.get('Bx'), ev.get('By'), ev.get('Bz')
+    Ex, Ey, Ez = ev.get('Ex'), ev.get('Ey'), ev.get('Ez')
 
-    # Also compute the probe's average position. 
-    L = np.average( data['lshell'][i0:i1] )
-    MLT = np.average( data['mlt'][i0:i1] )
-    mlat = np.average( data['mlat'][i0:i1] )
+    t = ev.get('t')
+
 
     # Set up a plot window. Use double-wide columns. 
     ylabels = ( notex('Poloidal (\\frac{mV}{m}) (nT)'), 
@@ -157,43 +135,114 @@ def main():
   return
 
 
+# #############################################################################
+# ################################################################ Event Object
+# #############################################################################
 
+# Given the name of a directory holding an event, this event grabs the data out
+# of that directory and assembles it into a useful form. 
+class event:
 
-# Started on an event class... I think that's overkill. We're not going to be
-# doing any serious computation here. 
-'''
-class eventObj:
+  # ---------------------------------------------------------------------------
+  # --------------------------------------------------- Initialize Event Object
+  # ---------------------------------------------------------------------------
 
   def __init__(self, datadir):
 
-    # The data directory gives which probe this is, as well as the timestamp. 
-    self.probe, self.date, self.time = datadir.split('/')[-1].split('_')
+    # From the name of the directory, get the probe name and the timestamp. 
+    self.probe, self.date, self.t0, self.t1 = self.parse(datadir)
 
-    # Read in the pickles. This is the whole day of data, in GSE coordinates. 
-    self.load(datadir)
+    # Load the pickles for time, fields, and position. 
+    for var in ('time', 'bgse', 'egse', 'xgse', 'lshell', 'mlt', 'mlat'):
+      self.__dict__[var] = loadpickle(datadir + var + '.pkl')
 
-    # Use a ten minute running average to get the background magnetic field. 
-    # That's the zhat direction. 
-    self.setzhat()
+    # Shift the time coordinate to be zero at midnight, rather than in 1970. 
+    self.t = self.time - self.time[0]
 
-    pickles = self.load(datadir)
+    # Figure out the indeces that correspond to the event start and end. 
+    self.i0, self.i1 = np.argmax(self.t>self.t0), np.argmax(self.t>self.t1)
 
+    # Compute the background magnetic field using a rolling average. 
+    self.b0gse = self.getbg(self.t, self.bgse)
 
-  # Based on the pickle directory name, return the probe name and the start and
-  # end time of the event, in seconds from midnight. Note that all events are
-  # ten minutes long by construction. 
-  def ptt(pkldir):
-    probe, date, time = pkldir.split('_')
+    # Get the parallel, azimuthal, and crosswise unit vectors. 
+    self.xhat, self.yhat, self.zhat = self.uvecs(self.xgse, self.b0gse)
+
+    # Rotate the magnetic field into dipole coordinates. 
+    self.bx, self.by, self.bz = self.rotate(self.bgse - self.b0gse)
+
+    # Do the same for the magnetic fields. 
+    self.ex, self.ey, self.ez = self.rotate(self.egse)
+
+    return
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------------ Parse Directory Name
+  # ---------------------------------------------------------------------------
+
+  # Split the directory into the probe name, the date stamp, and the time. Note
+  # that all events are ten minutes long by construction. 
+  def parse(self, pkldir):
+    probe, date, time = pkldir.rstrip('/').split('/')[-1].split('_')
     hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
     t0 = ss + 60*mm + 3600*hh
-    return probe, t0, t0 + 600
+    return probe, date, t0, t0 + 600
 
-  def load(self, datadir):
-    data = {}
-    for pklname in os.listdir(datadir):
-      with open(datadir + pklname, 'rb') as handle:
-        data[ pklname[:-4] ] = pickle.load(handle)
-'''
+  # ---------------------------------------------------------------------------
+  # ----------------------------------------- Compute Background Magnetic Field
+  # ---------------------------------------------------------------------------
+
+  # Take a rolling average of the magnetic field to estimate the background
+  # field. The average gets truncated at the edges -- notably, none of Lei's
+  # events happen within ten minutes of midnight. 
+  def getbg(self, t, B):
+    B0 = np.empty(B.shape)
+    for i in range( B.shape[1] ):
+      # Find indeces five minutes in the past and five minutes in the future. 
+      ipas, ifut = np.argmax(t > t[i] - 300), np.argmax(t > t[i] + 300)
+      # Correct the upper bound in casae it overflows the array domain. 
+      ifut = ifut if ifut>0 else B.shape[1]
+      # Take the average. 
+      B0[:, i] = np.average(B[:, ipas:ifut], axis=1)
+    return B0
+
+  # ---------------------------------------------------------------------------
+  # ----------------------------------------------------- Compute Basis Vectors
+  # ---------------------------------------------------------------------------
+
+  # Compute the dipole coordinate directions. The zhat unit vector lines up
+  # with the background magnetic field, yhat is azimuthally eastward, and xhat
+  # completes the orthonormal coordinate system. 
+  def uvecs(self, X, B0):
+    zhat = unit(B0)
+    yhat = unit( np.cross(zhat, X, axis=0) )
+    return np.cross(yhat, zhat, axis=0), yhat, zhat
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------- Rotate from GSE to Dipole Coordinates
+  # ---------------------------------------------------------------------------
+
+  # Dot vectors in GSE coordinates with the basis vectors (also in GSE
+  # coordinates) to end up with vector components in the dipole basis. 
+  def rotate(self, vgse):
+    return dot(vgse, self.xhat), dot(vgse, self.yhat), dot(vgse, self.zhat)
+
+  # ---------------------------------------------------------------------------
+  # --------------------------------------------------------- Access Event Data
+  # ---------------------------------------------------------------------------
+
+  # Access a quantity. Only the slice during the ten-minute event is returned. 
+  def get(self, var):
+    return self.__dict__[ var.lower() ][..., self.i0:self.i1]
+
+
+
+
+
+
+
+
+
 
 '''
 # Make sure the given variable is a 3-by-N array.  
@@ -228,11 +277,16 @@ def load(datadir):
       data[ pklname[:-4] ] = pickle.load(handle)
   return data
 
+# Load a pickle file. 
+def loadpickle(pklpath):
+  with open(pklpath, 'rb') as handle:
+    return pickle.load(handle)
+
 # Based on the pickle directory name, return the probe name and the start and
 # end time of the event, in seconds from midnight. Note that all events are ten
 # minutes long by construction. 
 def pdtt(pkldir):
-  probe, date, time = pkldir.split('_')
+  probe, date, time = pkldir.rstrip('/').split('/')[-1].split('_')
   hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
   t0 = ss + 60*mm + 3600*hh
   return probe, date, t0, t0 + 600
