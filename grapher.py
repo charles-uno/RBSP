@@ -35,7 +35,7 @@ def main():
   outdir = '/media/My Passport/RBSP/pickles/'
 
   # Each event has its own directory full of pickles. 
-  pkldirs = sorted( os.listdir(outdir) )[:200] if '-i' in argv else sorted( os.listdir(outdir) )[:1]
+  pkldirs = os.listdir(outdir) if '-i' in argv else os.listdir(outdir)[:1]
   for pkldir in pkldirs:
 
     # From a directory, construct an event object. 
