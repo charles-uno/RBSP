@@ -41,90 +41,82 @@ def main():
     # From a directory, construct an event object. 
     ev = event(outdir + pkldir + '/')
 
-    date = ev.date
-
-    probe = ev.probe
-
-    L = np.average( ev.get('lshell') )
-    MLT = np.average( ev.get('MLT') )
-    mlat = np.average( ev.get('mlat') )
-
     Bx, By, Bz = ev.get('Bx'), ev.get('By'), ev.get('Bz')
     Ex, Ey, Ez = ev.get('Ex'), ev.get('Ey'), ev.get('Ez')
 
     t = ev.get('t')
 
-
-    # Set up a plot window. Use double-wide columns. 
+    # Initialize plot window object. Four double-wide rows. Label them. 
+    PW = plotWindow(nrows=4, ncols=-2)
     ylabels = ( notex('Poloidal (\\frac{mV}{m}) (nT)'), 
                 notex('Poloidal FFT (\\frac{mV}{m}) (nT)'), 
                 notex('Toroidal (\\frac{mV}{m}) (nT)'), 
-                notex('Field-Aligned (\\frac{mV}{m}) (nT)') 
-              )
-    PW = plotWindow(nrows=len(ylabels), ncols=-2)
-
-    # Set the title and labels. 
-    title = notex('In Situ Electric (Blue) and Magnetic (Red) Fields')
-    xlabel = notex( 'Time (hh:mm) on ' + calendar(date) )
-    collabel = ( notex( 'RBSP--' + probe.upper() ) + ' \\qquad L \\!=\\! ' +
-                 format(L, '.1f') + ' \\qquad ' + notex( clock(3600*MLT) +
-                 ' MLT') + ' \\qquad ' + format(mlat, '.0f') + '^\\circ' +
-                 notex(' Magnetic Latitude') )
-    PW.setParams(title=title, collabels=[collabel], xlabel=xlabel)
+                notex('Field-Aligned (\\frac{mV}{m}) (nT)') )
     [ PW[i].setParams(ylabel=ylbl) for i, ylbl in enumerate(ylabels) ]
 
+    # Assemble plot title and labels based on event parameters. 
+    title = notex('In Situ Electric (Blue) and Magnetic (Red) Fields')
+    xlabel = notex( 'Time (hh:mm) on ' + calendar(ev.date) )
+    collabel = ( notex( 'RBSP--' + ev.probe.upper() ) + ' \\qquad L \\!=\\! ' +
+                 format(np.average( ev.get('lshell') ), '.1f') + ' \\qquad ' +
+                 notex( clock( 3600*np.average( ev.get('MLT') ) ) +
+                 ' MLT') + ' \\qquad ' +
+                 format(np.average( ev.get('mlat') ), '.0f') + '^\\circ' +
+                 notex(' Magnetic Latitude') )
+    PW.setParams(title=title, collabels=[collabel], xlabel=xlabel)
+
     # Manually set the ticks and tick labels on the x axis. 
-    xticks, xticklabels = range(11), ['']*11
+    xtks, xtls = range(11), ['']*11
     for i in range(1, 11, 2):
-      xticklabels[i] = '$' + notex( clock(t[0] + 60*i) ) + '$'
-    PW.setParams(x=( t - t[0] )/60, xticks=xticks, xticklabels=xticklabels)
+      xtls[i] = '$' + notex( clock(ev.t[0] + 60*i) ) + '$'
+    PW.setParams(x=ev.get('tcoord'), xticks=xtks, xticklabels=xtls)
 
-    # Add the field components to the plot. 
-    PW[0].setLine(Ey, 'b')
-    PW[0].setLine(Bx, 'r')
-    PW[2].setLine(Ex, 'b')
-    PW[2].setLine(By, 'r')
-    PW[3].setLine(Ez, 'b')
-    PW[3].setLine(Bz, 'r')
+    # Plot poloidal, toroidal, and field-aligned components. 
+    [ PW[0].setLine(ev.get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
+    [ PW[2].setLine(ev.get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
+    [ PW[3].setLine(ev.get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
 
-    # Let's do a quick Fourier transform of the poloidal components. This
-    # should make it easier to estimate
-    dt, trange = t[1] - t[0], t[-1] - t[0]
+    # Fourier transform the poloidal components, to eyeball phase offset. 
+
+    # Harmonic at data resolution. 
+    t = ev.get('tcoord')
     def harm(n):
-      return np.exp(2j*np.pi*n*t/trange)
+      return np.exp( 2j*np.pi*n*t / ( t[-1] - t[0] ) )
 
-    # Look only at components in the Pc4 frequency range. 
-    nmin, nmax = 600/150, 600/30
-    Bweights = np.zeros(nmax, dtype=np.complex)
-    Eweights = np.zeros(nmax, dtype=np.complex)
-
-    # Compute harmonic weights. 
-    for n in range(nmin, nmax):
-      Bweights[n] = np.sum(Bx*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
-      Eweights[n] = np.sum(Ey*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
-
-    # Use a nice, fine grid to draw the reconstituted fields. 
+    # Harmonic at fine resolution, for a smooth plot. 
     tfine = np.linspace(t[0], t[-1], 1000)
     def harmfine(n):
-      return np.exp(2j*np.pi*n*tfine/trange)
+      return np.exp( 2j*np.pi*n*tfine/ ( tfine[-1] - tfine[0] ) )
+
+    # The domain is finite, so we use a discrete set of Fourier weights. Let's
+    # constrain ourselves to looking at frequency components in the Pc4 band. 
+    nmin, nmax = 600/150, 600/30
+    Bwts = np.zeros(nmax, dtype=np.complex)
+    Ewts = np.zeros(nmax, dtype=np.complex)
+
+    # Compute Fourier series weights. 
+    dt = t[1] - t[0]
+    for n in range(nmin, nmax):
+      Bwts[n] = np.sum(ev.get('Bx')*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
+      Ewts[n] = np.sum(ev.get('Ey')*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
 
     # Do we want to show the whole reconstituted waveform, or just the single
     # strongest harmonic? 
-    if False:
+    if True:
       # Sum the harmonics. 
       BFFT, EFFT = np.zeros(1000), np.zeros(1000)
       for n in range(nmin, nmax):
-        BFFT = BFFT + np.real( harmfine(n)*Bweights[n] )
-        EFFT = EFFT + np.real( harmfine(n)*Eweights[n] )
+        BFFT = BFFT + np.real( harmfine(n)*Bwts[n] )
+        EFFT = EFFT + np.real( harmfine(n)*Ewts[n] )
       # Plot the reconstituted waveforms. 
-      PW[1].setParams(x=(tfine-tfine[0])/60)
+      PW[1].setParams(x=tfine)
       PW[1].setLine(BFFT, 'r')
       PW[1].setLine(EFFT, 'b')
     else:
-      nB, nE = np.argmax( np.abs(Bweights) ), np.argmax( np.abs(Eweights) )
-      PW[1].setParams(x=(tfine-tfine[0])/60)
-      PW[1].setLine( np.real( harmfine(nE)*Eweights[nE] ) , 'b' )
-      PW[1].setLine( np.real( harmfine(nB)*Bweights[nB] ) , 'r' )
+      nB, nE = np.argmax( np.abs(Bwts) ), np.argmax( np.abs(Ewts) )
+      PW[1].setParams(x=tfine)
+      PW[1].setLine( np.real( harmfine(nE)*Ewts[nE] ) , 'b' )
+      PW[1].setLine( np.real( harmfine(nB)*Bwts[nB] ) , 'r' )
 
     # Save the plot as an image. 
     if '-i' in argv:
@@ -233,7 +225,10 @@ class event:
 
   # Access a quantity. Only the slice during the ten-minute event is returned. 
   def get(self, var):
-    return self.__dict__[ var.lower() ][..., self.i0:self.i1]
+    if var=='tcoord':
+      return ( self.get('t') - self.get('t')[0] )/60
+    else:
+      return self.__dict__[ var.lower() ][..., self.i0:self.i1]
 
 
 
