@@ -35,16 +35,11 @@ def main():
   outdir = '/media/My Passport/RBSP/pickles/'
 
   # Each event has its own directory full of pickles. 
-  pkldirs = os.listdir(outdir) if '-i' in argv else os.listdir(outdir)[:1]
+  pkldirs = sorted( os.listdir(outdir) ) if '-i' in argv else sortede( os.listdir(outdir) )[:1]
   for pkldir in pkldirs:
 
     # From a directory, construct an event object. 
     ev = event(outdir + pkldir + '/')
-
-    Bx, By, Bz = ev.get('Bx'), ev.get('By'), ev.get('Bz')
-    Ex, Ey, Ez = ev.get('Ex'), ev.get('Ey'), ev.get('Ez')
-
-    t = ev.get('t')
 
     # Initialize plot window object. Four double-wide rows. Label them. 
     PW = plotWindow(nrows=4, ncols=-2)
@@ -255,6 +250,8 @@ def calendar(date):
 
 # Compute clock time from a count of seconds from midnight. 
 def clock(sfm, seconds=False):
+  if not np.isfinite(sfm):
+    return '??:??'
   hh = sfm/3600
   if seconds:
     mm = (sfm%3600)/60
