@@ -34,27 +34,33 @@ def main():
   # Location of the output directories. 
   outdir = '/media/My Passport/RBSP/pickles/'
 
-  # Each event has its own directory full of pickles. 
-  pkldirs = sorted( os.listdir(outdir) ) if '-i' in argv else sorted( os.listdir(outdir) )[:3]
+  # Location where images should be saved. 
+  savedir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
+  if '-i' in argv and not os.path.exists(savedir):
+    os.mkdir(savedir)
+
+  # Each event has its own directory full of pickles. Go through all of them
+  # if we're making images. For debugging, just look at a random one. 
+  if '-i' in argv:
+    pkldirs = sorted( os.listdir(outdir) )
+  else:
+    pkldirs = [ choice( os.listdir(outdir) ) ]
+#    pkldirs = ['a_20121023_221000']
+
   for pkldir in pkldirs:
 
     # From a directory, construct an event object. 
     ev = event(outdir + pkldir + '/')
 
     # Make sure the event actually holds data before we try to access it. 
-    if ev.get('t').size==0:
-      print 'SKIPPING ' + pkldir + ' DUE TO BAD DATA. '
-      continue
-
-    # Check for non-finite data. 
-    if not all( all( np.isfinite( ev.get(var) ) ) for var in ('Ex', 'Ey') ):
+    if not ev.isok():
       print 'SKIPPING ' + pkldir + ' DUE TO BAD DATA. '
       continue
 
     # Initialize plot window object. Four double-wide rows. Label them. 
-    PW = plotWindow(nrows=4, ncols=-2)
+    PW = plotWindow(nrows=3, ncols=-2)
     ylabels = ( notex('Poloidal (\\frac{mV}{m}) (nT)'), 
-                notex('Poloidal FFT (\\frac{mV}{m}) (nT)'), 
+#                notex('Poloidal FFT (\\frac{mV}{m}) (nT)'), 
                 notex('Toroidal (\\frac{mV}{m}) (nT)'), 
                 notex('Field-Aligned (\\frac{mV}{m}) (nT)') )
     [ PW[i].setParams(ylabel=ylbl) for i, ylbl in enumerate(ylabels) ]
@@ -73,13 +79,13 @@ def main():
     # Manually set the ticks and tick labels on the x axis. 
     xtks, xtls = range(11), ['']*11
     for i in range(1, 11, 2):
-      xtls[i] = '$' + notex( clock(ev.t[0] + 60*i) ) + '$'
+      xtls[i] = '$' + notex( clock(ev.get('t')[0] + 60*i) ) + '$'
     PW.setParams(x=ev.get('tcoord'), xticks=xtks, xticklabels=xtls)
 
     # Plot poloidal, toroidal, and field-aligned components. 
     [ PW[0].setLine(ev.get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
-    [ PW[2].setLine(ev.get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
-    [ PW[3].setLine(ev.get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
+    [ PW[1].setLine(ev.get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
+    [ PW[2].setLine(ev.get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
 
     # Fourier transform the poloidal components, to eyeball phase offset. 
 
@@ -89,53 +95,42 @@ def main():
       return np.exp( 2j*np.pi*n*t / ( t[-1] - t[0] ) )
 
     # Harmonic at fine resolution, for a smooth plot. 
-    tfine = np.linspace(t[0], t[-1], 1000)
+    nfine = 1000
+    tfine = np.linspace(t[0], t[-1], nfine)
     def harmfine(n):
       return np.exp( 2j*np.pi*n*tfine/ ( tfine[-1] - tfine[0] ) )
 
-    # The domain is finite, so we use a discrete set of Fourier weights. Let's
-    # constrain ourselves to looking at frequency components in the Pc4 band. 
-    nmin, nmax = 600/150, 600/30
-    Bwts = np.zeros(nmax, dtype=np.complex)
-    Ewts = np.zeros(nmax, dtype=np.complex)
+    # The domain is finite, so we use a discrete set of Fourier weights. 
+    nmax = 20
+    wB, wE = np.zeros(nmax, dtype=np.complex), np.zeros(nmax, dtype=np.complex)
 
     # Compute Fourier series weights. 
     dt = t[1] - t[0]
-    for n in range(nmin, nmax):
-      Bwts[n] = np.sum(ev.get('Bx')*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
-      Ewts[n] = np.sum(ev.get('Ey')*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
+    for n in range(nmax):
+      wB[n] = np.sum(ev.get('Bx')*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
+      wE[n] = np.sum(ev.get('Ey')*harm(-n)*dt)/np.sum(harm(n)*harm(-n)*dt)
 
-    # Do we want to show the whole reconstituted waveform, or just the single
-    # strongest harmonic? 
-    if False:
-      # Sum the harmonics. 
-      BFFT, EFFT = np.zeros(1000), np.zeros(1000)
-      for n in range(nmin, nmax):
-        BFFT = BFFT + np.real( harmfine(n)*Bwts[n] )
-        EFFT = EFFT + np.real( harmfine(n)*Ewts[n] )
-      # Plot the reconstituted waveforms. 
-      PW[1].setParams(x=tfine)
-      PW[1].setLine(BFFT, 'r')
-      PW[1].setLine(EFFT, 'b')
-    else:
-      nB, nE = np.argmax( np.abs(Bwts) ), np.argmax( np.abs(Ewts) )
+    # Reconstitute a waveform. 
+    Bf = np.zeros(nfine, dtype=np.complex)
+    Ef = np.zeros(nfine, dtype=np.complex)
+    for n in range(nmax):
+      Bf = Bf + harmfine(n)*wB[n]
+      Ef = Ef + harmfine(n)*wE[n]
 
-      print pkldir, nB, nE
-      if nB!=nE:
-        print '\tHarmonics don\'t match. '
-	continue
-      else:
-        print np.angle(Ewts[nE], deg=True), np.angle(Bwts[nB], deg=False)
+    # Compute the complex phase between the electric and magnetic fields. 
+    Bangle, Eangle = np.angle(Bf), np.angle(Ef)
+    phase = Eangle - Bangle
+    # Make sure we stay between -180 and 180 degrees. 
+    phase = np.where(phase<-np.pi, phase + 2*np.pi, phase)
+    phase = np.where(phase>np.pi, phase - 2*np.pi, phase)
 
-
-
-      PW[1].setParams(x=tfine)
-      PW[1].setLine( np.real( harmfine(nE)*Ewts[nE] ) , 'b' )
-      PW[1].setLine( np.real( harmfine(nB)*Bwts[nB] ) , 'r' )
+    # Plot the phase, in radians. It's weird to put it on the same scale as the
+    # poloidal fields, but that's fine for the moment. 
+    PW[0].setLine(tfine, phase, 'g')
 
     # Save the plot as an image. 
     if '-i' in argv:
-      PW.render('/home/user1/mceachern/Desktop/plots/INSITU/' + pkldir + '.png')
+      PW.render(savedir + pkldir + '.png')
     else:
       PW.render()
 
@@ -245,8 +240,18 @@ class event:
     else:
       return self.__dict__[ var.lower() ][..., self.i0:self.i1]
 
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------- Check for Bad Data
+  # ---------------------------------------------------------------------------
 
-
+  # Data can be bad for a number of reasons. Sometimes a chunk of the day is
+  # missing due to eclipse. Sometimes the spin axis is too close to a
+  # measurement axis, so E dot B doesn't give good information. In any case, 
+  # the bad data is pretty easy to identify, so we just skip it. 
+  def isok(self):
+    if self.get('t').size==0:
+      return False
+    return all( all( np.isfinite( self.get(var) ) ) for var in ('Ex', 'Ey') )
 
 '''
 # Make sure the given variable is a 3-by-N array.  
