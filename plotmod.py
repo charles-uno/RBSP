@@ -656,6 +656,9 @@ class plotWindow:
       # By default, axis limits are common to all plots. 
       elif key=='sharelimits':
         self.sharelimits = bool(val)
+      # Put a sideways label in the color bar axis. 
+      elif key=='sidelabel':
+        self.cax.text(s='$' + val + '$', rotation='vertical', **targs)
       # Accept a string as the window supertitle. 
       elif key=='title':
         self.tax.text(s='$' + val + '$', fontsize=12, **targs)
@@ -757,10 +760,12 @@ class plotWindow:
     # If given a filename, save the image. 
     if filename is not None:
       print 'Saving ' + filename
-      return plt.savefig(filename)
+      plt.savefig(filename)
+      return True
     # Otherwise, display it. 
     else:
-      return plt.show()
+      plt.show()
+      return True
 
 # #############################################################################
 # ############################################################ Plot Cell Object
