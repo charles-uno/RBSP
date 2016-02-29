@@ -35,11 +35,24 @@ def main():
   outdir = '/media/My Passport/RBSP/pickles/'
 
   # Each event has its own directory full of pickles. 
-  pkldirs = sorted( os.listdir(outdir) ) if '-i' in argv else sortede( os.listdir(outdir) )[:1]
+  pkldirs = sorted( os.listdir(outdir) ) if '-i' in argv else sorted( os.listdir(outdir) )[:1]
   for pkldir in pkldirs:
+
+    # For debugging: index as we go to easily find problem events. 
+    print str( pkldirs.index(pkldir) ) + '\t', 
 
     # From a directory, construct an event object. 
     ev = event(outdir + pkldir + '/')
+
+    # Make sure the event actually holds data before we try to access it. 
+    if ev.get('t').size==0:
+      print 'SKIPPING ' + pkldir + ' DUE TO BAD DATA. '
+      continue
+
+    # Check for non-finite data. 
+    if not all( all( np.isfinite( ev.get(var) ) ) for var in ('Ex', 'Ey') ):
+      print 'SKIPPING ' + pkldir + ' DUE TO BAD DATA. '
+      continue
 
     # Initialize plot window object. Four double-wide rows. Label them. 
     PW = plotWindow(nrows=4, ncols=-2)
@@ -224,12 +237,6 @@ class event:
       return ( self.get('t') - self.get('t')[0] )/60
     else:
       return self.__dict__[ var.lower() ][..., self.i0:self.i1]
-
-
-
-
-
-
 
 
 
