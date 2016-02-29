@@ -35,11 +35,8 @@ def main():
   outdir = '/media/My Passport/RBSP/pickles/'
 
   # Each event has its own directory full of pickles. 
-  pkldirs = sorted( os.listdir(outdir) ) if '-i' in argv else sorted( os.listdir(outdir) )[:1]
+  pkldirs = sorted( os.listdir(outdir) ) if '-i' in argv else sorted( os.listdir(outdir) )[:3]
   for pkldir in pkldirs:
-
-    # For debugging: index as we go to easily find problem events. 
-    print str( pkldirs.index(pkldir) ) + '\t', 
 
     # From a directory, construct an event object. 
     ev = event(outdir + pkldir + '/')
@@ -110,7 +107,7 @@ def main():
 
     # Do we want to show the whole reconstituted waveform, or just the single
     # strongest harmonic? 
-    if True:
+    if False:
       # Sum the harmonics. 
       BFFT, EFFT = np.zeros(1000), np.zeros(1000)
       for n in range(nmin, nmax):
@@ -122,6 +119,16 @@ def main():
       PW[1].setLine(EFFT, 'b')
     else:
       nB, nE = np.argmax( np.abs(Bwts) ), np.argmax( np.abs(Ewts) )
+
+      print pkldir, nB, nE
+      if nB!=nE:
+        print '\tHarmonics don\'t match. '
+	continue
+      else:
+        print np.angle(Ewts[nE], deg=True), np.angle(Bwts[nB], deg=False)
+
+
+
       PW[1].setParams(x=tfine)
       PW[1].setLine( np.real( harmfine(nE)*Ewts[nE] ) , 'b' )
       PW[1].setLine( np.real( harmfine(nB)*Bwts[nB] ) , 'r' )
