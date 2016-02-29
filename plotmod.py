@@ -884,8 +884,13 @@ class plotCell:
     # Initialize line list. 
     if self.lines is None:
       self.lines = []
-    # Store this line in the list. Worry about the extra arguments later. 
-    self.lines.append( (args, kargs ) )
+
+    # If we're given two numpy arrays, the first is the horizontal coordinate. 
+    if len(args)>1 and isinstance(args[1], np.ndarray):
+      self.lines.append( (args, kargs) )
+    # If only given one array, use self.x. 
+    else:
+      self.lines.append( ( (self.x,) + args, kargs ) )
     return
 
   # ---------------------------------------------------------------------------
@@ -898,18 +903,12 @@ class plotCell:
   def xmax(self):
     return None if self.x is None else np.max(self.x)
 
-#    amax = None if self.x is None else np.max(self.x)
-#    if self.lines is None:
-#      return amax
-#    else:
-#      return max( amax, max( max( args[0] ) for args, kargs in self.lines ) )
-
   def ymax(self):
     amax = None if self.y is None else np.max(self.y)
     if self.lines is None:
       return amax
     else:
-      return max( amax, max( max( args[0] ) for args, kargs in self.lines ) )
+      return max( amax, max( max( args[1] ) for args, kargs in self.lines ) )
 
   def zmax(self):
     return None if self.z is None else np.max(self.z)
@@ -918,19 +917,13 @@ class plotCell:
 
   def xmin(self):
     return None if self.x is None else np.min(self.x)
-#    amax = None if self.x is None else np.min(self.x)
-#    if self.lines is None:
-#      return amin
-#    else:
-#      lmin = min( min( args[0] ) for args, kargs in self.lines )
-#      return lmin if amin is None else min(amin, lmin)
 
   def ymin(self):
     amin = None if self.y is None else np.min(self.y)
     if self.lines is None:
       return amin
     else:
-      lmin = min( min( args[0] ) for args, kargs in self.lines )
+      lmin = min( min( args[1] ) for args, kargs in self.lines )
       return lmin if amin is None else min(amin, lmin)
 
   def zmin(self):
@@ -953,7 +946,7 @@ class plotCell:
       [ self.ax.plot(self.x[:, k], self.y[:, k], 'k') for k in (0, -1) ]
     # Draw any lines. 
     if self.lines is not None:
-      [ self.ax.plot(self.x, *args, **kargs) for args, kargs in self.lines ]
+      [ self.ax.plot(*args, **kargs) for args, kargs in self.lines ]
     # Set axis limits. 
     self.ax.set_xlim(self.xlims)
     self.ax.set_ylim(self.ylims)
