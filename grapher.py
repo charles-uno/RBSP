@@ -21,6 +21,7 @@ except ImportError:
   import pickle
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy import pi
 import os
 from plotmod import *
 
@@ -29,7 +30,7 @@ from plotmod import *
 # #############################################################################
 
 # Global variable indicating where images should be saved. 
-outdir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
+savedir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
@@ -40,8 +41,8 @@ def main():
   # This makes us more likely to see bugs when just looking at the first plot.
   for pkldir in np.random.permutation( os.listdir(outdir) ):
 
-    # If we want to force it to look at a nice one... 
-    pkldir = 'a_20121023_220000'
+#    # If we want to force it to look at a nice one... 
+#    pkldir = 'a_20121023_220000'
 
     # If we're debugging, we just want to stop after a single plot. Some events
     # are bad, so we loop until the plotter tells us it's succeeded. 
@@ -118,9 +119,16 @@ def plotwaveforms(datadir):
     return PW.render()
   # If the power is spread out evenly across the harmonics, or if the phase is
   # all over the place, this event is probably garbage. 
-  elif int(stdev)>75 or int( powerpct.strip('%\\operatorname{}') )<35:
+  elif int( stdev.strip('\\^cir') )>99 or int( pct.strip('%\\operatnm{}') )<30:
     print 'SKIPPING ' + ev.name + ' DUE TO AMBIGUOUS PHASE. '
     return False
+
+  # At the moment, we want only the events where the phase lag and the magnetic
+  # latitude have opposite signs. 
+  elif mean.startswith('+')==( np.mean( ev.get('mlat') )>0 ):
+    print 'SKIPPING ' + ev.name + ' DUE TO WRONG SIGN OF MLAT*PHASE. '
+    return False
+
   # Save good plots (after making sure there's a place to put them). 
   else:
     if not os.path.exists(savedir):
@@ -143,49 +151,54 @@ def plotcoherence(datadir):
 
   PW = plotWindow(nrows=2)
 
-  PW.setParams( **ev.fparams() )
-
-  wB = ev.weights('Bx')
-  wE = ev.weights('Ey')
-  f = ev.get('f')
-
-  nB = np.fft.rfft( ev.get('Bx') )
-  nE = np.fft.rfft( ev.get('Ey') )
-
-  print 'wB size ', wB.size
-  print 'wE size ', wE.size
-  print 'f size  ', f.size
-  print 'nB size ', nB.size
-  print 'nE size ', nE.size
-
-  PW[0].setLine(f, np.abs(wB) )
-  PW[1].setLine(f, np.abs(wE) )
-
-  PW[0].setLine(f, np.abs(nB) )
-  PW[1].setLine(f, np.abs(nE) )
-
-
-
-  '''
-  # Grab the fields. 
   B, E = ev.get('Bx'), ev.get('Ey')
   N = B.size
-  # Time. 
+
   t = ev.get('t')
-  # Frequency in Hz (it's given in mHz). 
-  f = ev.get('f')/1e3
-  # Cross-correlation of two vectors. 
+  dt = t[1] - t[0]
+
+#  f = ev.get('f')/1e3
+
   def cc(x, y, n):
     if n==0:
       return np.sum(x*y)
     else:
       return np.sum( x[n:]*y[:-n] ) if n>0 else np.sum( x[:n]*y[-n:] )
-  # Cross-spectral density of two vectors. 
+
   def csd(x, y, f):
-    c = 0.
-    for n in range(-x.size, x.size):
-      c = c + cc(x, y, n)*np.exp(-1j*f*n)
-    return c/(2*np.pi)
+    N = x.size
+    return sum( cc(x, y, n)*np.exp(-1j*f*n*dt) for n in range(-N, N) )/(2*pi)
+
+  GBB = np.zeros(ev.get('f').size, dtype=np.complex)
+  GEE = np.zeros(ev.get('f').size, dtype=np.complex)
+  GEB = np.zeros(ev.get('f').size, dtype=np.complex)
+
+  for i, f in enumerate(ev.get('f')/1e3):
+    GBB[i] = csd(B, B, f)
+    GEE[i] = csd(E, E, f)
+    GEB[i] = csd(E, B, f)
+    print '\t', i, '\t', format(f*1e3, '3.0f'), '\t', format(np.abs(GBB[i]), '6.2f'), '\t', format(np.abs(GEE[i]), '6.2f'), '\t', format(np.abs(GEB[i]), '6.2f'), '\t', (np.abs(GEB)**2 / np.abs(GEE*GBB))[i]
+
+
+  coherence = np.abs(GEB)**2 / np.abs(GEE*GBB)
+  PW[0].setParams( ylims=(0, 1), **ev.fparams() )
+  PW[0].setLine(coherence)
+
+
+
+
+  # FFT validation. 
+  '''
+  PW.setParams( **ev.fparams() )
+  wB = ev.weights('Bx')
+  wE = ev.weights('Ey')
+  f = ev.get('f')
+  nB = np.fft.rfft( ev.get('Bx') )
+  nE = np.fft.rfft( ev.get('Ey') )
+  PW[0].setLine(f, np.abs(wB) )
+  PW[1].setLine(f, np.abs(wE) )
+  PW[0].setLine(f, np.abs(nB) )
+  PW[1].setLine(f, np.abs(nE) )
   '''
 
 #  collabels = ( 'E_y' + notex('(Blue) and ') + 'B_x' + notex('(Red)'), notex('Spectral Density') )
@@ -303,7 +316,7 @@ class event:
              format(np.average( self.get('lshell') ), '.1f') + ' \\qquad ' +
              notex( clock( 3600*np.average( self.get('MLT') ) ) +
              ' MLT') + ' \\qquad ' +
-             format(np.average( self.get('mlat') ), '.0f') + '^\\circ' +
+             format(np.average( self.get('mlat') ), '+.0f') + '^\\circ' +
              notex(' Magnetic Latitude') )
 
   # ---------------------------------------------------------------------------
