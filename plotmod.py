@@ -889,10 +889,11 @@ class plotCell:
     # Initialize line list. 
     if self.lines is None:
       self.lines = []
-
     # If we're given two numpy arrays, the first is the horizontal coordinate. 
     if len(args)>1 and isinstance(args[1], np.ndarray):
       self.lines.append( (args, kargs) )
+      if self.x is None:
+        self.x = args[0]
     # If only given one array, use self.x. 
     else:
       self.lines.append( ( (self.x,) + args, kargs ) )
