@@ -47,7 +47,10 @@ def main():
     # If we're debugging, we just want to stop after a single plot. Some events
     # are bad, so we loop until the plotter tells us it's succeeded. 
 
-    if plotwaveforms(outdir + pkldir + '/'):
+#    if plotwaveforms(outdir + pkldir + '/'):
+#      break
+
+    if plotboth(outdir + pkldir + '/'):
       break
 
 #    if plotcoherence(outdir + pkldir + '/'):
@@ -58,6 +61,72 @@ def main():
 # #############################################################################
 # ########################################################## Plotting Functions
 # #############################################################################
+
+# =============================================================================
+# ====================================================== One Event, Both Probes
+# =============================================================================
+
+def plotboth(datadir):
+  global savedir
+
+  # IGNORE THE INPUT. LET'S TRY A NEW WAY. 
+
+  while True:
+
+    evline = choice( read('events.txt')[:37] )
+
+    probe, date, time = evline.split()
+    ev = { 'a':event(probe='a', date=date, time=time),
+           'b':event(probe='b', date=date, time=time) }
+
+    if ev['a'].isok() and ev['b'].isok():
+      break
+    else:
+      print 'skipping ', probe, date, time, ' due to bad data'
+
+  print 'looking at ', probe, date, time
+
+  PW = plotWindow(nrows=3, ncols=2)
+
+  title = notex('Simultaneous Electric (Blue) and Magnetic (Red) Measurements')
+  collabels = [ ev[prb].lbl() for prb in ('a', 'b') ]
+  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
+  ylabel = 'B' + notex(' (nT)') + '\\; \\; E' + notex('(\\frac{mV}{m})')
+  PW.setParams(title=title, collabels=collabels, ylabel=ylabel,
+               rowlabels=rowlabels, ylabelpad=-1)
+
+  # Plot the fields. 
+  for col, prb in enumerate( ('a', 'b') ):
+    PW[:, col].setParams( **ev[prb].coords('t', 'b', cramped=True) )
+    [ PW[0, col].setLine(ev[prb].get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
+    [ PW[1, col].setLine(ev[prb].get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
+    [ PW[2, col].setLine(ev[prb].get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
+
+  return PW.render()
+
+  '''
+  # Compute the coherence by slamming the Fourier weights together. 
+  pol = ev.weights('Ey')*np.conj( ev.weights('Bx') )
+  tor = ev.weights('Ex')*np.conj( ev.weights('By') )
+  par = ev.weights('Ez')*np.conj( ev.weights('Bz') )
+  norm = max( np.max( np.abs(ww) ) for ww in (pol, tor, par) )
+
+  npol = 360*np.abs(pol)/norm - 180
+  ntor = 360*np.abs(tor)/norm - 180
+  npar = 360*np.abs(par)/norm - 180
+
+  PW[0, 1].setLine(npol, 'k')
+  PW[1, 1].setLine(ntor, 'k')
+  PW[2, 1].setLine(npar, 'k')
+
+  # Also grab the phase offsets. 
+  apol = np.angle(pol, deg=True)
+  ator = np.angle(tor, deg=True)
+  apar = np.angle(par, deg=True)
+  PW[0, 1].setLine(apol, 'g')
+  PW[1, 1].setLine(ator, 'g')
+  PW[2, 1].setLine(apar, 'g')
+  '''
 
 # =============================================================================
 # ============================================================= Field Waveforms
@@ -260,13 +329,28 @@ class event:
   # --------------------------------------------------- Initialize Event Object
   # ---------------------------------------------------------------------------
 
-  def __init__(self, datadir):
+  def __init__(self, datadir=None, probe=None, date=None, time=None):
 
-    # Get the event's name. 
-    self.name = datadir.rstrip('/').split('/')[-1]
 
-    # From the name of the directory, get the probe name and the timestamp. 
-    self.probe, self.date, self.t0, self.t1 = self.parse(datadir)
+    if datadir is not None:
+
+      # Get the event's name. 
+      self.name = datadir.rstrip('/').split('/')[-1]
+      # From the name of the directory, get the probe name and the timestamp. 
+      self.probe, self.date, self.t0, self.t1 = self.parse(datadir)
+
+    else:
+
+      self.date = date.replace('-', '')
+      self.probe = probe
+
+      hh, mm, ss = [ int(x) for x in time.split(':') ]
+      self.t0 = 3600*hh + 60*mm + ss
+      self.t1 = self.t0 + 600
+
+      self.name = self.date + '_' + time.replace(':', '') + '_' + probe
+
+      datadir = '/media/My Passport/rbsp/pkls/' + self.date + '/' + probe + '/'
 
     # Load the pickles for time, fields, and position. 
     for var in ('time', 'bgse', 'egse', 'xgse', 'lshell', 'mlt', 'mlat'):
@@ -319,6 +403,12 @@ class event:
              format(np.average( self.get('mlat') ), '+.0f') + '^\\circ' +
              notex(' Magnetic Latitude') )
 
+  def lbl(self):
+    return ( notex( self.probe.upper() ) + ' \\quad ' +
+             notex(format(self.avg('lshell'), '.1f') + 'R_E') + ' \\quad ' +
+             notex(format(self.avg('mlat'), '+.0f') + '^\\circ') + ' \\quad ' +
+             notex( clock( 3600*self.avg('mlt') ) + ' MLT' ) )
+
   # ---------------------------------------------------------------------------
   # ----------------------------------------- Compute Background Magnetic Field
   # ---------------------------------------------------------------------------
@@ -366,14 +456,20 @@ class event:
   def get(self, var):
     if var=='tcoord':
       return ( self.get('t') - self.get('t')[0] )/60
-    elif var=='dt':
-      return ( self.t[self.i0+1:self.i1+1] - self.t[self.i0-1:self.i1-1] )/120
     elif var=='tfine':
       return np.linspace(self.get('tcoord')[0], self.get('tcoord')[-1], 1000)
     elif var=='f':
       return 1e3*self.modes/600
+    # For fields, subtract off the average value. 
+    elif var.lower() in ('bx', 'by', 'bz', 'ex', 'ey', 'ez'):
+      arr = self.__dict__[ var.lower() ][..., self.i0:self.i1]
+      return arr - np.mean(arr)
     else:
       return self.__dict__[ var.lower() ][..., self.i0:self.i1]
+
+  # Average over the ten-minute event to get a single value.
+  def avg(self, var):
+    return np.average( self.get(var) )
 
   # ---------------------------------------------------------------------------
   # -------------------------------------------------------- Check for Bad Data
@@ -389,8 +485,61 @@ class event:
     return all( all( np.isfinite( self.get(var) ) ) for var in ('Ex', 'Ey') )
 
   # ---------------------------------------------------------------------------
-  # ---------------------------- Horizontal Axis Limits, Ticks, and Tick Labels
+  # -------------------------------------------- Axis Limits, Ticks, and Labels
   # ---------------------------------------------------------------------------
+
+  def coords(self, x='t', y='b', cramped=False):
+    # Assemble a keyword dictionary to be plugged right into the Plot Window. 
+    kargs = {}
+    # Horizontal axis, time coordinate. 
+    if x.lower()=='t':
+      kargs['x'] = self.get('tcoord')
+      kargs['xlims'] = ( kargs['x'][0], kargs['x'][0] + 10)
+      kargs['xlabel'] = notex('Time (hh:mm)')
+      # If the axis doesn't get the full width of the window, use fewer ticks.
+      if cramped:
+        kargs['xticks'] = (0, 2.5, 5, 7.5, 10)
+        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
+        for i in (0, 2, 4):
+          kargs['xticklabels'][i] = '$' + notex( clock(self.t0 + 150*i) ) + '$'
+      else:
+        kargs['xticks'] = range(11)
+        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
+        for i in range(1, 11, 2):
+          kargs['xticklabels'][i] = '$' + notex( clock(self.t0 + 60*i) ) + '$'
+    # Horizontal axis, frequency coordinate. 
+    elif x.lower()=='f':
+      kargs['x'] = self.get('f')
+      kargs['xlims'] = (0, 40)
+      kargs['xlabel'] = notex('Frequency (mHz)')
+      # If the axis doesn't get the full width of the window, use fewer ticks.
+      if cramped:
+        kargs['xticks'] = (0, 10, 20, 30, 40)
+        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
+        kargs['xticklabels'][::2] = ('$0$', '$20$', '$40$')
+      else:
+        kargs['xticks'] = range(0, 41, 5)
+        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
+        kargs['xticklabels'][::2] = ('$0$', '$10$', '$20$', '$30$', '$40$')
+    else:
+      print 'UNKNOWN X COORD ', x
+    # Vertical axis, plotting electric and/or magnetic fields. 
+    if y.lower() in ('e', 'b', 'fields', 'waveform'):
+      kargs['ylims'] = (-3, 3)
+      kargs['yticks'] = range(-3, 4)
+      kargs['yticklabels'] = ('$-3$', '', '', '$0$', '', '', '$+3$')
+    # Vertical axis, plotting Fourier magnitude and phase. 
+    elif y.lower() in ('p', 's', 'phase', 'spectra'):
+      kargs['ylims'] = (-180, 180)
+      kargs['yticks'] = (-180, -90, 0, 90, 180)
+    else:
+      print 'UNKNOWN Y COORD ', y
+    # Return the keyword dictionary, ready to be plugged right into setParams. 
+    return kargs
+
+
+
+
 
   def tparams(self, cramped=False):
     if cramped:
@@ -405,7 +554,8 @@ class event:
         xtls[i] = '$' + notex( clock(self.get('t')[0] + 60*i) ) + '$'
     return { 'x':self.get('tcoord'), 'xticks':xtks, 'xticklabels':xtls,
              'xlims':(self.get('tcoord')[0], self.get('tcoord')[0] + 10), 
-             'xlabel':notex( 'Time (hh:mm) on ' + calendar(self.date) ) }
+#             'xlabel':notex( 'Time (hh:mm) on ' + calendar(self.date) ) }
+             'xlabel':notex('Time (hh:mm)') }
 
   def fparams(self, cramped=False):
     if cramped:
@@ -431,15 +581,12 @@ class event:
   # (Complex) Fourier weights for a given field. 
   def weights(self, var):
     wts = np.zeros(self.modes.size, dtype=np.complex)
-    # Account for nonuniform spacing of time steps. 
-#    dt = self.get('dt')
     # A Fourier transform can be normalized per a handful of different
     # conventions. We choose to match the Numpy FFT convention, where the
     # weights are computed directly then a factor of 1/N is applied when they
     # are reconstituted. 
     for m in self.modes:
       wts[m] = np.sum( self.get(var)*self.harm(-m) )
-#      wts[m] = ( np.sum(self.get(var)*self.harm(-m)*dt) / np.sum(self.harm(m)*self.harm(-m)*dt) )
     return wts
 
   # Evaluate the Fourier series to recover a waveform. 
@@ -449,7 +596,6 @@ class event:
     # Sum over all modes. 
     for m in self.modes:
       srs = srs + self.harm(m, coord='tfine')*wts[m]/(self.i1 - self.i0 + 1)
-#      srs = srs + self.harm(m, coord='tfine')*wts[m]
     return np.real(srs) if real is True else srs 
 
   # Get the power in a given mode based on its Fourier weights. 
@@ -544,6 +690,11 @@ def getbg(t, B, tavg=600):
 # Dot product of a pair of vectors or a pair of arrays of vectors. 
 def dot(v0, v1, axis=0):
   return np.sum(v0*v1, axis=axis)
+
+# Read in a file as a list of lines. 
+def read(filename):
+  with open(filename, 'r') as fileobj:
+    return [ x.strip() for x in fileobj.readlines() ]
 
 # Scale a vector, or an array of vectors, to unit vectors. 
 def unit(v):

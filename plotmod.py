@@ -820,6 +820,9 @@ class plotCell:
       # Label the horizontal axis. 
       elif key=='xlabel':
         self.ax.set_xlabel('' if not val else '$' + val + '$')
+      # Change padding between axis and label. 
+      elif key=='xlabelpad':
+        self.ax.xaxis.labelpad = val
       # Set horizontal axis domain. 
       elif key.startswith('xlim'):
         # If the limits are set manually, we want to ignore the automatic
@@ -844,6 +847,9 @@ class plotCell:
       # Label the vertical axis. 
       elif key=='ylabel':
         self.ax.set_ylabel('' if not val else '$' + val + '$')
+      # Change padding between axis and label. 
+      elif key=='ylabelpad':
+        self.ax.yaxis.labelpad = val
       # Set the vertical axis domain. 
       elif key.startswith('ylim'):
         # If the limits are set manually, we want to ignore the automatic

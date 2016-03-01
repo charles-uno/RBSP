@@ -63,9 +63,9 @@ def main():
       # Nuke the run directory. Leave stdout and stderr. 
       [ os.remove(x) for x in os.listdir(rundir) if x not in ('stdoe.txt',) ]
 
-#      # Create and execute an IDL script to grab position, electric field, and
-#      # magnetic field data for the day and and dump it into a sav file. 
-#      out, err = spedas( idlcode(probe=probe, date=date) )
+      # Create and execute an IDL script to grab position, electric field, and
+      # magnetic field data for the day and and dump it into a sav file. 
+      out, err = spedas( idlcode(probe=probe, date=date) )
 
       # Read the IDL output. 
       if not os.path.exists('temp.sav'):
