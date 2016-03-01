@@ -46,11 +46,11 @@ def main():
     # If we're debugging, we just want to stop after a single plot. Some events
     # are bad, so we loop until the plotter tells us it's succeeded. 
 
-#    if plotwaveforms(outdir + pkldir + '/'):
-#      break
-
-    if plotcoherence(outdir + pkldir + '/'):
+    if plotwaveforms(outdir + pkldir + '/'):
       break
+
+#    if plotcoherence(outdir + pkldir + '/'):
+#      break
 
   return
 
@@ -103,13 +103,14 @@ def plotwaveforms(datadir):
 
   # Title the plot and add axis labels. 
   title = notex('In Situ Electric (Blue) and Magnetic (Red) Fields')
-  xlabel = notex( 'Time (hh:mm) on ' + calendar(ev.date) )
-  PW.setParams(title=title, collabels=(flabel + ' \\qquad ' + phslabel,), 
-               sidelabel=ev.label(), xlabel=xlabel)
+  PW.setParams( title=title, collabels=(flabel + ' \\qquad ' + phslabel,), 
+                sidelabel=ev.label() )
   [ PW[i].setParams(ylabel=ylbl) for i, ylbl in enumerate(ylabels) ]
 
 #  # For debugging, it's useful to plot the phase (in radians) next to the data.
 #  PW[0].setLine(ev.get('tfine'), phs*np.pi/180, 'g')
+
+#  PW[0].setLine(ev.get('tfine'), ev.series('Bx'), 'r:')
 
   # If we're debugging, show the plot, even if it's bad. 
   if '-i' not in argv:
@@ -130,7 +131,6 @@ def plotwaveforms(datadir):
 # ============================================================== Coherence, etc
 # =============================================================================
 
-
 # Plot the waveform. Estimate frequency and phase offset with a Fourier series.
 def plotcoherence(datadir):
   global savedir
@@ -141,30 +141,80 @@ def plotcoherence(datadir):
     print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
     return False
 
-  PW = plotWindow()
+  PW = plotWindow(nrows=2)
 
+  PW.setParams( **ev.fparams() )
+
+  wB = ev.weights('Bx')
+  wE = ev.weights('Ey')
+  f = ev.get('f')
+
+  nB = np.fft.rfft( ev.get('Bx') )
+  nE = np.fft.rfft( ev.get('Ey') )
+
+  print 'wB size ', wB.size
+  print 'wE size ', wE.size
+  print 'f size  ', f.size
+  print 'nB size ', nB.size
+  print 'nE size ', nE.size
+
+  PW[0].setLine(f, np.abs(wB) )
+  PW[1].setLine(f, np.abs(wE) )
+
+  PW[0].setLine(f, np.abs(nB) )
+  PW[1].setLine(f, np.abs(nE) )
+
+
+
+  '''
+  # Grab the fields. 
+  B, E = ev.get('Bx'), ev.get('Ey')
+  N = B.size
+  # Time. 
+  t = ev.get('t')
+  # Frequency in Hz (it's given in mHz). 
+  f = ev.get('f')/1e3
+  # Cross-correlation of two vectors. 
+  def cc(x, y, n):
+    if n==0:
+      return np.sum(x*y)
+    else:
+      return np.sum( x[n:]*y[:-n] ) if n>0 else np.sum( x[:n]*y[-n:] )
+  # Cross-spectral density of two vectors. 
+  def csd(x, y, f):
+    c = 0.
+    for n in range(-x.size, x.size):
+      c = c + cc(x, y, n)*np.exp(-1j*f*n)
+    return c/(2*np.pi)
+  '''
+
+#  collabels = ( 'E_y' + notex('(Blue) and ') + 'B_x' + notex('(Red)'), notex('Spectral Density') )
+#  title = notex('title')
+
+#  PW[1].setParams( ylims=(-5, 5), **ev.tparams(cramped=True) )
+#  [ PW[1].setLine(ev.get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
+
+#  PW[0].setParams( ylims=(0, 1), **ev.fparams(cramped=True) )
+#  PW[0].setLine(coherence)
+
+#  PW[0].setLine( ev.get('f'), BB )
+#  PW[1].setLine( ev.get('f'), EE )
+#  PW[2].setLine( ev.get('f'), np.real(EB) )
+#  PW[3].setLine( ev.get('f'), np.imag(EB) )
+
+  '''
   wB, wE = ev.weights('Bx'), ev.weights('Ey')
-
-
-
-
-
-
-    # Get the coherence, etc. 
-#    EE = abs(wE)**2
-#    BB = abs(wB)**2
-#    EB = wE*np.conj(wB)
-#    coherence = np.abs(EB)**2 / (EE*BB)
-
-#    PW[1].setLine(range(nmax), EE)
-#    PW[2].setLine(range(nmax), BB)
-#    PW[3].setLine( range(nmax), np.real(EB) )
-#    PW[4].setLine( range(nmax), np.imag(EB) )
-#    PW[1].setLine(range(nmax), coherence)
-#    PW[-1].setParams( xlims=(0, nmax), ylims=(0, 1) )
-
-
-
+  EE = np.abs(wE)**2
+  BB = np.abs(wB)**2
+  EB = wE*np.conj(wB)
+  coherence = np.abs(EB)**2 / (EE*BB)
+  PW[0].setLine(ev.get('f'), EE)
+  PW[1].setLine(ev.get('f'), BB)
+  PW[2].setLine( ev.get('f'), np.real(EB) )
+  PW[3].setLine( ev.get('f'), np.imag(EB) )
+  PW[4].setLine(ev.get('f'), coherence)
+  PW.setParams( ylims=(0, 2) )
+  '''
 
   # If we're debugging, show the plot, even if it's bad. 
   if '-i' not in argv:
@@ -193,33 +243,43 @@ def plotcoherence(datadir):
 # of that directory and assembles it into a useful form. 
 class event:
 
-  # Number of terms to use in the Fourier series. 
-  nmodes = 20
-
   # ---------------------------------------------------------------------------
   # --------------------------------------------------- Initialize Event Object
   # ---------------------------------------------------------------------------
 
   def __init__(self, datadir):
+
     # Get the event's name. 
     self.name = datadir.rstrip('/').split('/')[-1]
+
     # From the name of the directory, get the probe name and the timestamp. 
     self.probe, self.date, self.t0, self.t1 = self.parse(datadir)
+
     # Load the pickles for time, fields, and position. 
     for var in ('time', 'bgse', 'egse', 'xgse', 'lshell', 'mlt', 'mlat'):
       self.__dict__[var] = loadpickle(datadir + var + '.pkl')
+
     # Shift the time coordinate to be zero at midnight, rather than in 1970. 
-    self.t = self.time - self.time[0]
+    self.t, self.dt = self.time - self.time[0], self.time[1] - self.time[0]
+
     # Figure out the indeces that correspond to the event start and end. 
     self.i0, self.i1 = np.argmax(self.t>self.t0), np.argmax(self.t>self.t1)
+
+    # Set the Fourier modes to use. 
+    self.modes = np.arange( (self.i1 - self.i0 + 1)/2 )
+
     # Compute the background magnetic field using a rolling average. 
     self.b0gse = self.getbg(self.t, self.bgse)
+
     # Get the parallel, azimuthal, and crosswise unit vectors. 
     self.xhat, self.yhat, self.zhat = self.uvecs(self.xgse, self.b0gse)
+
     # Rotate the magnetic field into dipole coordinates. 
     self.bx, self.by, self.bz = self.rotate(self.bgse - self.b0gse)
+
     # Do the same for the magnetic fields. 
     self.ex, self.ey, self.ez = self.rotate(self.egse)
+
     return
 
   # ---------------------------------------------------------------------------
@@ -293,10 +353,12 @@ class event:
   def get(self, var):
     if var=='tcoord':
       return ( self.get('t') - self.get('t')[0] )/60
+    elif var=='dt':
+      return ( self.t[self.i0+1:self.i1+1] - self.t[self.i0-1:self.i1-1] )/120
     elif var=='tfine':
       return np.linspace(self.get('tcoord')[0], self.get('tcoord')[-1], 1000)
     elif var=='f':
-      return 1e3*np.arange(self.nmodes)/600
+      return 1e3*self.modes/600
     else:
       return self.__dict__[ var.lower() ][..., self.i0:self.i1]
 
@@ -317,28 +379,54 @@ class event:
   # ---------------------------- Horizontal Axis Limits, Ticks, and Tick Labels
   # ---------------------------------------------------------------------------
 
-  def tparams(self):
-    xtls = ['']*11
-    for i in range(1, 11, 2):
-      xtls[i] = '$' + notex( clock(self.get('t')[0] + 60*i) ) + '$'
-    return {'x':self.get('tcoord'), 'xticks':range(11), 'xticklabels':xtls}
+  def tparams(self, cramped=False):
+    if cramped:
+      xtks = (0, 2.5, 5, 7.5, 10)
+      xtls = ['']*11
+      for i in (0, 2, 4):
+        xtls[i] = '$' + notex( clock(self.get('t')[0] + 150*i) ) + '$'
+    else:
+      xtks = range(11)
+      xtls = ['']*11
+      for i in range(1, 11, 2):
+        xtls[i] = '$' + notex( clock(self.get('t')[0] + 60*i) ) + '$'
+    return { 'x':self.get('tcoord'), 'xticks':xtks, 'xticklabels':xtls,
+             'xlims':(self.get('tcoord')[0], self.get('tcoord')[0] + 10), 
+             'xlabel':notex( 'Time (hh:mm) on ' + calendar(self.date) ) }
+
+  def fparams(self, cramped=False):
+    if cramped:
+      xtks = (0, 10, 20, 30, 40)
+      xtls = ('$0$', '', '$20$', '', '$40$')
+    else:
+      xtks = range(0, 41, 5)
+      xtls = ('$0$', '', '$10$', '', '$20$', '', '$30$', '', '$40$')
+    return { 'x':self.get('f'), 'xticks':xtks, 'xlims':(0, 40), 
+             'xticklabels':xtls, 'xlabel':notex('Frequency (mHz)') }
 
   # ---------------------------------------------------------------------------
   # ------------------------------------------------ Fourier Series of the Data
   # ---------------------------------------------------------------------------
 
-  # Harmonic basis function. 
-  def harm(self, n, coord='tcoord'):
+  # Harmonic basis function. Note, awkwardly, that the time steps are not quite
+  # uniform. This means that spelling out harmonics explicitly gives slightly
+  # better results than using an FFT. 
+  def harm(self, m, coord='tcoord'):
     t = self.get(coord)
-    return np.exp( 2j*np.pi*n*t / (t[-1] - t[0]) )
+    return np.exp( m*t*2j*np.pi / (t[-1] - t[0]) )
 
   # (Complex) Fourier weights for a given field. 
   def weights(self, var):
-    wts = np.zeros(self.nmodes, dtype=np.complex)
-    dt = self.get('tcoord')[1] - self.get('tcoord')[0]
-    for n in range(self.nmodes):
-      wts[n] = ( np.sum(self.get(var)*self.harm(-n)*dt) / 
-                 np.sum(self.harm(n)*self.harm(-n)*dt) )
+    wts = np.zeros(self.modes.size, dtype=np.complex)
+    # Account for nonuniform spacing of time steps. 
+#    dt = self.get('dt')
+    # A Fourier transform can be normalized per a handful of different
+    # conventions. We choose to match the Numpy FFT convention, where the
+    # weights are computed directly then a factor of 1/N is applied when they
+    # are reconstituted. 
+    for m in self.modes:
+      wts[m] = np.sum( self.get(var)*self.harm(-m) )
+#      wts[m] = ( np.sum(self.get(var)*self.harm(-m)*dt) / np.sum(self.harm(m)*self.harm(-m)*dt) )
     return wts
 
   # Evaluate the Fourier series to recover a waveform. 
@@ -346,8 +434,9 @@ class event:
     wts = self.weights(var)
     srs = np.zeros(self.get('tfine').shape, dtype=np.complex)
     # Sum over all modes. 
-    for n in range(self.nmodes):
-      srs = srs + self.harm(n, coord='tfine')*wts[n]
+    for m in self.modes:
+      srs = srs + self.harm(m, coord='tfine')*wts[m]/(self.i1 - self.i0 + 1)
+#      srs = srs + self.harm(m, coord='tfine')*wts[m]
     return np.real(srs) if real is True else srs 
 
   # Get the power in a given mode based on its Fourier weights. 
