@@ -36,58 +36,55 @@ def main():
   # Keep everything nicely organized. 
   srcdir = '/home/user1/mceachern/Desktop/rbsp/'
   rundir = '/home/user1/mceachern/Desktop/rbsp/run/'
-  outdir = '/media/My Passport/RBSP/pickles/'
+  outdir = '/media/My Passport/rbsp/pkls/'
 
   # Any files that get dumped should get dumped into the run directory. 
   os.chdir(rundir)
 
-  # Loop over the two satellites. 
-  for probe in ('a', 'b'):
+  # Iterate over a list of the unique dates. 
+  events = read(srcdir + 'events.txt')
+  for date in sorted( set( line.split()[1] for line in events ) ):
 
-    # Loop over the events seen by each one. 
-    for event in read(srcdir + 'events/events_' + probe + '.txt'):
+    # Limit output to one line per date. 
+    status(date)
 
-      # Nuke the run directory. 
+    # For each day, make sure we have data for both probes (even if an event
+    # was only identified for one of them). 
+    for probe in ('a', 'b'):
+
+      # Mark a status for each probe. 
+      status(probe)
+
+      # Make a directory for this day of data. 
+      pkldir = outdir + date.replace('-', '') + '/' + probe + '/'
+      if not os.path.exists(pkldir):
+        os.makedirs(pkldir)
+
+      # Nuke the run directory. Leave stdout and stderr. 
       [ os.remove(x) for x in os.listdir(rundir) if x not in ('stdoe.txt',) ]
 
-      # The data directory is indexed by the event timestamp. 
-      name = probe + '_' + event.replace('/', '_').translate(None, '-:') + '/'
-      print name,
-      stdout.flush()
+#      # Create and execute an IDL script to grab position, electric field, and
+#      # magnetic field data for the day and and dump it into a sav file. 
+#      out, err = spedas( idlcode(probe=probe, date=date) )
 
-      # Check if we've already done this one. 
-      if os.path.isdir(outdir + name):
-        print '\tDATA ALREADY EXISTS'
-        continue
-      else:
-        os.mkdir(outdir + name)
-
-      # Create and execute an IDL script to grab position, electric field, and
-      # magnetic field data for the event, and dump it into a sav file. 
-      date, time = event.split('/')
-      out, err = spedas( idlcode(probe=probe, date=date) )
-#      print out
-#      print err
-
-#      # If IDL crashes, don't save any data. But leave the directory, so we
-#      # know not to bother with this event next time. 
-#      if 'Variable is undefined: RBSPX' in err:
-#        print '\tBAD DATA'
-#        continue
-
-      # Read in the IDL output. 
+      # Read the IDL output. 
       if not os.path.exists('temp.sav'):
-        print '\tNO DATA'
+        status('X')
         continue
       else:
         temp = io.readsav('temp.sav')
 
-      # Re-write the data in pickle format. 
+      # Rewrite the data as pickles. (Pickles are Python data files. They are
+      # reasonably efficient in terms of both storage size and load time.)
       for key, arr in temp.items():
-        with open(outdir + name + key + '.pkl', 'wb') as handle:
+        with open(pkldir + key + '.pkl', 'wb') as handle:
           pickle.dump(arr, handle, protocol=-1)
-        print '\t' + key,
-      print ''
+
+      # Acknowledge successful date access. 
+      status('OK')
+
+    # Move to the next line. 
+    status()
 
   return
 
@@ -148,6 +145,15 @@ def spedas(command):
          'temp.pro')
   append(command, 'temp.pro')
   return bash('idl -e @temp -IDL_PATH +~/Desktop/rbsp/packages/:<IDL_DEFAULT>')
+
+# Print to the terminal without advancing the line. 
+def status(text=None):
+  if text is None:
+    print ''
+    return
+  else:
+    print text + '\t',
+    return stdout.flush()
 
 # #############################################################################
 # ########################################################### For Importability
