@@ -828,6 +828,15 @@ class plotCell:
       # Draw an outline around the plot contents. 
       elif key=='outline':
         self.outline = val
+
+      # Add text inside the cell, along the top. If we want to do anything more
+      # sophisticated with text, like control its position or rotation or
+      # color or size, we'll probably need to add a setText method. 
+      elif key=='text':
+        targs = {'x':0.5, 'y':0.85, 'horizontalalignment':'center', 
+                 'verticalalignment':'center', 'transform':self.ax.transAxes}
+        self.ax.text(s='$' + val + '$', fontsize=9, **targs)
+
       # Horizontal axis coordinate. 
       elif key=='x':
         self.x = val
