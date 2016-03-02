@@ -68,18 +68,21 @@ def main():
 def plotboth(evline):
   global savedir
 
-#  evline = 'a\t2014-02-05\t13:10:00'
-
+  # Based on the event record, create a pair of event objects. 
   probe, date, time = evline.split()
   ev = { 'a':event(probe='a', date=date, time=time),
          'b':event(probe='b', date=date, time=time) }
 
+  # If the events have flawed data, start over. 
   if not ev['a'].isok() or not ev['b'].isok():
     print 'SKIPPING ' + ev[probe].name + ' DUE TO BAD DATA. '
     return False
 
+  # Create a plot window to look at both probes at the same time -- both the
+  # waveforms and the spectra. 
   PW = plotWindow(nrows=4, ncols=3)
 
+  # Set the title and labels. Label the rows with probe position data. 
   title = notex(probe.upper() + '  ' + date + '  ' + time)
   collabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
   rowlabels = ( ev['a'].lab(), ev['b'].lab(), ev['a'].lab(), ev['b'].lab() )
@@ -115,124 +118,6 @@ def plotboth(evline):
 
   print 'Plotting ' + ev[probe].name
   return PW.render()
-
-
-
-  '''
-  for row, prb in enumerate( ('a', 'b') ):
-    # Electric and magnetic field waveforms. 
-    PW[row, :].setParams( **ev[prb].coords('t', 'b', cramped=True) )
-    [ PW[row, 0].setLine(ev[prb].get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
-    [ PW[row, 1].setLine(ev[prb].get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
-    [ PW[row, 2].setLine(ev[prb].get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
-
-    # Summarize the phase data with each waveform. 
-    for row, prb in enumerate( ('a', 'b') ):
-      for col, ptp in enumerate( ('pol', 'tor', 'par') ):
-        frq = notex(format(ev[prb].get('f')[ np.argmax( mag[prb][ptp] ) ], '.0f') + 'mHz')
-        pct = notex(format(100*np.max( mag[prb][ptp] )/np.sum( mag[prb][ptp] ), '.0f') + '\\%')
-        phs = notex(format(ang[prb][ptp][ np.argmax( mag[prb][ptp] ) ]*180/pi, '.0f') + '^\\circ')
-        PW[row, col].setParams(text=frq + ' \\quad ' + phs + ' \\quad ' + pct)
-
-    # Also plot the phase data. 
-    PW[row+2, :].setParams( **ev[prb].coords('f', 's', cramped=True) )
-    [ PW[row+2, i].setLine(mag[prb][ptp], 'k') for i, ptp in enumerate( ('pol', 'tor', 'par') ) ]
-    [ PW[row+2, i].setLine(ang[prb][ptp], 'g') for i, ptp in enumerate( ('pol', 'tor', 'par') ) ]
-    '''
-
-
-
-
-  ww = {}
-  for prb in ev:
-    ww[prb] = {'pol':ev[prb].weights('Ey')*np.conj( ev[prb].weights('Bx') ),
-               'tor':ev[prb].weights('Ex')*np.conj( ev[prb].weights('By') ),
-               'par':ev[prb].weights('Ez')*np.conj( ev[prb].weights('Bz') ) }
-
-  amax = max( np.max( np.abs(x) ) for x in ww['a'].values() )
-  bmax = max( np.max( np.abs(x) ) for x in ww['b'].values() )
-
-  norm = max(amax, bmax)
-
-
-  mag = {}
-  ang = {}
-
-  for prb, eb in ww.items():
-
-    mag[prb] = {}
-    ang[prb] = {}
-
-    for ptp, x in eb.items():
-
-      mag[prb][ptp] = 2*pi*np.abs(x)/norm
-      ang[prb][ptp] = np.where( np.angle(x)<0, np.angle(x) + 2*pi, np.angle(x) )
-
-  for row, prb in enumerate( ('a', 'b') ):
-    # Electric and magnetic field waveforms. 
-    PW[row, :].setParams( **ev[prb].coords('t', 'b', cramped=True) )
-    [ PW[row, 0].setLine(ev[prb].get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
-    [ PW[row, 1].setLine(ev[prb].get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
-    [ PW[row, 2].setLine(ev[prb].get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
-
-    # Summarize the phase data with each waveform. 
-    for row, prb in enumerate( ('a', 'b') ):
-      for col, ptp in enumerate( ('pol', 'tor', 'par') ):
-        frq = notex(format(ev[prb].get('f')[ np.argmax( mag[prb][ptp] ) ], '.0f') + 'mHz')
-        pct = notex(format(100*np.max( mag[prb][ptp] )/np.sum( mag[prb][ptp] ), '.0f') + '\\%')
-        phs = notex(format(ang[prb][ptp][ np.argmax( mag[prb][ptp] ) ]*180/pi, '.0f') + '^\\circ')
-        PW[row, col].setParams(text=frq + ' \\quad ' + phs + ' \\quad ' + pct)
-
-    # Also plot the phase data. 
-    PW[row+2, :].setParams( **ev[prb].coords('f', 's', cramped=True) )
-    [ PW[row+2, i].setLine(mag[prb][ptp], 'k') for i, ptp in enumerate( ('pol', 'tor', 'par') ) ]
-    [ PW[row+2, i].setLine(ang[prb][ptp], 'g') for i, ptp in enumerate( ('pol', 'tor', 'par') ) ]
-
-
-
-  print 'Plotting ' + ev[probe].name
-  return PW.render()
-
-
-  '''
-#  title = notex('Simultaneous Electric (Blue) and Magnetic (Red) Measurements')
-  collabels = [ ev[prb].lbl() for prb in ('a', 'b') ]
-  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
-  ylabel = 'B' + notex(' (nT)') + '\\; \\; E' + notex('(\\frac{mV}{m})')
-  PW.setParams(title=title, collabels=collabels, ylabel=ylabel,
-               rowlabels=rowlabels, ylabelpad=-1)
-
-  # Plot the fields. 
-  for col, prb in enumerate( ('a', 'b') ):
-    PW[:, col].setParams( **ev[prb].coords('t', 'b', cramped=True) )
-    [ PW[0, col].setLine(ev[prb].get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
-    [ PW[1, col].setLine(ev[prb].get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
-    [ PW[2, col].setLine(ev[prb].get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
-  '''
-
-  '''
-  # Compute the coherence by slamming the Fourier weights together. 
-  pol = ev.weights('Ey')*np.conj( ev.weights('Bx') )
-  tor = ev.weights('Ex')*np.conj( ev.weights('By') )
-  par = ev.weights('Ez')*np.conj( ev.weights('Bz') )
-  norm = max( np.max( np.abs(ww) ) for ww in (pol, tor, par) )
-
-  npol = 360*np.abs(pol)/norm - 180
-  ntor = 360*np.abs(tor)/norm - 180
-  npar = 360*np.abs(par)/norm - 180
-
-  PW[0, 1].setLine(npol, 'k')
-  PW[1, 1].setLine(ntor, 'k')
-  PW[2, 1].setLine(npar, 'k')
-
-  # Also grab the phase offsets. 
-  apol = np.angle(pol, deg=True)
-  ator = np.angle(tor, deg=True)
-  apar = np.angle(par, deg=True)
-  PW[0, 1].setLine(apol, 'g')
-  PW[1, 1].setLine(ator, 'g')
-  PW[2, 1].setLine(apar, 'g')
-  '''
 
 # =============================================================================
 # ============================================================= Field Waveforms
