@@ -21,7 +21,7 @@ except ImportError:
   import pickle
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy import pi
+from numpy import pi, where, conj, angle
 import os
 from plotmod import *
 
@@ -68,6 +68,8 @@ def main():
 def plotboth(evline):
   global savedir
 
+#  evline = 'a\t2014-02-05\t13:10:00'
+
   probe, date, time = evline.split()
   ev = { 'a':event(probe='a', date=date, time=time),
          'b':event(probe='b', date=date, time=time) }
@@ -80,8 +82,91 @@ def plotboth(evline):
 
   title = notex(probe.upper() + '  ' + date + '  ' + time)
   collabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
-  rowlabels = ( notex('A'), notex('B'), notex('A'), notex('B') )
+  rowlabels = ( ev['a'].lab(), ev['b'].lab(), ev['a'].lab(), ev['b'].lab() )
   PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
+
+  # Index all probe/mode combinations. 
+  pm = [ (p, m) for p in ('a', 'b') for m in ('p', 't', 'z') ]
+
+  # Grab the cross-spectral weights and compute a shared normalization. 
+  cw = [ ev[p].crossweights(m) for p, m in pm ]
+  norm = max( np.max( np.abs(w) ) for w in cw )
+
+  # Get the spectral magnitudes and phases. 
+  mag = [ 2*pi*np.abs(w)/norm for w in cw ]
+  ang = [ where( angle(w)<0, angle(w) + 2*pi, angle(w) ) for w in cw ]
+
+  # Iterate over the probe/mode combinations. 
+  for i, (p, m) in enumerate(pm):
+
+    # Plot the fields. 
+    PW[i/3, i%3].setParams( **ev[p].coords('t', 'b', cramped=True) )
+    PW[i/3, i%3].setLine(ev[p].get('E' + m), 'b')
+    PW[i/3, i%3].setLine(ev[p].get('B' + m), 'r')
+
+    # Plot the spectra. 
+    PW[i/3 + 2, i%3].setParams( **ev[p].coords('f', 's', cramped=True) )
+    PW[i/3 + 2, i%3].setLine(mag[i], 'k')
+    PW[i/3 + 2, i%3].setLine(ang[i], 'g')
+
+    # Summarize the spectra. 
+    frq, phs, pct = ev[p].fpp(m)
+    PW[i/3, i%3].setParams(text=frq + ' \\quad ' + phs + ' \\quad ' + pct)
+
+  print 'Plotting ' + ev[probe].name
+  return PW.render()
+
+
+
+  '''
+  for row, prb in enumerate( ('a', 'b') ):
+    # Electric and magnetic field waveforms. 
+    PW[row, :].setParams( **ev[prb].coords('t', 'b', cramped=True) )
+    [ PW[row, 0].setLine(ev[prb].get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
+    [ PW[row, 1].setLine(ev[prb].get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
+    [ PW[row, 2].setLine(ev[prb].get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
+
+    # Summarize the phase data with each waveform. 
+    for row, prb in enumerate( ('a', 'b') ):
+      for col, ptp in enumerate( ('pol', 'tor', 'par') ):
+        frq = notex(format(ev[prb].get('f')[ np.argmax( mag[prb][ptp] ) ], '.0f') + 'mHz')
+        pct = notex(format(100*np.max( mag[prb][ptp] )/np.sum( mag[prb][ptp] ), '.0f') + '\\%')
+        phs = notex(format(ang[prb][ptp][ np.argmax( mag[prb][ptp] ) ]*180/pi, '.0f') + '^\\circ')
+        PW[row, col].setParams(text=frq + ' \\quad ' + phs + ' \\quad ' + pct)
+
+    # Also plot the phase data. 
+    PW[row+2, :].setParams( **ev[prb].coords('f', 's', cramped=True) )
+    [ PW[row+2, i].setLine(mag[prb][ptp], 'k') for i, ptp in enumerate( ('pol', 'tor', 'par') ) ]
+    [ PW[row+2, i].setLine(ang[prb][ptp], 'g') for i, ptp in enumerate( ('pol', 'tor', 'par') ) ]
+    '''
+
+
+
+
+  ww = {}
+  for prb in ev:
+    ww[prb] = {'pol':ev[prb].weights('Ey')*np.conj( ev[prb].weights('Bx') ),
+               'tor':ev[prb].weights('Ex')*np.conj( ev[prb].weights('By') ),
+               'par':ev[prb].weights('Ez')*np.conj( ev[prb].weights('Bz') ) }
+
+  amax = max( np.max( np.abs(x) ) for x in ww['a'].values() )
+  bmax = max( np.max( np.abs(x) ) for x in ww['b'].values() )
+
+  norm = max(amax, bmax)
+
+
+  mag = {}
+  ang = {}
+
+  for prb, eb in ww.items():
+
+    mag[prb] = {}
+    ang[prb] = {}
+
+    for ptp, x in eb.items():
+
+      mag[prb][ptp] = 2*pi*np.abs(x)/norm
+      ang[prb][ptp] = np.where( np.angle(x)<0, np.angle(x) + 2*pi, np.angle(x) )
 
   for row, prb in enumerate( ('a', 'b') ):
     # Electric and magnetic field waveforms. 
@@ -90,34 +175,22 @@ def plotboth(evline):
     [ PW[row, 1].setLine(ev[prb].get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
     [ PW[row, 2].setLine(ev[prb].get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
 
+    # Summarize the phase data with each waveform. 
+    for row, prb in enumerate( ('a', 'b') ):
+      for col, ptp in enumerate( ('pol', 'tor', 'par') ):
+        frq = notex(format(ev[prb].get('f')[ np.argmax( mag[prb][ptp] ) ], '.0f') + 'mHz')
+        pct = notex(format(100*np.max( mag[prb][ptp] )/np.sum( mag[prb][ptp] ), '.0f') + '\\%')
+        phs = notex(format(ang[prb][ptp][ np.argmax( mag[prb][ptp] ) ]*180/pi, '.0f') + '^\\circ')
+        PW[row, col].setParams(text=frq + ' \\quad ' + phs + ' \\quad ' + pct)
+
+    # Also plot the phase data. 
     PW[row+2, :].setParams( **ev[prb].coords('f', 's', cramped=True) )
+    [ PW[row+2, i].setLine(mag[prb][ptp], 'k') for i, ptp in enumerate( ('pol', 'tor', 'par') ) ]
+    [ PW[row+2, i].setLine(ang[prb][ptp], 'g') for i, ptp in enumerate( ('pol', 'tor', 'par') ) ]
 
 
 
-  # The spectra are trickier since they all have to share a normalization. 
-  ww = {}
-  for prb in ev:
-    ww[prb] = {'pol':ev[prb].weights('Ey')*np.conj( ev[prb].weights('Bx') ),
-               'tor':ev[prb].weights('Ex')*np.conj( ev[prb].weights('By') ),
-               'tor':ev[prb].weights('Ez')*np.conj( ev[prb].weights('Bz') ) }
-
-  amax = max( np.max( np.abs(x) ) for x in ww['a'].values() )
-  bmax = max( np.max( np.abs(x) ) for x in ww['b'].values() )
-
-  norm = max(amax, bmax)
-
-  print norm
-
-
-
-
-
-
-
-
-
-
-
+  print 'Plotting ' + ev[probe].name
   return PW.render()
 
 
@@ -428,6 +501,14 @@ class event:
   # ----------------------------------------- Label Indicating Event Properties
   # ---------------------------------------------------------------------------
 
+  # Nicely-formatted average probe position. 
+  def getpos(self):
+    lshell = format(self.avg('lshell'), '.1f')
+    mlt = notex( clock( 3600*self.avg('mlt') ) )
+    mlat = notex(format(self.avg('mlat'), '+.0f') + '^\\circ')
+    return lshell, mlt, mlat
+
+  # Long label, for the side margin. 
   def label(self):
     return ( notex( 'RBSP--' + self.probe.upper() ) + ' \\qquad L \\!=\\! ' +
              format(np.average( self.get('lshell') ), '.1f') + ' \\qquad ' +
@@ -436,11 +517,28 @@ class event:
              format(np.average( self.get('mlat') ), '+.0f') + '^\\circ' +
              notex(' Magnetic Latitude') )
 
+  # Condensed label, for putting over a cramped frame. 
   def lbl(self):
     return ( notex( self.probe.upper() ) + ' \\quad ' +
              notex(format(self.avg('lshell'), '.1f') + 'R_E') + ' \\quad ' +
              notex(format(self.avg('mlat'), '+.0f') + '^\\circ') + ' \\quad ' +
              notex( clock( 3600*self.avg('mlt') ) + ' MLT' ) )
+
+  # Short, multi-line label for a column label. 
+  def lab(self):
+    lshell, mlt, mlat = self.getpos()
+    return ( notex( self.probe.upper() ) + '$\n$' + 'L \\! = \\! ' + lshell + '$\n$' + mlt + '$\n$' + mlat )
+
+  # Summarize the Fourier transform: the frequency with the maximum
+  # cross-spectral weight, the phase of that weight, and the percent of the
+  # wave made up by that weight. Format nicely. 
+  def fpp(self, mode):
+    cw, acw = self.crossweights(mode), np.abs( self.crossweights(mode) )
+    frq = notex(format(self.get('f')[ np.argmax(acw) ], '.0f') + 'mHz')
+    ang = angle(cw[ np.argmax(acw) ], deg=True)
+    phs = notex(format( ang if ang>0 else ang + 360 , '.0f') + '^\\circ')
+    pct = notex(format(100*np.max(acw)/np.sum(acw), '.0f') + '\\%')
+    return frq, phs, pct
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------- Compute Background Magnetic Field
@@ -487,6 +585,12 @@ class event:
 
   # Access a quantity. Only the slice during the ten-minute event is returned. 
   def get(self, var):
+    # Allow requests for poloidal and toroidal fields. 
+    pt = {'ep':'ey', 'et':'ex', 'bp':'bx', 'bt':'by'}
+    if var.lower() in pt:
+      return self.get( pt[ var.lower() ] )
+
+
     if var=='tcoord':
       return ( self.get('t') - self.get('t')[0] )/60
     elif var=='tfine':
@@ -558,11 +662,15 @@ class event:
       print 'UNKNOWN X COORD ', x
     # Vertical axis, plotting electric and/or magnetic fields. 
     if y.lower() in ('e', 'b', 'fields', 'waveform'):
+      kargs['ylabel'] = 'B' + notex(' (nT)  ') + 'E' + notex('(\\frac{mV}{m})')
+      kargs['ylabelpad'] = -2
       kargs['ylims'] = (-3, 3)
       kargs['yticks'] = range(-3, 4)
       kargs['yticklabels'] = ('$-3$', '', '', '$0$', '', '', '$+3$')
     # Vertical axis, plotting Fourier magnitude and phase. 
     elif y.lower() in ('p', 's', 'phase', 'spectra'):
+      kargs['ylabel'] = '\\cdots' + notex(' (rad)')
+      kargs['ylabelpad'] = -2
       kargs['ylims'] = (0, 2*pi)
       kargs['yticks'] = (0, pi/2, pi, 3*pi/2, 2*pi)
       kargs['yticklabels'] = ('$0$', '', '${\\displaystyle \\pi}$', '',
@@ -594,6 +702,9 @@ class event:
       wts[m] = np.sum( self.get(var)*self.harm(-m) )
     return wts
 
+  def crossweights(self, mode):
+    return self.weights('E' + mode)*conj( self.weights('B' + mode) )
+
   # Evaluate the Fourier series to recover a waveform. 
   def series(self, var, real=True):
     wts = self.weights(var)
@@ -618,20 +729,6 @@ class event:
     # Keep it in the domain of -180 to 180. 
     phs = eang - bang
     return np.where(phs<-180, phs + 360, np.where(phs>180, phs - 360, phs) )
-
-
-
-
-
-
-
-
-
-'''
-# Make sure the given variable is a 3-by-N array.  
-def is3d(x):
-  return isinstance(x, np.ndarray) and len(x.shape)==2 and x[0]==3
-'''
 
 # #############################################################################
 # ############################################################ Helper Functions
