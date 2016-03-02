@@ -34,29 +34,28 @@ savedir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
+  # Flip through the events in random order. 
+  for evline in np.random.permutation( read('events.txt') ):
+
+    if plotboth(evline):
+      break
+
+  return
+
+'''
   # Location of the output directories. 
   outdir = '/media/My Passport/RBSP/pickles/'
-
   # Each event is a directory full of pickles. Go through them in random order.
   # This makes us more likely to see bugs when just looking at the first plot.
   for pkldir in np.random.permutation( os.listdir(outdir) ):
-
 #    # If we want to force it to look at a nice one... 
 #    pkldir = 'a_20121023_220000'
-
     # If we're debugging, we just want to stop after a single plot. Some events
     # are bad, so we loop until the plotter tells us it's succeeded. 
-
-#    if plotwaveforms(outdir + pkldir + '/'):
-#      break
-
-    if plotboth(outdir + pkldir + '/'):
+    if plotwaveforms(outdir + pkldir + '/'):
       break
-
-#    if plotcoherence(outdir + pkldir + '/'):
-#      break
-
   return
+'''
 
 # #############################################################################
 # ########################################################## Plotting Functions
@@ -66,29 +65,64 @@ def main():
 # ====================================================== One Event, Both Probes
 # =============================================================================
 
-def plotboth(datadir):
+def plotboth(evline):
   global savedir
 
-  # IGNORE THE INPUT. LET'S TRY A NEW WAY. 
+  probe, date, time = evline.split()
+  ev = { 'a':event(probe='a', date=date, time=time),
+         'b':event(probe='b', date=date, time=time) }
 
-  while True:
+  if not ev['a'].isok() or not ev['b'].isok():
+    print 'SKIPPING ' + ev[probe].name + ' DUE TO BAD DATA. '
+    return False
 
-    evline = choice( read('events.txt')[:37] )
+  PW = plotWindow(nrows=4, ncols=3)
 
-    probe, date, time = evline.split()
-    ev = { 'a':event(probe='a', date=date, time=time),
-           'b':event(probe='b', date=date, time=time) }
+  title = notex(probe.upper() + '  ' + date + '  ' + time)
+  collabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
+  rowlabels = ( notex('A'), notex('B'), notex('A'), notex('B') )
+  PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
 
-    if ev['a'].isok() and ev['b'].isok():
-      break
-    else:
-      print 'skipping ', probe, date, time, ' due to bad data'
+  for row, prb in enumerate( ('a', 'b') ):
+    # Electric and magnetic field waveforms. 
+    PW[row, :].setParams( **ev[prb].coords('t', 'b', cramped=True) )
+    [ PW[row, 0].setLine(ev[prb].get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
+    [ PW[row, 1].setLine(ev[prb].get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
+    [ PW[row, 2].setLine(ev[prb].get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
 
-  print 'looking at ', probe, date, time
+    PW[row+2, :].setParams( **ev[prb].coords('f', 's', cramped=True) )
 
-  PW = plotWindow(nrows=3, ncols=2)
 
-  title = notex('Simultaneous Electric (Blue) and Magnetic (Red) Measurements')
+
+  # The spectra are trickier since they all have to share a normalization. 
+  ww = {}
+  for prb in ev:
+    ww[prb] = {'pol':ev[prb].weights('Ey')*np.conj( ev[prb].weights('Bx') ),
+               'tor':ev[prb].weights('Ex')*np.conj( ev[prb].weights('By') ),
+               'tor':ev[prb].weights('Ez')*np.conj( ev[prb].weights('Bz') ) }
+
+  amax = max( np.max( np.abs(x) ) for x in ww['a'].values() )
+  bmax = max( np.max( np.abs(x) ) for x in ww['b'].values() )
+
+  norm = max(amax, bmax)
+
+  print norm
+
+
+
+
+
+
+
+
+
+
+
+  return PW.render()
+
+
+  '''
+#  title = notex('Simultaneous Electric (Blue) and Magnetic (Red) Measurements')
   collabels = [ ev[prb].lbl() for prb in ('a', 'b') ]
   rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
   ylabel = 'B' + notex(' (nT)') + '\\; \\; E' + notex('(\\frac{mV}{m})')
@@ -101,8 +135,7 @@ def plotboth(datadir):
     [ PW[0, col].setLine(ev[prb].get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
     [ PW[1, col].setLine(ev[prb].get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
     [ PW[2, col].setLine(ev[prb].get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
-
-  return PW.render()
+  '''
 
   '''
   # Compute the coherence by slamming the Fourier weights together. 
@@ -530,42 +563,14 @@ class event:
       kargs['yticklabels'] = ('$-3$', '', '', '$0$', '', '', '$+3$')
     # Vertical axis, plotting Fourier magnitude and phase. 
     elif y.lower() in ('p', 's', 'phase', 'spectra'):
-      kargs['ylims'] = (-180, 180)
-      kargs['yticks'] = (-180, -90, 0, 90, 180)
+      kargs['ylims'] = (0, 2*pi)
+      kargs['yticks'] = (0, pi/2, pi, 3*pi/2, 2*pi)
+      kargs['yticklabels'] = ('$0$', '', '${\\displaystyle \\pi}$', '',
+                              '${\\displaystyle 2 \\pi}$')
     else:
       print 'UNKNOWN Y COORD ', y
     # Return the keyword dictionary, ready to be plugged right into setParams. 
     return kargs
-
-
-
-
-
-  def tparams(self, cramped=False):
-    if cramped:
-      xtks = (0, 2.5, 5, 7.5, 10)
-      xtls = ['']*11
-      for i in (0, 2, 4):
-        xtls[i] = '$' + notex( clock(self.get('t')[0] + 150*i) ) + '$'
-    else:
-      xtks = range(11)
-      xtls = ['']*11
-      for i in range(1, 11, 2):
-        xtls[i] = '$' + notex( clock(self.get('t')[0] + 60*i) ) + '$'
-    return { 'x':self.get('tcoord'), 'xticks':xtks, 'xticklabels':xtls,
-             'xlims':(self.get('tcoord')[0], self.get('tcoord')[0] + 10), 
-#             'xlabel':notex( 'Time (hh:mm) on ' + calendar(self.date) ) }
-             'xlabel':notex('Time (hh:mm)') }
-
-  def fparams(self, cramped=False):
-    if cramped:
-      xtks = (0, 10, 20, 30, 40)
-      xtls = ('$0$', '', '$20$', '', '$40$')
-    else:
-      xtks = range(0, 41, 5)
-      xtls = ('$0$', '', '$10$', '', '$20$', '', '$30$', '', '$40$')
-    return { 'x':self.get('f'), 'xticks':xtks, 'xlims':(0, 40), 
-             'xticklabels':xtls, 'xlabel':notex('Frequency (mHz)') }
 
   # ---------------------------------------------------------------------------
   # ------------------------------------------------ Fourier Series of the Data

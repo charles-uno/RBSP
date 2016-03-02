@@ -738,10 +738,24 @@ class plotWindow:
   def render(self, filename=None):
     # Use the most extreme x and y values to set the plot domain. Snap to
     # integers, but don't round based on tiny bits of numerical noise. 
-    xmin = np.floor( float( format(self.xmin(), '.4e') ) )
-    xmax = np.ceil( float( format(self.xmax(), '.4e') ) )
-    ymin = np.floor( float( format(self.ymin(), '.4e') ) )
-    ymax = np.ceil( float( format(self.ymax(), '.4e') ) )
+    xmin = None if self.xmin() is None else np.round( self.xmin() )
+    xmax = None if self.xmax() is None else np.round( self.xmax() )
+    ymin = None if self.ymin() is None else np.round( self.ymin() )
+    ymax = None if self.ymax() is None else np.round( self.ymax() )
+
+    if np.iscomplexobj(xmin):
+      print 'xmin is complex! '
+    if np.iscomplexobj(xmax):
+      print 'xmax is complex! '
+    if np.iscomplexobj(ymin):
+      print 'ymin is complex! '
+    if np.iscomplexobj(ymax):
+      print 'ymax is complex! '
+
+#    xmin = np.floor( float( format(self.xmin(), '.4e') ) )
+#    xmax = np.ceil( float( format(self.xmax(), '.4e') ) )
+#    ymin = np.floor( float( format(self.ymin(), '.4e') ) )
+#    ymax = np.ceil( float( format(self.ymax(), '.4e') ) )
     self.setParams( xlims=(xmin, xmax), ylims=(ymin, ymax) )
     # Only the leftmost cells get y axis labels and tick labels. 
     for cell in self.cells[:, 1:].flatten():
