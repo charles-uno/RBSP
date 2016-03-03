@@ -68,6 +68,10 @@ def main():
 def plotboth(evline):
   global savedir
 
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------- Grab and Check Event Data
+  # ---------------------------------------------------------------------------
+
   # Based on the event record, create a pair of event objects. 
   probe, date, time = evline.split()
   ev = { 'a':event(probe='a', date=date, time=time),
@@ -77,6 +81,10 @@ def plotboth(evline):
   if not ev['a'].isok() or not ev['b'].isok():
     print 'SKIPPING ' + ev[probe].name + ' DUE TO BAD DATA. '
     return False
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------- Set Up Plot Window
+  # ---------------------------------------------------------------------------
 
   # Create a plot window to look at both probes at the same time -- both the
   # waveforms and the spectra. 
@@ -88,16 +96,32 @@ def plotboth(evline):
   rowlabels = ( ev['a'].lab(), ev['b'].lab(), ev['a'].lab(), ev['b'].lab() )
   PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
 
+  # ---------------------------------------------------------------------------
+  # ----------------------------------------- Compute Cross-Correlation Spectra
+  # ---------------------------------------------------------------------------
+
   # Index all probe/mode combinations. 
   pm = [ (p, m) for p in ('a', 'b') for m in ('p', 't', 'z') ]
 
   # Grab the cross-spectral weights and compute a shared normalization. 
   cw = [ ev[p].crossweights(m) for p, m in pm ]
-  norm = max( np.max( np.abs(w) ) for w in cw )
+  noa = max( np.max( np.abs(w) ) for w in cw[:3] )
+  nob = max( np.max( np.abs(w) ) for w in cw[3:] )
 
-  # Get the spectral magnitudes and phases. 
-  mag = [ 2*pi*np.abs(w)/norm for w in cw ]
-  ang = [ where( angle(w)<0, angle(w) + 2*pi, angle(w) ) for w in cw ]
+  # Get the spectral magnitudes and phases. Scale to unit interval. 
+  ang = [ angle(w, deg=True) for w in cw ]
+  mag = [ np.abs(w)/noa for w in cw[:3] ] + [ np.abs(w)/nob for w in cw[3:] ]
+
+#  # We're particularly interested in the peak of each spectrum. How much power
+#  # is in at the peak frequency? What's its phase? 
+#  ipk = [ np.argmax(x) for x in mag ]
+#  frq = [ ev[ pm[i][0] ].get('f')[ ipk[i] ] for i in range( len(pm) ) ]
+#  phs = [ ang[i][ ipk[i] ] for i in range( len(pm) ) ]
+#  pct = [ 100*x/np.sum(x) for x in mag ]
+
+  # ---------------------------------------------------------------------------
+  # ----------------------------------------- Add Waveforms and Spectra to Plot
+  # ---------------------------------------------------------------------------
 
   # Iterate over the probe/mode combinations. 
   for i, (p, m) in enumerate(pm):
@@ -107,17 +131,62 @@ def plotboth(evline):
     PW[i/3, i%3].setLine(ev[p].get('E' + m), 'b')
     PW[i/3, i%3].setLine(ev[p].get('B' + m), 'r')
 
-    # Plot the spectra. 
+    # Plot the spectra. Scale to the unit interval. 
     PW[i/3 + 2, i%3].setParams( **ev[p].coords('f', 's', cramped=True) )
     PW[i/3 + 2, i%3].setLine(mag[i], 'k')
-    PW[i/3 + 2, i%3].setLine(ang[i], 'g')
+    PW[i/3 + 2, i%3].setLine(ang[i]/360 + 0.5, 'g')
 
-    # Summarize the spectra. 
-    frq, phs, pct = ev[p].fpp(m)
-    PW[i/3, i%3].setParams(text=frq + ' \\quad ' + phs + ' \\quad ' + pct)
+#    # Summarize the spectra. 
+#    fr, ph, pc = ev[p].fpp(m)
+#    PW[i/3, i%3].setParams(text=fr + ' \\qquad ' + ph)
 
-  print 'Plotting ' + ev[probe].name
-  return PW.render()
+  # ---------------------------------------------------------------------------
+  # -------------------------------------- Look for Fundamental Mode Pc4 Events
+  # ---------------------------------------------------------------------------
+
+  fundlabels = []
+  for i, f in enumerate( ev['a'].get('f') ):
+
+    # Ignore frequencies outside the Pc4 band. 
+    if not 7 < f < 25:
+      continue
+
+    # Find peaks -- what's larger than the noise? 
+    isbig = np.array( [ m[i] > 5*np.mean(m) for m in mag ] )
+
+    # Find fundamental modes -- where are mlat and phase opposed? 
+    mlatsign = np.array( [ np.sign( ev[p].avg('mlat') ) for p, m in pm ] )
+    phasesign = np.array( [ np.sign( a[i] ) for a in ang ] )
+
+    # Ignore anything that only appears in the parallel component. 
+    isbigfund = ( (mlatsign!=phasesign)*isbig )
+    isbigfund[2::3] = False, False
+
+    # Note the nontrivial fundamental modes, if any. 
+    for x in np.nonzero(isbigfund)[0]:
+      modenames = {'p':'Poloidal', 't':'Toroidal', 'z':'Parallel'}
+      fundlabels.append( pm[x][0].upper() + '  ' + format(f, '.0f') + 'mHz  ' +
+                         modenames[ pm[x][1] ] )
+
+  # If no fundamental modes were found, bail. 
+  if not fundlabels:
+    print 'SKIPPING ' + ev[probe].name + ' DUE TO NO FUNDAMENTAL MODES. '
+    return False
+
+  # Otherwise, note the events on the plot. 
+  PW.setParams( sidelabel=' $\n$ '.join( notex(x) for x in fundlabels ) )
+
+  # ---------------------------------------------------------------------------
+  # ----------------------------------------------------------- Create the Plot
+  # ---------------------------------------------------------------------------
+
+  if '-i' not in argv:
+    print 'Plotting ' + ev[probe].name
+    return PW.render()
+  else:
+    if not os.path.exists(savedir):
+      os.mkdir(savedir)
+    return not PW.render(savedir + ev[probe].name + '.png')
 
 # =============================================================================
 # ============================================================= Field Waveforms
@@ -419,11 +488,10 @@ class event:
   # wave made up by that weight. Format nicely. 
   def fpp(self, mode):
     cw, acw = self.crossweights(mode), np.abs( self.crossweights(mode) )
-    frq = notex(format(self.get('f')[ np.argmax(acw) ], '.0f') + 'mHz')
-    ang = angle(cw[ np.argmax(acw) ], deg=True)
-    phs = notex(format( ang if ang>0 else ang + 360 , '.0f') + '^\\circ')
-    pct = notex(format(100*np.max(acw)/np.sum(acw), '.0f') + '\\%')
-    return frq, phs, pct
+    frq = format(self.get('f')[ np.argmax(acw) ], '.0f') + 'mHz'
+    phs = format(angle(cw[ np.argmax(acw) ], deg=True), '+.0f') + '^\\circ'
+    pct = format(100*np.max(acw)/np.sum(acw), '.0f') + '\\%'
+    return [ notex(x) for x in (frq, phs, pct) ]
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------- Compute Background Magnetic Field
@@ -554,12 +622,15 @@ class event:
       kargs['yticklabels'] = ('$-3$', '', '', '$0$', '', '', '$+3$')
     # Vertical axis, plotting Fourier magnitude and phase. 
     elif y.lower() in ('p', 's', 'phase', 'spectra'):
-      kargs['ylabel'] = '\\cdots' + notex(' (rad)')
+      kargs['ylabel'] = '\\cdots' + notex(' (^\\circ)')
       kargs['ylabelpad'] = -2
-      kargs['ylims'] = (0, 2*pi)
-      kargs['yticks'] = (0, pi/2, pi, 3*pi/2, 2*pi)
-      kargs['yticklabels'] = ('$0$', '', '${\\displaystyle \\pi}$', '',
-                              '${\\displaystyle 2 \\pi}$')
+      kargs['ylims'] = (0, 1)
+      kargs['yticks'] = (0, 0.25, 0.5, 0.75, 1)
+      kargs['yticklabels'] = ('$-180$', '', '$0$', '', '$+180$')
+    elif y.lower() in ('u', 'unit'):
+      kargs['ylabel'] = '\\cdots'
+      kargs['ylims'] = (0, 1)
+      kargs['yticks'] = (0, 0.25, 0.5, 0.75, 1)
     else:
       print 'UNKNOWN Y COORD ', y
     # Return the keyword dictionary, ready to be plugged right into setParams. 
