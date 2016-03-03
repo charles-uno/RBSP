@@ -160,6 +160,8 @@ def plotboth(evline):
 
     # Ignore anything that only appears in the parallel component. 
     isbigfund = ( (mlatsign!=phasesign)*isbig )
+    isbigfund[1::3] = False, False
+    # Actually, how about only looking at poloidal. 
     isbigfund[2::3] = False, False
 
     # Note the nontrivial fundamental modes, if any. 
