@@ -19,3 +19,4 @@ Geopack library is located at `http://ampere.jhuapl.edu/code/idl_geopack.html`. 
 
 Icy, the IDL SPICE toolkit, comes from `http://naif.jpl.nasa.gov/naif/toolkit_IDL.html`. 
 
+Requirements include NumPy, SciPy, and Matplotlib. The versions on department machines may be too old; try `pip install --user --upgrade scipy` and so on if libraries seem to be missing. This does not require root access, since it performs the upgrade only for the current user. 

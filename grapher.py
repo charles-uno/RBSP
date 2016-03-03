@@ -25,6 +25,11 @@ from numpy import pi, where, conj, angle
 import os
 from plotmod import *
 
+
+
+from scipy import signal
+
+
 # #############################################################################
 # ######################################################################## Main
 # #############################################################################
@@ -68,14 +73,17 @@ def main():
 def plotboth(evline):
   global savedir
 
+  # Force it to use a particularly nice event. 
+  evline = 'b\t2012-10-23\t19:40:00'
+
   # ---------------------------------------------------------------------------
   # ------------------------------------------------- Grab and Check Event Data
   # ---------------------------------------------------------------------------
 
   # Based on the event record, create a pair of event objects. 
   probe, date, time = evline.split()
-  ev = { 'a':event(probe='a', date=date, time=time),
-         'b':event(probe='b', date=date, time=time) }
+  ev = { 'a':event(probe='a', date=date, time=time, mins=30),
+         'b':event(probe='b', date=date, time=time, mins=30) }
 
   # If the events have flawed data, start over. 
   if not ev['a'].isok() or not ev['b'].isok():
@@ -102,6 +110,20 @@ def plotboth(evline):
 
   # Index all probe/mode combinations. 
   pm = [ (p, m) for p in ('a', 'b') for m in ('p', 't', 'z') ]
+
+  # Grab the fields.   
+  B = [ ev[p].get('B' + m) for p, m in pm ]
+  E = [ ev[p].get('E' + m) for p, m in pm ]
+
+  cbe = [ ev[p].coherence(m) for p, m in pm ]
+
+  print cbe[0]
+
+
+
+
+
+
 
   # Grab the cross-spectral weights and compute a shared normalization. 
   cw = [ ev[p].crossweights(m) for p, m in pm ]
@@ -173,7 +195,7 @@ def plotboth(evline):
   # If no fundamental modes were found, bail. 
   if not fundlabels:
     print 'SKIPPING ' + ev[probe].name + ' DUE TO NO FUNDAMENTAL MODES. '
-    return False
+#    return False
 
   # Otherwise, note the events on the plot. 
   PW.setParams( sidelabel=' $\n$ '.join( notex(x) for x in fundlabels ) )
@@ -266,119 +288,6 @@ def plotwaveforms(datadir):
       os.mkdir(savedir)
     return not PW.render(savedir + ev.name + '.png')
 
-# =============================================================================
-# ============================================================== Coherence, etc
-# =============================================================================
-
-# Plot the waveform. Estimate frequency and phase offset with a Fourier series.
-def plotcoherence(datadir):
-  global savedir
-
-  # Create an event object from the given path, and make sure the data is ok. 
-  ev = event(datadir)
-  if not ev.isok():
-    print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
-    return False
-
-  PW = plotWindow(nrows=2)
-
-  B, E = ev.get('Bx'), ev.get('Ey')
-  N = B.size
-
-  t = ev.get('t')
-  dt = t[1] - t[0]
-
-#  f = ev.get('f')/1e3
-
-  def cc(x, y, n):
-    if n==0:
-      return np.sum(x*y)
-    else:
-      return np.sum( x[n:]*y[:-n] ) if n>0 else np.sum( x[:n]*y[-n:] )
-
-  def csd(x, y, f):
-    N = x.size
-    return sum( cc(x, y, n)*np.exp(-1j*f*n*dt) for n in range(-N, N) )/(2*pi)
-
-  GBB = np.zeros(ev.get('f').size, dtype=np.complex)
-  GEE = np.zeros(ev.get('f').size, dtype=np.complex)
-  GEB = np.zeros(ev.get('f').size, dtype=np.complex)
-
-  for i, f in enumerate(ev.get('f')/1e3):
-    GBB[i] = csd(B, B, f)
-    GEE[i] = csd(E, E, f)
-    GEB[i] = csd(E, B, f)
-    print '\t', i, '\t', format(f*1e3, '3.0f'), '\t', format(np.abs(GBB[i]), '6.2f'), '\t', format(np.abs(GEE[i]), '6.2f'), '\t', format(np.abs(GEB[i]), '6.2f'), '\t', (np.abs(GEB)**2 / np.abs(GEE*GBB))[i]
-
-
-  coherence = np.abs(GEB)**2 / np.abs(GEE*GBB)
-  PW[0].setParams( ylims=(0, 1), **ev.fparams() )
-  PW[0].setLine(coherence)
-
-
-
-
-  # FFT validation. 
-  '''
-  PW.setParams( **ev.fparams() )
-  wB = ev.weights('Bx')
-  wE = ev.weights('Ey')
-  f = ev.get('f')
-  nB = np.fft.rfft( ev.get('Bx') )
-  nE = np.fft.rfft( ev.get('Ey') )
-  PW[0].setLine(f, np.abs(wB) )
-  PW[1].setLine(f, np.abs(wE) )
-  PW[0].setLine(f, np.abs(nB) )
-  PW[1].setLine(f, np.abs(nE) )
-  '''
-
-#  collabels = ( 'E_y' + notex('(Blue) and ') + 'B_x' + notex('(Red)'), notex('Spectral Density') )
-#  title = notex('title')
-
-#  PW[1].setParams( ylims=(-5, 5), **ev.tparams(cramped=True) )
-#  [ PW[1].setLine(ev.get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
-
-#  PW[0].setParams( ylims=(0, 1), **ev.fparams(cramped=True) )
-#  PW[0].setLine(coherence)
-
-#  PW[0].setLine( ev.get('f'), BB )
-#  PW[1].setLine( ev.get('f'), EE )
-#  PW[2].setLine( ev.get('f'), np.real(EB) )
-#  PW[3].setLine( ev.get('f'), np.imag(EB) )
-
-  '''
-  wB, wE = ev.weights('Bx'), ev.weights('Ey')
-  EE = np.abs(wE)**2
-  BB = np.abs(wB)**2
-  EB = wE*np.conj(wB)
-  coherence = np.abs(EB)**2 / (EE*BB)
-  PW[0].setLine(ev.get('f'), EE)
-  PW[1].setLine(ev.get('f'), BB)
-  PW[2].setLine( ev.get('f'), np.real(EB) )
-  PW[3].setLine( ev.get('f'), np.imag(EB) )
-  PW[4].setLine(ev.get('f'), coherence)
-  PW.setParams( ylims=(0, 2) )
-  '''
-
-  # If we're debugging, show the plot, even if it's bad. 
-  if '-i' not in argv:
-    print 'Plotting ' + ev.name
-    return PW.render()
-  # If the power is spread out evenly across the harmonics, or if the phase is
-  # all over the place, this event is probably garbage. 
-  elif int(stdev)>75 or int( powerpct.strip('%\\operatorname{}') )<35:
-    print 'SKIPPING ' + ev.name + ' DUE TO AMBIGUOUS PHASE. '
-    return False
-  # Save good plots (after making sure there's a place to put them). 
-  else:
-    if not os.path.exists(savedir):
-      os.mkdir(savedir)
-    return not PW.render(savedir + ev.name + '.png')
-
-
-
-
-
 # #############################################################################
 # ################################################################ Event Object
 # #############################################################################
@@ -391,7 +300,7 @@ class event:
   # --------------------------------------------------- Initialize Event Object
   # ---------------------------------------------------------------------------
 
-  def __init__(self, datadir=None, probe=None, date=None, time=None):
+  def __init__(self, datadir=None, probe=None, date=None, time=None, mins=10):
 
 
     if datadir is not None:
@@ -408,7 +317,7 @@ class event:
 
       hh, mm, ss = [ int(x) for x in time.split(':') ]
       self.t0 = 3600*hh + 60*mm + ss
-      self.t1 = self.t0 + 600
+      self.t1 = self.t0 + 60*mins
 
       self.name = self.date + '_' + time.replace(':', '') + '_' + probe
 
@@ -544,8 +453,6 @@ class event:
     pt = {'ep':'ey', 'et':'ex', 'bp':'bx', 'bt':'by'}
     if var.lower() in pt:
       return self.get( pt[ var.lower() ] )
-
-
     if var=='tcoord':
       return ( self.get('t') - self.get('t')[0] )/60
     elif var=='tfine':
@@ -637,6 +544,53 @@ class event:
       print 'UNKNOWN Y COORD ', y
     # Return the keyword dictionary, ready to be plugged right into setParams. 
     return kargs
+
+  # ---------------------------------------------------------------------------
+  # ---------------------------------------------------- Compute Mode Coherence
+  # ---------------------------------------------------------------------------
+
+  def coherence(self, mode):
+    t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
+
+    '''
+    B0, B1 = B[0:25], B[25:50]
+    E0, E1 = E[0:25], E[25:50]
+
+    f, bsd0 = signal.csd( B0, B0, fs=1/( t[1] - t[0] ) )
+    f, esd0 = signal.csd( E0, E0, fs=1/( t[1] - t[0] ) )
+    f, csd0 = signal.csd( B0, E0, fs=1/( t[1] - t[0] ) )
+
+    f, bsd1 = signal.csd( B1, B1, fs=1/( t[1] - t[0] ) )
+    f, esd1 = signal.csd( E1, E1, fs=1/( t[1] - t[0] ) )
+    f, csd1 = signal.csd( B1, E1, fs=1/( t[1] - t[0] ) )
+
+    bsd = 0.5*( bsd0 + bsd1 )
+    esd = 0.5*( esd0 + esd1 )
+    csd = 0.5*( csd0 + csd1 )
+
+    print f
+    print bsd
+    print esd
+    print csd
+    print ( np.abs(csd)**2 / (bsd*esd) )
+    '''
+
+    '''
+    f, bsd = signal.csd(B, B, fs=1/( t[1] - t[0] ), nperseg=t.size, window='boxcar')
+    f, esd = signal.csd(E, E, fs=1/( t[1] - t[0] ), nperseg=t.size, window='boxcar')
+    f, csd = signal.csd(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size, window='boxcar')
+
+    print f
+    print bsd
+    print esd
+    print csd
+    print ( np.abs(csd)**2 / (bsd*esd) )
+
+    exit()
+    '''
+
+
+    return signal.coherence(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size)
 
   # ---------------------------------------------------------------------------
   # ------------------------------------------------ Fourier Series of the Data
