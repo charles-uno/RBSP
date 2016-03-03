@@ -21,14 +21,10 @@ except ImportError:
   import pickle
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy import pi, where, conj, angle
+from numpy import pi
 import os
 from plotmod import *
-
-
-
 from scipy import signal
-
 
 # #############################################################################
 # ######################################################################## Main
@@ -47,21 +43,6 @@ def main():
 
   return
 
-'''
-  # Location of the output directories. 
-  outdir = '/media/My Passport/RBSP/pickles/'
-  # Each event is a directory full of pickles. Go through them in random order.
-  # This makes us more likely to see bugs when just looking at the first plot.
-  for pkldir in np.random.permutation( os.listdir(outdir) ):
-#    # If we want to force it to look at a nice one... 
-#    pkldir = 'a_20121023_220000'
-    # If we're debugging, we just want to stop after a single plot. Some events
-    # are bad, so we loop until the plotter tells us it's succeeded. 
-    if plotwaveforms(outdir + pkldir + '/'):
-      break
-  return
-'''
-
 # #############################################################################
 # ########################################################## Plotting Functions
 # #############################################################################
@@ -73,8 +54,8 @@ def main():
 def plotboth(evline):
   global savedir
 
-  # Force it to use a particularly nice event. 
-  evline = 'b\t2012-10-23\t19:40:00'
+#  # Force it to use a nice event. 
+#  evline = 'b\t2012-10-23\t19:40:00'
 
   # ---------------------------------------------------------------------------
   # ------------------------------------------------- Grab and Check Event Data
@@ -104,42 +85,6 @@ def plotboth(evline):
   rowlabels = ( ev['a'].lab(), ev['b'].lab(), ev['a'].lab(), ev['b'].lab() )
   PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
 
-  '''
-  # ---------------------------------------------------------------------------
-  # ----------------------------------------- Compute Cross-Correlation Spectra
-  # ---------------------------------------------------------------------------
-
-  # Index all probe/mode combinations. 
-  pm = [ (p, m) for p in ('a', 'b') for m in ('p', 't', 'z') ]
-
-  # Grab the fields.   
-  B = [ ev[p].get('B' + m) for p, m in pm ]
-  E = [ ev[p].get('E' + m) for p, m in pm ]
-
-  cbe = [ ev[p].coherence(m) for p, m in pm ]
-
-  pbe = [ ev[p].phaselag(m) for p, m in pm ]
-
-
-  print cbe[0]
-
-  # Grab the cross-spectral weights and compute a shared normalization. 
-  cw = [ ev[p].crossweights(m) for p, m in pm ]
-  noa = max( np.max( np.abs(w) ) for w in cw[:3] )
-  nob = max( np.max( np.abs(w) ) for w in cw[3:] )
-
-  # Get the spectral magnitudes and phases. Scale to unit interval. 
-  ang = [ angle(w, deg=True) for w in cw ]
-  mag = [ np.abs(w)/noa for w in cw[:3] ] + [ np.abs(w)/nob for w in cw[3:] ]
-
-#  # We're particularly interested in the peak of each spectrum. How much power
-#  # is in at the peak frequency? What's its phase? 
-#  ipk = [ np.argmax(x) for x in mag ]
-#  frq = [ ev[ pm[i][0] ].get('f')[ ipk[i] ] for i in range( len(pm) ) ]
-#  phs = [ ang[i][ ipk[i] ] for i in range( len(pm) ) ]
-#  pct = [ 100*x/np.sum(x) for x in mag ]
-  '''
-
   # ---------------------------------------------------------------------------
   # ----------------------------------------- Add Waveforms and Spectra to Plot
   # ---------------------------------------------------------------------------
@@ -147,9 +92,10 @@ def plotboth(evline):
   # Index all probe/mode combinations. 
   pm = [ (p, m) for p in ('a', 'b') for m in ('p', 't', 'z') ]
 
-  f = [ 1e3*ev[p].coherence(m)[0] for p, m in pm ]
-  cbe = [ ev[p].coherence(m)[1] for p, m in pm ]
-  pbe = [ ev[p].phaselag(m)[1] for p, m in pm ]
+  # For each probe and mode, compute coherence and (complex phase) lag. 
+  frq = [ 1e3*ev[p].coh(m)[0] for p, m in pm ]
+  coh = [ ev[p].coh(m)[1] for p, m in pm ]
+  lag = [ ev[p].lag(m)[1] for p, m in pm ]
 
   # Iterate over the probe/mode combinations. 
   for i, (p, m) in enumerate(pm):
@@ -160,41 +106,41 @@ def plotboth(evline):
     PW[i/3, i%3].setLine(ev[p].get('B' + m), 'r')
 
     # Plot the spectra. Scale to the unit interval. 
-    PW[i/3 + 2, i%3].setParams( **ev[p].coords('f', 'u', cramped=True) )
-    PW[i/3 + 2, i%3].setLine( f[i], cbe[i], 'k')
-    PW[i/3 + 2, i%3].setLine( f[i], pbe[i]/360 + 0.5, 'g')
+    PW[i/3 + 2, i%3].setParams( **ev[p].coords('f', 'c', cramped=True) )
+    PW[i/3 + 2, i%3].setLine( frq[i], coh[i], 'k')
+#    PW[i/3 + 2, i%3].setLine( frq[i], lag[i]/360 + 0.5, 'g')
 
 #    # Summarize the spectra. 
 #    fr, ph, pc = ev[p].fpp(m)
 #    PW[i/3, i%3].setParams(text=fr + ' \\qquad ' + ph)
 
-  '''
   # ---------------------------------------------------------------------------
   # -------------------------------------- Look for Fundamental Mode Pc4 Events
   # ---------------------------------------------------------------------------
 
   fundlabels = []
-  for i, f in enumerate( ev['a'].get('f') ):
+  for i, f in enumerate( frq[0] ):
 
     # Ignore frequencies outside the Pc4 band. 
     if not 7 < f < 25:
       continue
 
-    # Find peaks -- what's larger than the noise? 
-    isbig = np.array( [ m[i] > 5*np.mean(m) for m in mag ] )
+    # Find places where the coherence is significantly above average. 
+    iscoherent = np.array( [ c[i] > np.mean(c) + np.std(c) for c in coh ] )
 
-    # Find fundamental modes -- where are mlat and phase opposed? 
+    # In fundamental modes, mlat and phase lag have opposite signs. 
     mlatsign = np.array( [ np.sign( ev[p].avg('mlat') ) for p, m in pm ] )
-    phasesign = np.array( [ np.sign( a[i] ) for a in ang ] )
+    lagsign = np.array( [ np.sign( l[i] ) for l in lag ] )
 
-    # Ignore anything that only appears in the parallel component. 
-    isbigfund = ( (mlatsign!=phasesign)*isbig )
-    isbigfund[1::3] = False, False
-    # Actually, how about only looking at poloidal. 
-    isbigfund[2::3] = False, False
+    # Find the frequency/mode combinations -- if any -- which are coherent and
+    # fundamental. 
+    iscoherentfund = (mlatsign!=lagsign)*iscoherent
+
+    # Actually, let's filter just by poloidal components. 
+    iscoherentfund = iscoherentfund*np.array( (1, 0, 0, 1, 0, 0) )
 
     # Note the nontrivial fundamental modes, if any. 
-    for x in np.nonzero(isbigfund)[0]:
+    for x in np.nonzero(iscoherentfund)[0]:
       modenames = {'p':'Poloidal', 't':'Toroidal', 'z':'Parallel'}
       fundlabels.append( pm[x][0].upper() + '  ' + format(f, '.0f') + 'mHz  ' +
                          modenames[ pm[x][1] ] )
@@ -202,11 +148,10 @@ def plotboth(evline):
   # If no fundamental modes were found, bail. 
   if not fundlabels:
     print 'SKIPPING ' + ev[probe].name + ' DUE TO NO FUNDAMENTAL MODES. '
-#    return False
+    return False
 
   # Otherwise, note the events on the plot. 
   PW.setParams( sidelabel=' $\n$ '.join( notex(x) for x in fundlabels ) )
-  '''
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------------------------- Create the Plot
@@ -308,32 +253,17 @@ class event:
   # --------------------------------------------------- Initialize Event Object
   # ---------------------------------------------------------------------------
 
-  def __init__(self, datadir=None, probe=None, date=None, time=None, mins=10):
+  def __init__(self, probe=None, date=None, time=None, mins=10):
 
-    # How many minutes long are we talking? 
-    self.mins = mins
-
-    if datadir is not None:
-
-      # Get the event's name. 
-      self.name = datadir.rstrip('/').split('/')[-1]
-      # From the name of the directory, get the probe name and the timestamp. 
-      self.probe, self.date, self.t0, self.t1 = self.parse(datadir)
-
-    else:
-
-      self.date = date.replace('-', '')
-      self.probe = probe
-
-      hh, mm, ss = [ int(x) for x in time.split(':') ]
-      self.t0 = 3600*hh + 60*mm + ss
-      self.t1 = self.t0 + 60*self.mins
-
-      self.name = self.date + '_' + time.replace(':', '') + '_' + probe
-
-      datadir = '/media/My Passport/rbsp/pkls/' + self.date + '/' + probe + '/'
+    # Store event identifiers, and index this event with a unique name. 
+    self.probe, self.date = probe, date.replace('-', '')
+    hh, mm, ss = [ int(x) for x in time.split(':') ]
+    self.t0 = 3600*hh + 60*mm + ss
+    self.t1 = self.t0 + 60*mins
+    self.name = self.date + '_' + time.replace(':', '') + '_' + probe
 
     # Load the pickles for time, fields, and position. 
+    datadir = '/media/My Passport/rbsp/pkls/' + self.date + '/' + probe + '/'
     for var in ('time', 'bgse', 'egse', 'xgse', 'lshell', 'mlt', 'mlat'):
       self.__dict__[var] = loadpickle(datadir + var + '.pkl')
 
@@ -426,6 +356,17 @@ class event:
   def avg(self, var):
     return np.average( self.get(var) )
 
+  # Nicely-formatted label of parameter values. 
+  def lbl(self, var):
+    if var.lower()=='lshell':
+      return format(self.avg('lshell'), '.1f')
+    elif var.lower()=='mlt':
+      return clock( 3600*self.avg('mlt') )
+    elif var.lower()=='mlat':
+      return notex(format(self.avg('mlat'), '+.0f') + '^\\circ')
+    else:
+      return '???'
+
   # ---------------------------------------------------------------------------
   # ----------------------------------------------------------- Data Validation
   # ---------------------------------------------------------------------------
@@ -446,135 +387,36 @@ class event:
   # Mode coherence -- at which frequencies do the electric and magnetic field
   # line up for a given mode? Essentially, this is the normalized magnitude of
   # the cross-spectral density. 
-  def coherence(self, mode):
+  def coh(self, mode):
     t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
     return signal.coherence(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
                             noverlap=t.size/2 - 1)
 
   # Phase offset -- at each frequency, for each mode, what's the phase lag
-  # between the electric and magnetic field? This is determined from the
-  # complex phase of the cross-spectral density. 
-  def phaselag(self, mode, deg=True):
+  # between of the electric field relative to the magnetic field? This is
+  # determined from the complex phase of the cross-spectral density. 
+  def lag(self, mode, deg=True):
     t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
-    f, csd = signal.csd(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+    f, csd = signal.csd(E, B, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
                             noverlap=t.size/2 - 1)
     return f, np.angle(csd, deg=deg)
-
-
-
-
-
-
-  '''
-  # ---------------------------------------------------------------------------
-  # ------------------------------------------------ Fourier Series of the Data
-  # ---------------------------------------------------------------------------
-
-  # Harmonic basis function. Note, awkwardly, that the time steps are not quite
-  # uniform. This means that spelling out harmonics explicitly gives slightly
-  # better results than using an FFT. 
-  def harm(self, m, coord='tcoord'):
-    t = self.get(coord)
-    return np.exp( m*t*2j*np.pi / (t[-1] - t[0]) )
-
-  # (Complex) Fourier weights for a given field. 
-  def weights(self, var):
-    wts = np.zeros(self.modes.size, dtype=np.complex)
-    # A Fourier transform can be normalized per a handful of different
-    # conventions. We choose to match the Numpy FFT convention, where the
-    # weights are computed directly then a factor of 1/N is applied when they
-    # are reconstituted. 
-    for m in self.modes:
-      wts[m] = np.sum( self.get(var)*self.harm(-m) )
-    return wts
-
-  def crossweights(self, mode):
-    return self.weights('E' + mode)*conj( self.weights('B' + mode) )
-
-  # Evaluate the Fourier series to recover a waveform. 
-  def series(self, var, real=True):
-    wts = self.weights(var)
-    srs = np.zeros(self.get('tfine').shape, dtype=np.complex)
-    # Sum over all modes. 
-    for m in self.modes:
-      srs = srs + self.harm(m, coord='tfine')*wts[m]/(self.i1 - self.i0 + 1)
-    return np.real(srs) if real is True else srs 
-
-  # Get the power in a given mode based on its Fourier weights. 
-  def power(self, *args):
-    # Alphabetize the field names to determine magnetic from electric. 
-    bvar, evar = sorted(args)
-    return np.abs( self.weights(bvar) )**2 + np.abs( self.weights(evar) )**2
-
-  # Compute the complex phase between the electric and magnetic fields. 
-  def phase(self, *args):
-    # Alphabetize the field names to determine magnetic from electric. 
-    bvar, evar = sorted(args)
-    bang = np.angle(self.series(bvar, real=False), deg=True)
-    eang = np.angle(self.series(evar, real=False), deg=True)
-    # Keep it in the domain of -180 to 180. 
-    phs = eang - bang
-    return np.where(phs<-180, phs + 360, np.where(phs>180, phs - 360, phs) )
-  '''
-
-
-  '''
-  # ---------------------------------------------------------------------------
-  # ------------------------------------------------------ Parse Directory Name
-  # ---------------------------------------------------------------------------
-
-  # Split the directory into the probe name, the date stamp, and the time. Note
-  # that all events are ten minutes long by construction. 
-  def parse(self, pkldir):
-    probe, date, time = pkldir.rstrip('/').split('/')[-1].split('_')
-    hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
-    t0 = ss + 60*mm + 3600*hh
-    return probe, date, t0, t0 + 60*self.mins
-  '''
 
   # ---------------------------------------------------------------------------
   # ---------------------------------------- Labels Indicating Event Properties
   # ---------------------------------------------------------------------------
 
-  # Nicely-formatted average probe position. 
-  def getpos(self):
-    lshell = format(self.avg('lshell'), '.1f')
-    mlt = notex( clock( 3600*self.avg('mlt') ) )
-    mlat = notex(format(self.avg('mlat'), '+.0f') + '^\\circ')
-    return lshell, mlt, mlat
-
   # Long label, for the side margin. 
   def label(self):
     return ( notex( 'RBSP--' + self.probe.upper() ) + ' \\qquad L \\!=\\! ' +
-             format(np.average( self.get('lshell') ), '.1f') + ' \\qquad ' +
-             notex( clock( 3600*np.average( self.get('MLT') ) ) +
-             ' MLT') + ' \\qquad ' +
-             format(np.average( self.get('mlat') ), '+.0f') + '^\\circ' +
+             self.lbl('lshell') + ' \\qquad ' + self.lbl('mlt') +
+             notex(' MLT') + ' \\qquad ' + self.lbl('mlat') + 
              notex(' Magnetic Latitude') )
-
-  # Condensed label, for putting over a cramped frame. 
-  def lbl(self):
-    return ( notex( self.probe.upper() ) + ' \\quad ' +
-             notex(format(self.avg('lshell'), '.1f') + 'R_E') + ' \\quad ' +
-             notex(format(self.avg('mlat'), '+.0f') + '^\\circ') + ' \\quad ' +
-             notex( clock( 3600*self.avg('mlt') ) + ' MLT' ) )
 
   # Short, multi-line label for a column label. 
   def lab(self):
-    lshell, mlt, mlat = self.getpos()
-    return ( notex( self.probe.upper() ) + '$\n$' + 'L \\! = \\! ' + lshell +
-                    '$\n$' + mlt + '$\n$' + mlat )
-  '''
-  # Summarize the Fourier transform: the frequency with the maximum
-  # cross-spectral weight, the phase of that weight, and the percent of the
-  # wave made up by that weight. Format nicely. 
-  def fpp(self, mode):
-    cw, acw = self.crossweights(mode), np.abs( self.crossweights(mode) )
-    frq = format(self.get('f')[ np.argmax(acw) ], '.0f') + 'mHz'
-    phs = format(angle(cw[ np.argmax(acw) ], deg=True), '+.0f') + '^\\circ'
-    pct = format(100*np.max(acw)/np.sum(acw), '.0f') + '\\%'
-    return [ notex(x) for x in (frq, phs, pct) ]
-  '''
+    return ( notex( self.probe.upper() ) + '$\n$' + 'L \\! = \\! ' +
+             self.lbl('lshell') + '$\n$' + self.lbl('mlt') + '$\n$' +
+             self.lbl('mlat') )
 
   # ---------------------------------------------------------------------------
   # -------------------------------------------- Axis Limits, Ticks, and Labels
@@ -585,34 +427,24 @@ class event:
     kargs = {}
     # Horizontal axis, time coordinate. 
     if x.lower()=='t':
-      kargs['x'] = self.get('tcoord')
-      kargs['xlims'] = ( kargs['x'][0], kargs['x'][0] + self.mins)
+      kargs['x'] = self.get('t')
+      kargs['xlims'] = (self.t0, self.t1)
       kargs['xlabel'] = notex('Time (hh:mm)')
       # If the axis doesn't get the full width of the window, use fewer ticks.
-      if cramped:
-        kargs['xticks'] = np.linspace(0, self.mins, 5)
-        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
-        for i in (0, 2, 4):
-          kargs['xticklabels'][i] = '$' + notex( clock(self.t0 + 15*self.mins*i) ) + '$'
-      else:
-        kargs['xticks'] = range(11)
-        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
-        for i in range(1, 11, 2):
-          kargs['xticklabels'][i] = '$' + notex( clock(self.t0 + 6*self.mins*i) ) + '$'
+      nxticks = 5 if cramped else 11
+      kargs['xticks'] = np.linspace(self.t0, self.t1, nxticks)
+      kargs['xticklabels'] = [ '$' + clock(t) + '$' for t in kargs['xticks'] ]
+      kargs['xticklabels'][::2] = ['']*len( kargs['xticklabels'][::2] )
     # Horizontal axis, frequency coordinate. 
     elif x.lower()=='f':
       kargs['x'] = self.get('f')
       kargs['xlims'] = (0, 40)
       kargs['xlabel'] = notex('Frequency (mHz)')
       # If the axis doesn't get the full width of the window, use fewer ticks.
-      if cramped:
-        kargs['xticks'] = (0, 10, 20, 30, 40)
-        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
-        kargs['xticklabels'][::2] = ('$0$', '$20$', '$40$')
-      else:
-        kargs['xticks'] = range(0, 41, 5)
-        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
-        kargs['xticklabels'][::2] = ('$0$', '$10$', '$20$', '$30$', '$40$')
+      nxticks = 5 if cramped else 9
+      kargs['xticks'] = np.linspace(0, 40, nxticks)
+      kargs['xticklabels'] = [ '$' + znt(t) + '$' for t in kargs['xticks'] ]
+      kargs['xticklabels'][1::2] = ['']*len( kargs['xticklabels'][1::2] )
     else:
       print 'UNKNOWN X COORD ', x
     # Vertical axis, plotting electric and/or magnetic fields. 
@@ -629,10 +461,11 @@ class event:
       kargs['ylims'] = (0, 1)
       kargs['yticks'] = (0, 0.25, 0.5, 0.75, 1)
       kargs['yticklabels'] = ('$-180$', '', '$0$', '', '$+180$')
-    elif y.lower() in ('u', 'unit'):
-      kargs['ylabel'] = '\\cdots'
+    elif y.lower() in ('c', 'u', 'coherence', 'unit'):
+      kargs['ylabel'] = notex('Coherence')
       kargs['ylims'] = (0, 1)
       kargs['yticks'] = (0, 0.25, 0.5, 0.75, 1)
+      kargs['yticklabels'] = ('$0$', '', '', '', '$1$')
     else:
       print 'UNKNOWN Y COORD ', y
     # Return the keyword dictionary, ready to be plugged right into setParams. 
@@ -644,20 +477,20 @@ class event:
 
 # Put the slashes back into a date string. 
 def calendar(date):
-  return date[0:4] + '--' + date[4:6] + '--' + date[6:8]
+  return notex( date[0:4] + '--' + date[4:6] + '--' + date[6:8] )
 
 # Compute clock time from a count of seconds from midnight. 
 def clock(sfm, seconds=False):
   if not np.isfinite(sfm):
-    return '??:??'
+    return notex('??:??')
   hh = sfm/3600
   if seconds:
     mm = (sfm%3600)/60
     ss = sfm%60
-    return znt(hh, 2) + ':' + znt(mm, 2) + ':' + znt(ss, 2)
+    return notex( znt(hh, 2) + ':' + znt(mm, 2) + ':' + znt(ss, 2) )
   else:
     mm = int( format( (sfm%3600)/60., '.0f') )
-    return znt(hh, 2) + ':' + znt(mm, 2)
+    return notex( znt(hh, 2) + ':' + znt(mm, 2) )
 
 # Load all of the pickles in a directory into a dictionary. 
 def load(datadir):
