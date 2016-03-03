@@ -82,8 +82,8 @@ def plotboth(evline):
 
   # Based on the event record, create a pair of event objects. 
   probe, date, time = evline.split()
-  ev = { 'a':event(probe='a', date=date, time=time, mins=30),
-         'b':event(probe='b', date=date, time=time, mins=30) }
+  ev = { 'a':event(probe='a', date=date, time=time),
+         'b':event(probe='b', date=date, time=time) }
 
   # If the events have flawed data, start over. 
   if not ev['a'].isok() or not ev['b'].isok():
@@ -104,6 +104,7 @@ def plotboth(evline):
   rowlabels = ( ev['a'].lab(), ev['b'].lab(), ev['a'].lab(), ev['b'].lab() )
   PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
 
+  '''
   # ---------------------------------------------------------------------------
   # ----------------------------------------- Compute Cross-Correlation Spectra
   # ---------------------------------------------------------------------------
@@ -117,13 +118,10 @@ def plotboth(evline):
 
   cbe = [ ev[p].coherence(m) for p, m in pm ]
 
+  pbe = [ ev[p].phaselag(m) for p, m in pm ]
+
+
   print cbe[0]
-
-
-
-
-
-
 
   # Grab the cross-spectral weights and compute a shared normalization. 
   cw = [ ev[p].crossweights(m) for p, m in pm ]
@@ -140,10 +138,18 @@ def plotboth(evline):
 #  frq = [ ev[ pm[i][0] ].get('f')[ ipk[i] ] for i in range( len(pm) ) ]
 #  phs = [ ang[i][ ipk[i] ] for i in range( len(pm) ) ]
 #  pct = [ 100*x/np.sum(x) for x in mag ]
+  '''
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------- Add Waveforms and Spectra to Plot
   # ---------------------------------------------------------------------------
+
+  # Index all probe/mode combinations. 
+  pm = [ (p, m) for p in ('a', 'b') for m in ('p', 't', 'z') ]
+
+  f = [ 1e3*ev[p].coherence(m)[0] for p, m in pm ]
+  cbe = [ ev[p].coherence(m)[1] for p, m in pm ]
+  pbe = [ ev[p].phaselag(m)[1] for p, m in pm ]
 
   # Iterate over the probe/mode combinations. 
   for i, (p, m) in enumerate(pm):
@@ -154,14 +160,15 @@ def plotboth(evline):
     PW[i/3, i%3].setLine(ev[p].get('B' + m), 'r')
 
     # Plot the spectra. Scale to the unit interval. 
-    PW[i/3 + 2, i%3].setParams( **ev[p].coords('f', 's', cramped=True) )
-    PW[i/3 + 2, i%3].setLine(mag[i], 'k')
-    PW[i/3 + 2, i%3].setLine(ang[i]/360 + 0.5, 'g')
+    PW[i/3 + 2, i%3].setParams( **ev[p].coords('f', 'u', cramped=True) )
+    PW[i/3 + 2, i%3].setLine( f[i], cbe[i], 'k')
+    PW[i/3 + 2, i%3].setLine( f[i], pbe[i]/360 + 0.5, 'g')
 
 #    # Summarize the spectra. 
 #    fr, ph, pc = ev[p].fpp(m)
 #    PW[i/3, i%3].setParams(text=fr + ' \\qquad ' + ph)
 
+  '''
   # ---------------------------------------------------------------------------
   # -------------------------------------- Look for Fundamental Mode Pc4 Events
   # ---------------------------------------------------------------------------
@@ -199,6 +206,7 @@ def plotboth(evline):
 
   # Otherwise, note the events on the plot. 
   PW.setParams( sidelabel=' $\n$ '.join( notex(x) for x in fundlabels ) )
+  '''
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------------------------- Create the Plot
@@ -302,6 +310,8 @@ class event:
 
   def __init__(self, datadir=None, probe=None, date=None, time=None, mins=10):
 
+    # How many minutes long are we talking? 
+    self.mins = mins
 
     if datadir is not None:
 
@@ -317,7 +327,7 @@ class event:
 
       hh, mm, ss = [ int(x) for x in time.split(':') ]
       self.t0 = 3600*hh + 60*mm + ss
-      self.t1 = self.t0 + 60*mins
+      self.t1 = self.t0 + 60*self.mins
 
       self.name = self.date + '_' + time.replace(':', '') + '_' + probe
 
@@ -349,60 +359,6 @@ class event:
     self.ex, self.ey, self.ez = self.rotate(self.egse)
 
     return
-
-  # ---------------------------------------------------------------------------
-  # ------------------------------------------------------ Parse Directory Name
-  # ---------------------------------------------------------------------------
-
-  # Split the directory into the probe name, the date stamp, and the time. Note
-  # that all events are ten minutes long by construction. 
-  def parse(self, pkldir):
-    probe, date, time = pkldir.rstrip('/').split('/')[-1].split('_')
-    hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
-    t0 = ss + 60*mm + 3600*hh
-    return probe, date, t0, t0 + 600
-
-  # ---------------------------------------------------------------------------
-  # ----------------------------------------- Label Indicating Event Properties
-  # ---------------------------------------------------------------------------
-
-  # Nicely-formatted average probe position. 
-  def getpos(self):
-    lshell = format(self.avg('lshell'), '.1f')
-    mlt = notex( clock( 3600*self.avg('mlt') ) )
-    mlat = notex(format(self.avg('mlat'), '+.0f') + '^\\circ')
-    return lshell, mlt, mlat
-
-  # Long label, for the side margin. 
-  def label(self):
-    return ( notex( 'RBSP--' + self.probe.upper() ) + ' \\qquad L \\!=\\! ' +
-             format(np.average( self.get('lshell') ), '.1f') + ' \\qquad ' +
-             notex( clock( 3600*np.average( self.get('MLT') ) ) +
-             ' MLT') + ' \\qquad ' +
-             format(np.average( self.get('mlat') ), '+.0f') + '^\\circ' +
-             notex(' Magnetic Latitude') )
-
-  # Condensed label, for putting over a cramped frame. 
-  def lbl(self):
-    return ( notex( self.probe.upper() ) + ' \\quad ' +
-             notex(format(self.avg('lshell'), '.1f') + 'R_E') + ' \\quad ' +
-             notex(format(self.avg('mlat'), '+.0f') + '^\\circ') + ' \\quad ' +
-             notex( clock( 3600*self.avg('mlt') ) + ' MLT' ) )
-
-  # Short, multi-line label for a column label. 
-  def lab(self):
-    lshell, mlt, mlat = self.getpos()
-    return ( notex( self.probe.upper() ) + '$\n$' + 'L \\! = \\! ' + lshell + '$\n$' + mlt + '$\n$' + mlat )
-
-  # Summarize the Fourier transform: the frequency with the maximum
-  # cross-spectral weight, the phase of that weight, and the percent of the
-  # wave made up by that weight. Format nicely. 
-  def fpp(self, mode):
-    cw, acw = self.crossweights(mode), np.abs( self.crossweights(mode) )
-    frq = format(self.get('f')[ np.argmax(acw) ], '.0f') + 'mHz'
-    phs = format(angle(cw[ np.argmax(acw) ], deg=True), '+.0f') + '^\\circ'
-    pct = format(100*np.max(acw)/np.sum(acw), '.0f') + '\\%'
-    return [ notex(x) for x in (frq, phs, pct) ]
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------- Compute Background Magnetic Field
@@ -444,7 +400,7 @@ class event:
     return dot(vgse, self.xhat), dot(vgse, self.yhat), dot(vgse, self.zhat)
 
   # ---------------------------------------------------------------------------
-  # --------------------------------------------------------- Access Event Data
+  # --------------------------------------------------------- Event Data Access
   # ---------------------------------------------------------------------------
 
   # Access a quantity. Only the slice during the ten-minute event is returned. 
@@ -471,7 +427,7 @@ class event:
     return np.average( self.get(var) )
 
   # ---------------------------------------------------------------------------
-  # -------------------------------------------------------- Check for Bad Data
+  # ----------------------------------------------------------- Data Validation
   # ---------------------------------------------------------------------------
 
   # Data can be bad for a number of reasons. Sometimes a chunk of the day is
@@ -484,114 +440,32 @@ class event:
     return all( all( np.isfinite( self.get(var) ) ) for var in ('Ex', 'Ey') )
 
   # ---------------------------------------------------------------------------
-  # -------------------------------------------- Axis Limits, Ticks, and Labels
+  # ---------------------------------------------------------- Spectral Density
   # ---------------------------------------------------------------------------
 
-  def coords(self, x='t', y='b', cramped=False):
-    # Assemble a keyword dictionary to be plugged right into the Plot Window. 
-    kargs = {}
-    # Horizontal axis, time coordinate. 
-    if x.lower()=='t':
-      kargs['x'] = self.get('tcoord')
-      kargs['xlims'] = ( kargs['x'][0], kargs['x'][0] + 10)
-      kargs['xlabel'] = notex('Time (hh:mm)')
-      # If the axis doesn't get the full width of the window, use fewer ticks.
-      if cramped:
-        kargs['xticks'] = (0, 2.5, 5, 7.5, 10)
-        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
-        for i in (0, 2, 4):
-          kargs['xticklabels'][i] = '$' + notex( clock(self.t0 + 150*i) ) + '$'
-      else:
-        kargs['xticks'] = range(11)
-        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
-        for i in range(1, 11, 2):
-          kargs['xticklabels'][i] = '$' + notex( clock(self.t0 + 60*i) ) + '$'
-    # Horizontal axis, frequency coordinate. 
-    elif x.lower()=='f':
-      kargs['x'] = self.get('f')
-      kargs['xlims'] = (0, 40)
-      kargs['xlabel'] = notex('Frequency (mHz)')
-      # If the axis doesn't get the full width of the window, use fewer ticks.
-      if cramped:
-        kargs['xticks'] = (0, 10, 20, 30, 40)
-        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
-        kargs['xticklabels'][::2] = ('$0$', '$20$', '$40$')
-      else:
-        kargs['xticks'] = range(0, 41, 5)
-        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
-        kargs['xticklabels'][::2] = ('$0$', '$10$', '$20$', '$30$', '$40$')
-    else:
-      print 'UNKNOWN X COORD ', x
-    # Vertical axis, plotting electric and/or magnetic fields. 
-    if y.lower() in ('e', 'b', 'fields', 'waveform'):
-      kargs['ylabel'] = 'B' + notex(' (nT)  ') + 'E' + notex('(\\frac{mV}{m})')
-      kargs['ylabelpad'] = -2
-      kargs['ylims'] = (-3, 3)
-      kargs['yticks'] = range(-3, 4)
-      kargs['yticklabels'] = ('$-3$', '', '', '$0$', '', '', '$+3$')
-    # Vertical axis, plotting Fourier magnitude and phase. 
-    elif y.lower() in ('p', 's', 'phase', 'spectra'):
-      kargs['ylabel'] = '\\cdots' + notex(' (^\\circ)')
-      kargs['ylabelpad'] = -2
-      kargs['ylims'] = (0, 1)
-      kargs['yticks'] = (0, 0.25, 0.5, 0.75, 1)
-      kargs['yticklabels'] = ('$-180$', '', '$0$', '', '$+180$')
-    elif y.lower() in ('u', 'unit'):
-      kargs['ylabel'] = '\\cdots'
-      kargs['ylims'] = (0, 1)
-      kargs['yticks'] = (0, 0.25, 0.5, 0.75, 1)
-    else:
-      print 'UNKNOWN Y COORD ', y
-    # Return the keyword dictionary, ready to be plugged right into setParams. 
-    return kargs
-
-  # ---------------------------------------------------------------------------
-  # ---------------------------------------------------- Compute Mode Coherence
-  # ---------------------------------------------------------------------------
-
+  # Mode coherence -- at which frequencies do the electric and magnetic field
+  # line up for a given mode? Essentially, this is the normalized magnitude of
+  # the cross-spectral density. 
   def coherence(self, mode):
     t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
+    return signal.coherence(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+                            noverlap=t.size/2 - 1)
 
-    '''
-    B0, B1 = B[0:25], B[25:50]
-    E0, E1 = E[0:25], E[25:50]
-
-    f, bsd0 = signal.csd( B0, B0, fs=1/( t[1] - t[0] ) )
-    f, esd0 = signal.csd( E0, E0, fs=1/( t[1] - t[0] ) )
-    f, csd0 = signal.csd( B0, E0, fs=1/( t[1] - t[0] ) )
-
-    f, bsd1 = signal.csd( B1, B1, fs=1/( t[1] - t[0] ) )
-    f, esd1 = signal.csd( E1, E1, fs=1/( t[1] - t[0] ) )
-    f, csd1 = signal.csd( B1, E1, fs=1/( t[1] - t[0] ) )
-
-    bsd = 0.5*( bsd0 + bsd1 )
-    esd = 0.5*( esd0 + esd1 )
-    csd = 0.5*( csd0 + csd1 )
-
-    print f
-    print bsd
-    print esd
-    print csd
-    print ( np.abs(csd)**2 / (bsd*esd) )
-    '''
-
-    '''
-    f, bsd = signal.csd(B, B, fs=1/( t[1] - t[0] ), nperseg=t.size, window='boxcar')
-    f, esd = signal.csd(E, E, fs=1/( t[1] - t[0] ), nperseg=t.size, window='boxcar')
-    f, csd = signal.csd(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size, window='boxcar')
-
-    print f
-    print bsd
-    print esd
-    print csd
-    print ( np.abs(csd)**2 / (bsd*esd) )
-
-    exit()
-    '''
+  # Phase offset -- at each frequency, for each mode, what's the phase lag
+  # between the electric and magnetic field? This is determined from the
+  # complex phase of the cross-spectral density. 
+  def phaselag(self, mode, deg=True):
+    t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
+    f, csd = signal.csd(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+                            noverlap=t.size/2 - 1)
+    return f, np.angle(csd, deg=deg)
 
 
-    return signal.coherence(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size)
 
+
+
+
+  '''
   # ---------------------------------------------------------------------------
   # ------------------------------------------------ Fourier Series of the Data
   # ---------------------------------------------------------------------------
@@ -641,6 +515,128 @@ class event:
     # Keep it in the domain of -180 to 180. 
     phs = eang - bang
     return np.where(phs<-180, phs + 360, np.where(phs>180, phs - 360, phs) )
+  '''
+
+
+  '''
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------------ Parse Directory Name
+  # ---------------------------------------------------------------------------
+
+  # Split the directory into the probe name, the date stamp, and the time. Note
+  # that all events are ten minutes long by construction. 
+  def parse(self, pkldir):
+    probe, date, time = pkldir.rstrip('/').split('/')[-1].split('_')
+    hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
+    t0 = ss + 60*mm + 3600*hh
+    return probe, date, t0, t0 + 60*self.mins
+  '''
+
+  # ---------------------------------------------------------------------------
+  # ---------------------------------------- Labels Indicating Event Properties
+  # ---------------------------------------------------------------------------
+
+  # Nicely-formatted average probe position. 
+  def getpos(self):
+    lshell = format(self.avg('lshell'), '.1f')
+    mlt = notex( clock( 3600*self.avg('mlt') ) )
+    mlat = notex(format(self.avg('mlat'), '+.0f') + '^\\circ')
+    return lshell, mlt, mlat
+
+  # Long label, for the side margin. 
+  def label(self):
+    return ( notex( 'RBSP--' + self.probe.upper() ) + ' \\qquad L \\!=\\! ' +
+             format(np.average( self.get('lshell') ), '.1f') + ' \\qquad ' +
+             notex( clock( 3600*np.average( self.get('MLT') ) ) +
+             ' MLT') + ' \\qquad ' +
+             format(np.average( self.get('mlat') ), '+.0f') + '^\\circ' +
+             notex(' Magnetic Latitude') )
+
+  # Condensed label, for putting over a cramped frame. 
+  def lbl(self):
+    return ( notex( self.probe.upper() ) + ' \\quad ' +
+             notex(format(self.avg('lshell'), '.1f') + 'R_E') + ' \\quad ' +
+             notex(format(self.avg('mlat'), '+.0f') + '^\\circ') + ' \\quad ' +
+             notex( clock( 3600*self.avg('mlt') ) + ' MLT' ) )
+
+  # Short, multi-line label for a column label. 
+  def lab(self):
+    lshell, mlt, mlat = self.getpos()
+    return ( notex( self.probe.upper() ) + '$\n$' + 'L \\! = \\! ' + lshell +
+                    '$\n$' + mlt + '$\n$' + mlat )
+  '''
+  # Summarize the Fourier transform: the frequency with the maximum
+  # cross-spectral weight, the phase of that weight, and the percent of the
+  # wave made up by that weight. Format nicely. 
+  def fpp(self, mode):
+    cw, acw = self.crossweights(mode), np.abs( self.crossweights(mode) )
+    frq = format(self.get('f')[ np.argmax(acw) ], '.0f') + 'mHz'
+    phs = format(angle(cw[ np.argmax(acw) ], deg=True), '+.0f') + '^\\circ'
+    pct = format(100*np.max(acw)/np.sum(acw), '.0f') + '\\%'
+    return [ notex(x) for x in (frq, phs, pct) ]
+  '''
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------- Axis Limits, Ticks, and Labels
+  # ---------------------------------------------------------------------------
+
+  def coords(self, x='t', y='b', cramped=False):
+    # Assemble a keyword dictionary to be plugged right into the Plot Window. 
+    kargs = {}
+    # Horizontal axis, time coordinate. 
+    if x.lower()=='t':
+      kargs['x'] = self.get('tcoord')
+      kargs['xlims'] = ( kargs['x'][0], kargs['x'][0] + self.mins)
+      kargs['xlabel'] = notex('Time (hh:mm)')
+      # If the axis doesn't get the full width of the window, use fewer ticks.
+      if cramped:
+        kargs['xticks'] = np.linspace(0, self.mins, 5)
+        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
+        for i in (0, 2, 4):
+          kargs['xticklabels'][i] = '$' + notex( clock(self.t0 + 15*self.mins*i) ) + '$'
+      else:
+        kargs['xticks'] = range(11)
+        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
+        for i in range(1, 11, 2):
+          kargs['xticklabels'][i] = '$' + notex( clock(self.t0 + 6*self.mins*i) ) + '$'
+    # Horizontal axis, frequency coordinate. 
+    elif x.lower()=='f':
+      kargs['x'] = self.get('f')
+      kargs['xlims'] = (0, 40)
+      kargs['xlabel'] = notex('Frequency (mHz)')
+      # If the axis doesn't get the full width of the window, use fewer ticks.
+      if cramped:
+        kargs['xticks'] = (0, 10, 20, 30, 40)
+        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
+        kargs['xticklabels'][::2] = ('$0$', '$20$', '$40$')
+      else:
+        kargs['xticks'] = range(0, 41, 5)
+        kargs['xticklabels'] = ['']*len( kargs['xticks'] )
+        kargs['xticklabels'][::2] = ('$0$', '$10$', '$20$', '$30$', '$40$')
+    else:
+      print 'UNKNOWN X COORD ', x
+    # Vertical axis, plotting electric and/or magnetic fields. 
+    if y.lower() in ('e', 'b', 'fields', 'waveform'):
+      kargs['ylabel'] = 'B' + notex(' (nT)  ') + 'E' + notex('(\\frac{mV}{m})')
+      kargs['ylabelpad'] = -2
+      kargs['ylims'] = (-3, 3)
+      kargs['yticks'] = range(-3, 4)
+      kargs['yticklabels'] = ('$-3$', '', '', '$0$', '', '', '$+3$')
+    # Vertical axis, plotting Fourier magnitude and phase. 
+    elif y.lower() in ('p', 's', 'phase', 'spectra'):
+      kargs['ylabel'] = '\\cdots' + notex(' (^\\circ)')
+      kargs['ylabelpad'] = -2
+      kargs['ylims'] = (0, 1)
+      kargs['yticks'] = (0, 0.25, 0.5, 0.75, 1)
+      kargs['yticklabels'] = ('$-180$', '', '$0$', '', '$+180$')
+    elif y.lower() in ('u', 'unit'):
+      kargs['ylabel'] = '\\cdots'
+      kargs['ylims'] = (0, 1)
+      kargs['yticks'] = (0, 0.25, 0.5, 0.75, 1)
+    else:
+      print 'UNKNOWN Y COORD ', y
+    # Return the keyword dictionary, ready to be plugged right into setParams. 
+    return kargs
 
 # #############################################################################
 # ############################################################ Helper Functions
