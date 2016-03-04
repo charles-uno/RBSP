@@ -26,6 +26,9 @@ import os
 from plotmod import *
 from scipy import signal
 
+from calendar import timegm
+from time import gmtime
+
 # #############################################################################
 # ######################################################################## Main
 # #############################################################################
@@ -35,18 +38,12 @@ savedir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
+#  for evline in ('b\t2012-10-23\t19:15:00', 'a\t2012-10-23\t21:40:00'):
+#    plot0(evline)
+#  return
 
-  for evline in ('b\t2012-10-23\t19:15:00', 'a\t2012-10-23\t21:40:00'):
-
-    plot0(evline)
-
-  return
-
-
-
-
-
-  # Flip through the events in random order. 
+  # Flip through the events in random order. This makes it easier to debug -- a
+  # different event pops up first every time. 
   for evline in np.random.permutation( read('events.txt') ):
 
     if plot1(evline):
@@ -61,6 +58,112 @@ def main():
 # #############################################################################
 # ########################################################## Plotting Functions
 # #############################################################################
+
+# =============================================================================
+# ============================================================== Plot One Event
+# =============================================================================
+
+# Plot the waveform. Estimate frequency and phase offset with a Fourier series.
+def plot1(evline):
+  global savedir
+
+#  # Force it to use a nice event. 
+#  evline = 'a\t2014-05-02\t10:10:00'
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------- Grab and Check Event Data
+  # ---------------------------------------------------------------------------
+
+  # Based on the event record, create an event object. Make sure it's ok. 
+  probe, date, time = evline.split()
+  ev = event(probe=probe, date=date, time=time)
+  if not ev.isok():
+    print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
+    return False
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------- Set Up Plot Window
+  # ---------------------------------------------------------------------------
+
+  # Create a plot window to look at both probes at the same time -- both the
+  # waveforms and the spectra. 
+  PW = plotWindow(nrows=3, ncols=2)
+
+  # Set the title and labels. 
+  title = notex( 'RBSP-' + probe.upper() + '  on  ' + date + '  from  ' +
+                 notex( timestr(ev.t0)[1] )  + '  to  ' +
+                 notex( timestr(ev.t0)[1] ) )
+
+  title = ev.label()
+
+  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
+  collabels = ( notex('B (Red) ; E (Blue)'), notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
+  PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------- Add Waveforms and Spectra
+  # ---------------------------------------------------------------------------
+
+  # Index the poloidal, toroidal, and field-aligned modes. 
+  modes = ('p', 't', 'z')
+
+  # Plot waveforms. 
+  PW[:, 0].setParams( **ev.coords('t', 'b', cramped=True) )
+  [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
+  [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
+
+  # Plot coherence. 
+  PW[:, 1].setParams( **ev.coords('f', 'c', cramped=True) )
+  [ PW[i, 1].setLine( ev.csd(m), 'g' ) for i, m in enumerate(modes) ]
+  [ PW[i, 1].setLine( ev.coh(m), 'k' ) for i, m in enumerate(modes) ]
+  [ PW[i, 1].setLine( 0.05 + 0.9*ev.isodd(m), 'm' ) for i, m in enumerate(modes) ]
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------------- Screen Event
+  # ---------------------------------------------------------------------------
+
+  # Let's keep track of all the strong waves we find. 
+  waves = []
+
+  # Keep track of MLT. 
+  mlt = ev.avg('mlt')
+
+  # Only look at the poloidal mode. Ignore any components of the spectra that
+  # are not coherent or not spectrally dense. 
+  for m in modes[:1]:
+    mname = {'p':'Poloidal', 't':'Toroidal', 'z':'Parallel'}[m]
+
+    # Find any harmonics worth talking about. 
+    harm = ev.harm(m)*ev.iscoh(m)*ev.iscsd(m)*ev.ispc4()
+    for i in np.nonzero(harm)[0]:
+      waves.append( {'strength':ev.coh(m)[i]*ev.csd(m)[i], 
+                     'frequency':ev.frq()[i],
+                     'harmonic': harm[i], 
+                     'mode':mname, 
+                     'mlt':mlt} )
+
+  if len(waves) == 0:
+    print 'SKIPPING ' + ev.name + ' DUE TO NO SUITABLE MODES. '
+    return False
+
+  for w in waves:
+    print w
+
+  print 'Estimate of plasmapause location... ', lpp(evline)
+
+
+
+  # ---------------------------------------------------------------------------
+  # ----------------------------------------------------------- Create the Plot
+  # ---------------------------------------------------------------------------
+
+  if '-i' not in argv:
+    print 'Plotting ' + ev.name
+    return PW.render()
+  else:
+    if not os.path.exists(savedir):
+      os.mkdir(savedir)
+    return not PW.render(savedir + ev.name + '.png')
 
 # =============================================================================
 # =========================================================== Plot a Long Event
@@ -101,101 +204,6 @@ def plot0(evline):
   PW.setParams( **ev.coords('t', 'b') )
   [ PW[i].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
   [ PW[i].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
-
-  # ---------------------------------------------------------------------------
-  # ----------------------------------------------------------- Create the Plot
-  # ---------------------------------------------------------------------------
-
-  if '-i' not in argv:
-    print 'Plotting ' + ev.name
-    return PW.render()
-  else:
-    if not os.path.exists(savedir):
-      os.mkdir(savedir)
-    return not PW.render(savedir + ev.name + '.png')
-
-# =============================================================================
-# ============================================================== Plot One Event
-# =============================================================================
-
-# Plot the waveform. Estimate frequency and phase offset with a Fourier series.
-def plot1(evline):
-  global savedir
-
-#  # Force it to use a nice event. 
-#  evline = 'a\t2014-05-02\t10:00:00'
-
-  # ---------------------------------------------------------------------------
-  # ------------------------------------------------- Grab and Check Event Data
-  # ---------------------------------------------------------------------------
-
-  # Based on the event record, create an event object. Make sure it's ok. 
-  probe, date, time = evline.split()
-  ev = event(probe=probe, date=date, time=time)
-  if not ev.isok():
-    print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
-    return False
-
-  # ---------------------------------------------------------------------------
-  # -------------------------------------------------------- Set Up Plot Window
-  # ---------------------------------------------------------------------------
-
-  # Create a plot window to look at both probes at the same time -- both the
-  # waveforms and the spectra. 
-  PW = plotWindow(nrows=3, ncols=2)
-
-  # Set the title and labels. 
-  title = notex( 'RBSP-' + probe.upper() + '  on  ' + date + '  from  ' +
-                 clock(ev.t0)  + '  to  ' + clock(ev.t1) )
-
-  title = ev.label()
-
-  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
-  collabels = ( notex('B (Red) ; E (Blue)'), notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
-  PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
-
-  # ---------------------------------------------------------------------------
-  # ------------------------------------------------- Add Waveforms and Spectra
-  # ---------------------------------------------------------------------------
-
-  # Index the poloidal, toroidal, and field-aligned modes. 
-  modes = ('p', 't', 'z')
-
-  # Plot waveforms. 
-  PW[:, 0].setParams( **ev.coords('t', 'b', cramped=True) )
-  [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
-  [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
-
-  # Plot coherence. 
-  PW[:, 1].setParams( **ev.coords('f', 'c', cramped=True) )
-  [ PW[i, 1].setLine( ev.csd(m), 'g' ) for i, m in enumerate(modes) ]
-  [ PW[i, 1].setLine( ev.coh(m), 'k' ) for i, m in enumerate(modes) ]
-  [ PW[i, 1].setLine( 0.05 + 0.9*ev.isfund(m), 'm' ) for i, m in enumerate(modes) ]
-
-  # ---------------------------------------------------------------------------
-  # -------------------------------------------------------- Screen for Quality
-  # ---------------------------------------------------------------------------
-
-  wavenames = []
-
-  # Let's look for any particularly clear modes. One standard deviation above
-  # the mean in both cross-spectral density and coherence. 
-  for m in modes[:1]:
-
-    mname = {'p':'Poloidal', 't':'Toroidal', 'z':'Parallel'}[m]
-    goodwaves = ev.iscoh(m)*ev.iscsd(m)*ev.isfund(m)*ev.ispc4()
-
-    # Record anything that meets these criteria. 
-    for i in np.nonzero(goodwaves)[0]:
-      wavenames.append(format(ev.frq()[i], '.0f') + 'mHz  ' + mname)
-
-  # If no fundamental modes were found, bail. 
-  if not wavenames:
-    print 'SKIPPING ' + ev.name + ' DUE TO NO SUITABLE MODES. '
-    return False
-
-  # Otherwise, note the events on the plot. 
-  PW.setParams( sidelabel=' $\n$ '.join( notex(w) for w in wavenames ) )
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------------------------- Create the Plot
@@ -472,7 +480,7 @@ class event:
     if var.lower()=='lshell':
       return format(self.avg('lshell'), '.1f')
     elif var.lower()=='mlt':
-      return clock( 3600*self.avg('mlt') )
+      return notex( timestr( 3600*self.avg('mlt') )[1] )
     elif var.lower()=='mlat':
       return notex(format(self.avg('mlat'), '+.0f') + '^\\circ')
     else:
@@ -533,23 +541,38 @@ class event:
 
   # Array indicating which frequencies are coherent. By default, results are
   # significant to 1.5 standard deviations. 
-  def iscoh(self, mode, n=1.5):
+  def iscoh(self, mode, n=1):
     coh = self.coh(mode)
     return np.array( [ c > np.mean(coh) + n*np.std(coh) for c in coh ] )
 
   # Array indicating which frequencies are spectrally dense. By default, 
   # results are significant to 1.5 standard deviations. 
-  def iscsd(self, mode, n=1.5):
+  def iscsd(self, mode, n=1):
     csd = self.csd(mode)
     return np.array( [ c > np.mean(csd) + n*np.std(csd) for c in csd ] )
 
-  # Array of booleans indicating which frequencies have a phase lag consistent
-  # with the fundamental mode -- north of the magnetic equator, the electric
-  # field should lag by about 90 degrees, and south it should lead. 
-  def isfund(self, mode):
+  # Array of integers guessing a harmonic for each frequency. The phase lag
+  # between electric and magnetic fields gives the parity. For odd modes, the
+  # first and third harmonic can be distinguished by frequency. If mlat is
+  # within a few degrees of the equator, this function returns all zeros. 
+  def harm(self, mode):
+    odds = np.where( self.frq() < 18, 1, 3 )
+    return 2*self.iseven(mode) + odds*self.isodd(mode)
+
+  # Array indicating which frequencies have a phase lag consistent with an odd
+  # mode -- north of the magnetic equator, the electric field should lag, and
+  # south it should lead. 
+  def isodd(self, mode):
     lag = self.lag(mode)
     mlat = self.avg('mlat')
     return (np.abs(mlat) > 3)*( np.sign(mlat) != np.sign(lag) )
+
+  # Array of booleans indicating which frequencies have a phase lag consistent
+  # with an even harmonic. 
+  def iseven(self, mode):
+    lag = self.lag(mode)
+    mlat = self.avg('mlat')
+    return (np.abs(mlat) > 3)*( np.sign(mlat) == np.sign(lag) )
 
   # Array of booleans indicating if this frequency is in the pc4 band. Doesn't
   # actually depend on the mode. 
@@ -588,7 +611,7 @@ class event:
       # If the axis doesn't get the full width of the window, use fewer ticks.
       nxticks = 5 if cramped else 11
       kargs['xticks'] = np.linspace(self.t0, self.t1, nxticks)
-      kargs['xticklabels'] = [ '$' + clock(t) + '$' for t in kargs['xticks'] ]
+      kargs['xticklabels'] = [ '$' + notex( timestr(t)[1] ) + '$' for t in kargs['xticks'] ]
       kargs['xticklabels'][::2] = ['']*len( kargs['xticklabels'][::2] )
     # Horizontal axis, frequency coordinate. 
     elif x.lower()=='f':
@@ -628,25 +651,59 @@ class event:
     return kargs
 
 # #############################################################################
-# ############################################################ Helper Functions
+# ################################################# High-Level Helper Functions
 # #############################################################################
 
-# Put the slashes back into a date string. 
-def calendar(date):
-  return notex( date[0:4] + '--' + date[4:6] + '--' + date[6:8] )
+# Estimate the location of the plasmapause at a given timestamp. This is done
+# by looking at RBSP inbound and outbound crossing times. 
+def lpp(evline):
+  # Read in Scott's list of plasmapause crossings. Make sure they're sorted by
+  # time. Each entry is of the form (date, time, L, probe, in/out)
+  crossings = sorted( x.split() for x in read('lpp.txt') )
+  # Compare the event date and time to the crossing date and times to find the
+  # crossings just before and just after this event. 
+  evtime = timeint( *evline.split()[1:3] )
+  crosstimes = np.array( [ timeint( *x[0:2] ) for x in crossings ] )
+  iafter = np.argmax(crosstimes > evtime)
+  ibefore = iafter - 1
+  # Get the plasmapause sizes just before and just after the event. 
+  lbefore = float( crossings[ibefore][2] )
+  lafter = float( crossings[iafter][2] )
+  # Return a weighted average. 
+  wafter = evtime - timeint( *crossings[ibefore][0:2] )
+  wbefore = timeint( *crossings[iafter][0:2] ) - evtime
+  return (wbefore*lbefore + wafter*lafter)/(wbefore + wafter)
 
-# Compute clock time from a count of seconds from midnight. 
-def clock(sfm, seconds=False):
-  if not np.isfinite(sfm):
-    return notex('??:??')
-  hh = sfm/3600
-  if seconds:
-    mm = (sfm%3600)/60
-    ss = sfm%60
-    return notex( znt(hh, 2) + ':' + znt(mm, 2) + ':' + znt(ss, 2) )
-  else:
-    mm = int( format( (sfm%3600)/60., '.0f') )
-    return notex( znt(hh, 2) + ':' + znt(mm, 2) )
+# Come up with a nice listing of plasmapause crossings. Tab-delimit everything,
+# and put the inbound and outbound crossings in the same file. 
+def lppcleanup():
+  for probe in ('a',):
+    for io in ('in', 'out'):
+      readpath = ( '/home/user1/mceachern/Desktop/rbsp/lpp/' + probe + '_' +
+                   io + 'bound.txt' )
+      if not os.path.exists(readpath):
+        print 'WARNING: No file found for ' + probe + ' ' + io
+        continue
+      for line in read(readpath):
+        datetime, loc = line.split()
+        date, time = datetime.split('/')
+        append('\t'.join( (date, time, loc[:5], probe, io) ), 'lpp.txt')
+  return
+
+# #############################################################################
+# ################################################## Low-Level Helper Functions
+# #############################################################################
+
+# Append text to a file. 
+def append(text, filename=None):
+  if filename is not None:
+    with open(filename, 'a') as fileobj:
+      fileobj.write(text + '\n')
+  return text
+
+# Dot product of a pair of vectors or a pair of arrays of vectors. 
+def dot(v0, v1, axis=0):
+  return np.sum(v0*v1, axis=axis)
 
 # Load all of the pickles in a directory into a dictionary. 
 def load(datadir):
@@ -661,39 +718,34 @@ def loadpickle(pklpath):
   with open(pklpath, 'rb') as handle:
     return pickle.load(handle)
 
-# Based on the pickle directory name, return the probe name and the start and
-# end time of the event, in seconds from midnight. Note that all events are ten
-# minutes long by construction. 
-def pdtt(pkldir):
-  probe, date, time = pkldir.rstrip('/').split('/')[-1].split('_')
-  hh, mm, ss = int( time[0:2] ), int( time[2:4] ), int( time[4:6] )
-  t0 = ss + 60*mm + 3600*hh
-  return probe, date, t0, t0 + 600
-
-# Take a rolling average of the magnetic field to estimate the background
-# field. The average gets truncated at the edges -- notably, none of Lei's
-# events happen within ten minutes of midnight. 
-def getbg(t, B, tavg=600):
-  B0 = np.empty(B.shape)
-  for i in range( B.shape[1] ):
-    # Find indeces five minutes in the past and five minutes in the future. 
-    ipas = np.argmax( t > t[i] - tavg/2 )
-    ifut = np.argmax( t > t[i] + tavg/2 )
-    # If we're looking for something past the edge of the array, argmax will
-    # return 0. That a problem for the upper bound. 
-    ifut = ifut if ifut>0 else B.shape[1]
-    # Take the average. 
-    B0[:, i] = np.average(B[:, ipas:ifut], axis=1)
-  return B0
-
-# Dot product of a pair of vectors or a pair of arrays of vectors. 
-def dot(v0, v1, axis=0):
-  return np.sum(v0*v1, axis=axis)
-
 # Read in a file as a list of lines. 
 def read(filename):
   with open(filename, 'r') as fileobj:
     return [ x.strip() for x in fileobj.readlines() ]
+
+# Returns the time, in seconds, from 1970-01-01. 
+def timeint(date=None, time=None):
+  # Parse a string of the form hh:mm:ss. 
+  if time is None:
+    hh, mm, ss = 0, 0, 0
+  else:
+    # If seconds aren't included, add them. 
+    hh, mm, ss = [ int(x) for x in (time + ':00')[:8].split(':') ]
+  # Parse a string of the form yyyy-mm-dd. If no date is given, use 1970-01-01
+  # so that the returned value is just in seconds from midnight. 
+  if date is None:
+    year, mon, day = 1970, 1, 1
+  else:
+    year, mon, day = [ int(x) for x in date.split('-') ]
+  return timegm( (year, mon, day, hh, mm, ss) )
+
+# Returns strings indicating the date and time. 
+def timestr(ti):
+  year, mon, day = gmtime(ti).tm_year, gmtime(ti).tm_mon, gmtime(ti).tm_mday
+  hh, mm, ss = gmtime(ti).tm_hour, gmtime(ti).tm_min, gmtime(ti).tm_sec
+  date = znt(year, 4) + '-' + znt(mon, 2) + '-' + znt(day, 2)
+  time = znt(hh, 2) + ':' + znt(mm, 2) + ':' + znt(ss, 2)
+  return date, time
 
 # Scale a vector, or an array of vectors, to unit vectors. 
 def unit(v):
