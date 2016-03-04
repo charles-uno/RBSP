@@ -35,21 +35,84 @@ savedir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
+
+  for evline in ('b\t2012-10-23\t19:15:00', 'a\t2012-10-23\t21:40:00'):
+
+    plot0(evline)
+
+  return
+
+
+
+
+
   # Flip through the events in random order. 
   for evline in np.random.permutation( read('events.txt') ):
 
-    if '2' in argv:
-      if plot2(evline):
-        break
-    else:
-      if plot1(evline):
-        break
+    if plot1(evline):
+      break
+
+#    if plot2(evline):
+#      break
+
 
   return
 
 # #############################################################################
 # ########################################################## Plotting Functions
 # #############################################################################
+
+# =============================================================================
+# =========================================================== Plot a Long Event
+# =============================================================================
+
+# Plot the waveform. Estimate frequency and phase offset with a Fourier series.
+def plot0(evline):
+  global savedir
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------- Grab and Check Event Data
+  # ---------------------------------------------------------------------------
+
+  # Based on the event record, create an event object. Make sure it's ok. 
+  probe, date, time = evline.split()
+  ev = event(probe=probe, date=date, time=time, mins=60)
+  if not ev.isok():
+    print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
+    return False
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------- Set Up Plot Window
+  # ---------------------------------------------------------------------------
+
+  PW = plotWindow(nrows=3, ncols=-2)
+  title = ev.label()
+  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
+  PW.setParams(title=title, rowlabels=rowlabels)
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------- Add Waveforms and Spectra
+  # ---------------------------------------------------------------------------
+
+  # Index the poloidal, toroidal, and field-aligned modes. 
+  modes = ('p', 't', 'z')
+
+  # Plot waveforms. 
+  PW.setParams( **ev.coords('t', 'b') )
+  [ PW[i].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
+  [ PW[i].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
+
+  # ---------------------------------------------------------------------------
+  # ----------------------------------------------------------- Create the Plot
+  # ---------------------------------------------------------------------------
+
+  if '-i' not in argv:
+    print 'Plotting ' + ev.name
+    return PW.render()
+  else:
+    if not os.path.exists(savedir):
+      os.mkdir(savedir)
+    return not PW.render(savedir + ev.name + '.png')
 
 # =============================================================================
 # ============================================================== Plot One Event
@@ -107,7 +170,7 @@ def plot1(evline):
   PW[:, 1].setParams( **ev.coords('f', 'c', cramped=True) )
   [ PW[i, 1].setLine( ev.csd(m), 'g' ) for i, m in enumerate(modes) ]
   [ PW[i, 1].setLine( ev.coh(m), 'k' ) for i, m in enumerate(modes) ]
-  [ PW[i, 1].setLine( 0.1 + 0.8*ev.isfund(m), 'm' ) for i, m in enumerate(modes) ]
+  [ PW[i, 1].setLine( 0.05 + 0.9*ev.isfund(m), 'm' ) for i, m in enumerate(modes) ]
 
   # ---------------------------------------------------------------------------
   # -------------------------------------------------------- Screen for Quality
@@ -117,16 +180,10 @@ def plot1(evline):
 
   # Let's look for any particularly clear modes. One standard deviation above
   # the mean in both cross-spectral density and coherence. 
-  for m in modes:
+  for m in modes[:1]:
 
     mname = {'p':'Poloidal', 't':'Toroidal', 'z':'Parallel'}[m]
     goodwaves = ev.iscoh(m)*ev.iscsd(m)*ev.isfund(m)*ev.ispc4()
-
-#    print 'looking at mode: ', m
-#    ind = np.nonzero( ev.ispc4() )[0]
-#    print '\t', ev.iscoh(m)[ind]
-#    print '\t', ev.iscsd(m)[ind]
-#    print '\t', ev.isfund(m)[ind]
 
     # Record anything that meets these criteria. 
     for i in np.nonzero(goodwaves)[0]:
@@ -457,7 +514,7 @@ class event:
   # Note that the angle can be recovered from the phase lag function below. 
   def csd(self, mode, deg=True):
     t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
-    temp = signal.csd(E, B, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+    temp = signal.csd(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
                       noverlap=t.size/2 - 1)[1]
     return np.abs(temp)/np.max( np.abs(temp) )
 
@@ -467,7 +524,7 @@ class event:
   # determined from the complex phase of the cross-spectral density. 
   def lag(self, mode, deg=True):
     t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
-    return np.angle(signal.csd(E, B, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+    return np.angle(signal.csd(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
                       noverlap=t.size/2 - 1)[1], deg=True)
 
   # ---------------------------------------------------------------------------
@@ -475,14 +532,14 @@ class event:
   # ---------------------------------------------------------------------------
 
   # Array indicating which frequencies are coherent. By default, results are
-  # significant to two standard deviations, which is quite strict. 
-  def iscoh(self, mode, n=2):
+  # significant to 1.5 standard deviations. 
+  def iscoh(self, mode, n=1.5):
     coh = self.coh(mode)
     return np.array( [ c > np.mean(coh) + n*np.std(coh) for c in coh ] )
 
   # Array indicating which frequencies are spectrally dense. By default, 
-  # results are significant to two standard deviations, which is quite strict. 
-  def iscsd(self, mode, n=2):
+  # results are significant to 1.5 standard deviations. 
+  def iscsd(self, mode, n=1.5):
     csd = self.csd(mode)
     return np.array( [ c > np.mean(csd) + n*np.std(csd) for c in csd ] )
 
@@ -492,7 +549,7 @@ class event:
   def isfund(self, mode):
     lag = self.lag(mode)
     mlat = self.avg('mlat')
-    return (np.abs(mlat) > 2)*( np.sign(mlat) != np.sign(lag) )
+    return (np.abs(mlat) > 3)*( np.sign(mlat) != np.sign(lag) )
 
   # Array of booleans indicating if this frequency is in the pc4 band. Doesn't
   # actually depend on the mode. 
