@@ -38,8 +38,12 @@ def main():
   # Flip through the events in random order. 
   for evline in np.random.permutation( read('events.txt') ):
 
-    if plotboth(evline):
-      break
+    if '2' in argv:
+      if plot2(evline):
+        break
+    else:
+      if plot1(evline):
+        break
 
   return
 
@@ -48,10 +52,111 @@ def main():
 # #############################################################################
 
 # =============================================================================
-# ====================================================== One Event, Both Probes
+# ============================================================== Plot One Event
 # =============================================================================
 
-def plotboth(evline):
+# Plot the waveform. Estimate frequency and phase offset with a Fourier series.
+def plot1(evline):
+  global savedir
+
+#  # Force it to use a nice event. 
+#  evline = 'a\t2014-05-02\t10:00:00'
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------- Grab and Check Event Data
+  # ---------------------------------------------------------------------------
+
+  # Based on the event record, create an event object. Make sure it's ok. 
+  probe, date, time = evline.split()
+  ev = event(probe=probe, date=date, time=time)
+  if not ev.isok():
+    print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
+    return False
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------- Set Up Plot Window
+  # ---------------------------------------------------------------------------
+
+  # Create a plot window to look at both probes at the same time -- both the
+  # waveforms and the spectra. 
+  PW = plotWindow(nrows=3, ncols=2)
+
+  # Set the title and labels. 
+  title = notex( 'RBSP-' + probe.upper() + '  on  ' + date + '  from  ' +
+                 clock(ev.t0)  + '  to  ' + clock(ev.t1) )
+
+  title = ev.label()
+
+  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
+  collabels = ( notex('B (Red) ; E (Blue)'), notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
+  PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------- Add Waveforms and Spectra
+  # ---------------------------------------------------------------------------
+
+  # Index the poloidal, toroidal, and field-aligned modes. 
+  modes = ('p', 't', 'z')
+
+  # Plot waveforms. 
+  PW[:, 0].setParams( **ev.coords('t', 'b', cramped=True) )
+  [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
+  [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
+
+  # Plot coherence. 
+  PW[:, 1].setParams( **ev.coords('f', 'c', cramped=True) )
+  [ PW[i, 1].setLine( ev.csd(m), 'g' ) for i, m in enumerate(modes) ]
+  [ PW[i, 1].setLine( ev.coh(m), 'k' ) for i, m in enumerate(modes) ]
+  [ PW[i, 1].setLine( 0.1 + 0.8*ev.isfund(m), 'm' ) for i, m in enumerate(modes) ]
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------- Screen for Quality
+  # ---------------------------------------------------------------------------
+
+  wavenames = []
+
+  # Let's look for any particularly clear modes. One standard deviation above
+  # the mean in both cross-spectral density and coherence. 
+  for m in modes:
+
+    mname = {'p':'Poloidal', 't':'Toroidal', 'z':'Parallel'}[m]
+    goodwaves = ev.iscoh(m)*ev.iscsd(m)*ev.isfund(m)*ev.ispc4()
+
+#    print 'looking at mode: ', m
+#    ind = np.nonzero( ev.ispc4() )[0]
+#    print '\t', ev.iscoh(m)[ind]
+#    print '\t', ev.iscsd(m)[ind]
+#    print '\t', ev.isfund(m)[ind]
+
+    # Record anything that meets these criteria. 
+    for i in np.nonzero(goodwaves)[0]:
+      wavenames.append(format(ev.frq()[i], '.0f') + 'mHz  ' + mname)
+
+  # If no fundamental modes were found, bail. 
+  if not wavenames:
+    print 'SKIPPING ' + ev.name + ' DUE TO NO SUITABLE MODES. '
+    return False
+
+  # Otherwise, note the events on the plot. 
+  PW.setParams( sidelabel=' $\n$ '.join( notex(w) for w in wavenames ) )
+
+  # ---------------------------------------------------------------------------
+  # ----------------------------------------------------------- Create the Plot
+  # ---------------------------------------------------------------------------
+
+  if '-i' not in argv:
+    print 'Plotting ' + ev.name
+    return PW.render()
+  else:
+    if not os.path.exists(savedir):
+      os.mkdir(savedir)
+    return not PW.render(savedir + ev.name + '.png')
+
+# =============================================================================
+# =========================================== Plot Both Probes During One Event
+# =============================================================================
+
+def plot2(evline):
   global savedir
 
 #  # Force it to use a nice event. 
@@ -93,7 +198,7 @@ def plotboth(evline):
   pm = [ (p, m) for p in ('a', 'b') for m in ('p', 't', 'z') ]
 
   # For each probe and mode, compute coherence and (complex phase) lag. 
-  frq = [ 1e3*ev[p].coh(m)[0] for p, m in pm ]
+  frq = [ ev[p].coh(m)[0] for p, m in pm ]
   coh = [ ev[p].coh(m)[1] for p, m in pm ]
   lag = [ ev[p].lag(m)[1] for p, m in pm ]
 
@@ -121,23 +226,31 @@ def plotboth(evline):
   fundlabels = []
   for i, f in enumerate( frq[0] ):
 
-    # Ignore frequencies outside the Pc4 band. 
-    if not 7 < f < 25:
+    # Fundamental FLRs should be around 10mHz. 
+    if not 6 < f < 20:
       continue
 
     # Find places where the coherence is significantly above average. 
-    iscoherent = np.array( [ c[i] > np.mean(c) + np.std(c) for c in coh ] )
+    iscoherent = np.array( [ c[i] > np.mean(c) + 2*np.std(c) for c in coh ] )
 
     # In fundamental modes, mlat and phase lag have opposite signs. 
     mlatsign = np.array( [ np.sign( ev[p].avg('mlat') ) for p, m in pm ] )
     lagsign = np.array( [ np.sign( l[i] ) for l in lag ] )
 
+    # Skip anything within one degree of the magnetic equator. 
+    isoffeq = np.array( [ np.abs( ev[p].avg('mlat') ) > 1 for p, m in pm ] )
+
     # Find the frequency/mode combinations -- if any -- which are coherent and
     # fundamental. 
-    iscoherentfund = (mlatsign!=lagsign)*iscoherent
+    iscoherentfund = (mlatsign!=lagsign)*iscoherent*isoffeq
 
-    # Actually, let's filter just by poloidal components. 
-    iscoherentfund = iscoherentfund*np.array( (1, 0, 0, 1, 0, 0) )
+#    # Only keep events which trigger in the poloidal mode. 
+#    if not any( iscoherentfund[::3] ):
+#      continue
+
+    # Can we find any simultaneous observations by both probes? 
+    if not any( iscoherentfund[:3] ) or not any( iscoherentfund[3:] ):
+      continue
 
     # Note the nontrivial fundamental modes, if any. 
     for x in np.nonzero(iscoherentfund)[0]:
@@ -147,7 +260,7 @@ def plotboth(evline):
 
   # If no fundamental modes were found, bail. 
   if not fundlabels:
-    print 'SKIPPING ' + ev[probe].name + ' DUE TO NO FUNDAMENTAL MODES. '
+    print 'SKIPPING ' + ev[probe].name + ' DUE TO NO SUITABLE MODES. '
     return False
 
   # Otherwise, note the events on the plot. 
@@ -165,82 +278,6 @@ def plotboth(evline):
       os.mkdir(savedir)
     return not PW.render(savedir + ev[probe].name + '.png')
 
-# =============================================================================
-# ============================================================= Field Waveforms
-# =============================================================================
-
-# Plot the waveform. Estimate frequency and phase offset with a Fourier series.
-def plotwaveforms(datadir):
-  global savedir
-
-  # Create an event object from the given path, and make sure the data is ok. 
-  ev = event(datadir)
-  if not ev.isok():
-    print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
-    return False
-
-  # Initialize the Plot Window. Three double-wide rows for poloidal,
-  # toroidal, and parallel. 
-  ylabels = ( notex('Poloidal (\\frac{mV}{m}) (nT)'), 
-              notex('Toroidal (\\frac{mV}{m}) (nT)'), 
-              notex('Field-Aligned (\\frac{mV}{m}) (nT)') )
-  PW = plotWindow(nrows=len(ylabels), ncols=-2)
-
-  # Manually set the ticks and tick labels on the horizontal axis. 
-  PW.setParams( **ev.tparams() )
-
-  # Plot poloidal, toroidal, and field-aligned components. 
-  [ PW[0].setLine(ev.get(v), c) for v, c in ( ('Ey', 'b'), ('Bx', 'r') ) ]
-  [ PW[1].setLine(ev.get(v), c) for v, c in ( ('Ex', 'b'), ('By', 'r') ) ]
-  [ PW[2].setLine(ev.get(v), c) for v, c in ( ('Ez', 'b'), ('Bz', 'r') ) ]
-
-  # Find the peak frequency, in terms of energy density, and pack that
-  # information into a label for the plot. 
-  pwr = ev.power('Bx', 'Ey')
-  pct = notex(format(100*np.max(pwr)/np.sum(pwr), '.0f') + '\\%')
-  freq = notex(format( ev.get('f')[ np.argmax(pwr) ], '.0f') + ' mHz')
-  flabel = freq + notex(' (') + pct + notex(' Power)')
-
-  # Compute the difference in (complex) phase between the poloidal fields as a
-  # function of time. Put the mean and standard deviation in a label. 
-  phs = ev.phase('Bx', 'Ey')
-  mean = ( '+' + format(np.mean(phs), '.0f') ).replace('+-', '-') + '^\\circ'
-  stdev = format(np.std(phs), '.0f') + '^\\circ'
-  phslabel = mean + ' \\pm ' + stdev + notex(' Phase Offset')
-
-  # Title the plot and add axis labels. 
-  title = notex('In Situ Electric (Blue) and Magnetic (Red) Fields')
-  PW.setParams( title=title, collabels=(flabel + ' \\qquad ' + phslabel,), 
-                sidelabel=ev.label() )
-  [ PW[i].setParams(ylabel=ylbl) for i, ylbl in enumerate(ylabels) ]
-
-#  # For debugging, it's useful to plot the phase (in radians) next to the data.
-#  PW[0].setLine(ev.get('tfine'), phs*np.pi/180, 'g')
-
-#  PW[0].setLine(ev.get('tfine'), ev.series('Bx'), 'r:')
-
-  # If we're debugging, show the plot, even if it's bad. 
-  if '-i' not in argv:
-    print 'Plotting ' + ev.name
-    return PW.render()
-  # If the power is spread out evenly across the harmonics, or if the phase is
-  # all over the place, this event is probably garbage. 
-  elif int( stdev.strip('\\^cir') )>99 or int( pct.strip('%\\operatnm{}') )<30:
-    print 'SKIPPING ' + ev.name + ' DUE TO AMBIGUOUS PHASE. '
-    return False
-
-  # At the moment, we want only the events where the phase lag and the magnetic
-  # latitude have opposite signs. 
-  elif mean.startswith('+')==( np.mean( ev.get('mlat') )>0 ):
-    print 'SKIPPING ' + ev.name + ' DUE TO WRONG SIGN OF MLAT*PHASE. '
-    return False
-
-  # Save good plots (after making sure there's a place to put them). 
-  else:
-    if not os.path.exists(savedir):
-      os.mkdir(savedir)
-    return not PW.render(savedir + ev.name + '.png')
-
 # #############################################################################
 # ################################################################ Event Object
 # #############################################################################
@@ -253,13 +290,18 @@ class event:
   # --------------------------------------------------- Initialize Event Object
   # ---------------------------------------------------------------------------
 
-  def __init__(self, probe=None, date=None, time=None, mins=10):
+  def __init__(self, probe=None, date=None, time=None, t0=None, mins=10):
 
     # Store event identifiers, and index this event with a unique name. 
     self.probe, self.date = probe, date.replace('-', '')
-    hh, mm, ss = [ int(x) for x in time.split(':') ]
-    self.t0 = 3600*hh + 60*mm + ss
-    self.t1 = self.t0 + 60*mins
+
+    if t0 is not None:
+      self.t0, self.t1 = t0, t0 + 60*mins
+    else:
+      hh, mm, ss = [ int(x) for x in time.split(':') ]
+      self.t0 = 3600*hh + 60*mm + ss
+      self.t1 = self.t0 + 60*mins
+
     self.name = self.date + '_' + time.replace(':', '') + '_' + probe
 
     # Load the pickles for time, fields, and position. 
@@ -289,6 +331,18 @@ class event:
     self.ex, self.ey, self.ez = self.rotate(self.egse)
 
     return
+
+  # ---------------------------------------------------------------------------
+  # ---------------------------------------------------- Create Adjacent Events
+  # ---------------------------------------------------------------------------
+
+  # Note that this is not smart enough to handle day boundaries. 
+  def prev(self):
+    return event(probe=self.probe, date=self.date, t0=self.t0 - 600)
+
+  # Note that this is not smart enough to handle day boundaries. 
+  def next(self):
+    return event(probe=self.probe, date=self.date, t0=self.t1)
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------- Compute Background Magnetic Field
@@ -384,22 +438,66 @@ class event:
   # ---------------------------------------------------------- Spectral Density
   # ---------------------------------------------------------------------------
 
+  # Frequencies used by the coherence, etc. Does not depend on mode. Use mHz. 
+  def frq(self, mode='p'):
+    t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
+    return signal.coherence(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+                            noverlap=t.size/2 - 1)[0]*1e3
+
   # Mode coherence -- at which frequencies do the electric and magnetic field
   # line up for a given mode? Essentially, this is the normalized magnitude of
   # the cross-spectral density. 
   def coh(self, mode):
     t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
     return signal.coherence(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
-                            noverlap=t.size/2 - 1)
+                            noverlap=t.size/2 - 1)[1]
+
+  # Absolute value of cross-spectral density, normalized to the unit interval. 
+  # The units are sorta arbitrary, so we're not really losing any information. 
+  # Note that the angle can be recovered from the phase lag function below. 
+  def csd(self, mode, deg=True):
+    t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
+    temp = signal.csd(E, B, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+                      noverlap=t.size/2 - 1)[1]
+    return np.abs(temp)/np.max( np.abs(temp) )
+
 
   # Phase offset -- at each frequency, for each mode, what's the phase lag
   # between of the electric field relative to the magnetic field? This is
   # determined from the complex phase of the cross-spectral density. 
   def lag(self, mode, deg=True):
     t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
-    f, csd = signal.csd(E, B, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
-                            noverlap=t.size/2 - 1)
-    return f, np.angle(csd, deg=deg)
+    return np.angle(signal.csd(E, B, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+                      noverlap=t.size/2 - 1)[1], deg=True)
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------- Spectral Density Filters
+  # ---------------------------------------------------------------------------
+
+  # Array indicating which frequencies are coherent. By default, results are
+  # significant to two standard deviations, which is quite strict. 
+  def iscoh(self, mode, n=2):
+    coh = self.coh(mode)
+    return np.array( [ c > np.mean(coh) + n*np.std(coh) for c in coh ] )
+
+  # Array indicating which frequencies are spectrally dense. By default, 
+  # results are significant to two standard deviations, which is quite strict. 
+  def iscsd(self, mode, n=2):
+    csd = self.csd(mode)
+    return np.array( [ c > np.mean(csd) + n*np.std(csd) for c in csd ] )
+
+  # Array of booleans indicating which frequencies have a phase lag consistent
+  # with the fundamental mode -- north of the magnetic equator, the electric
+  # field should lag by about 90 degrees, and south it should lead. 
+  def isfund(self, mode):
+    lag = self.lag(mode)
+    mlat = self.avg('mlat')
+    return (np.abs(mlat) > 2)*( np.sign(mlat) != np.sign(lag) )
+
+  # Array of booleans indicating if this frequency is in the pc4 band. Doesn't
+  # actually depend on the mode. 
+  def ispc4(self, mode='p'):
+    return np.array( [ 6 < f < 22 for f in self.frq() ] )
 
   # ---------------------------------------------------------------------------
   # ---------------------------------------- Labels Indicating Event Properties
@@ -410,7 +508,7 @@ class event:
     return ( notex( 'RBSP--' + self.probe.upper() ) + ' \\qquad L \\!=\\! ' +
              self.lbl('lshell') + ' \\qquad ' + self.lbl('mlt') +
              notex(' MLT') + ' \\qquad ' + self.lbl('mlat') + 
-             notex(' Magnetic Latitude') )
+             notex(' MLAT') )
 
   # Short, multi-line label for a column label. 
   def lab(self):
@@ -437,7 +535,7 @@ class event:
       kargs['xticklabels'][::2] = ['']*len( kargs['xticklabels'][::2] )
     # Horizontal axis, frequency coordinate. 
     elif x.lower()=='f':
-      kargs['x'] = self.get('f')
+      kargs['x'] = self.frq()
       kargs['xlims'] = (0, 40)
       kargs['xlabel'] = notex('Frequency (mHz)')
       # If the axis doesn't get the full width of the window, use fewer ticks.
@@ -449,7 +547,8 @@ class event:
       print 'UNKNOWN X COORD ', x
     # Vertical axis, plotting electric and/or magnetic fields. 
     if y.lower() in ('e', 'b', 'fields', 'waveform'):
-      kargs['ylabel'] = 'B' + notex(' (nT)  ') + 'E' + notex('(\\frac{mV}{m})')
+#      kargs['ylabel'] = 'B' + notex(' (nT)  ') + 'E' + notex('(\\frac{mV}{m})')
+      kargs['ylabel'] = notex('\\cdots (nT ; \\frac{mV}{m})')
       kargs['ylabelpad'] = -2
       kargs['ylims'] = (-3, 3)
       kargs['yticks'] = range(-3, 4)
