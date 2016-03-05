@@ -658,7 +658,9 @@ class plotWindow:
         self.sharelimits = bool(val)
       # Put a sideways label in the color bar axis. 
       elif key=='sidelabel':
+        targs['horizontalalignment'] = 'left'
         self.cax.text(s='$' + val + '$', rotation='vertical', **targs)
+        targs['horizontalalignment'] = 'center'
       # Accept a string as the window supertitle. 
       elif key=='title':
         self.tax.text(s='$' + val + '$', fontsize=12, **targs)

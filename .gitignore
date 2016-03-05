@@ -1,6 +1,6 @@
 events/*
 *~
-plasmapause_locations/*
+lpp/*
 run/*
 packages/*.zip
 packages/*.tar.Z

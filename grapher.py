@@ -38,6 +38,8 @@ savedir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
+#  return plotloc()
+
 #  for evline in ('b\t2012-10-23\t19:15:00', 'a\t2012-10-23\t21:40:00'):
 #    plot0(evline)
 #  return
@@ -58,6 +60,133 @@ def main():
 # #############################################################################
 # ########################################################## Plotting Functions
 # #############################################################################
+
+# =============================================================================
+# ================================================= Plot of All Event Locations
+# =============================================================================
+
+def plotloc():
+
+#  # Debug: force it to regenerate the list each time. 
+#  if os.path.exists('locations.txt'):
+#    os.remove('locations.txt')
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------------ List Event Locations
+  # ---------------------------------------------------------------------------
+
+  if not os.path.exists('locations.txt'):
+
+    # Flip through each event in the listing. 
+    for evline in np.random.permutation( read('events.txt') ):
+
+      # Create an event object. Make sure it's usable. 
+      probe, date, time = evline.split()
+      ev = event(probe=probe, date=date, time=time)
+      if not ev.isok():
+        print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
+        continue
+
+      # Find the strong Pc4 poloidal waves in this event. 
+      waves = []
+      for m in ('p', 't', 'z')[:1]:
+        mname = {'p':'Poloidal', 't':'Toroidal', 'z':'Parallel'}[m]
+        # Find any harmonics worth talking about. 
+        harm = ev.harm(m)*ev.iscoh(m)*ev.iscsd(m)*ev.ispc4()
+        for i in np.nonzero(harm)[0]:
+          waves.append( {'strength':ev.coh(m)[i]*ev.csd(m)[i], 
+                         'frequency':ev.frq()[i],
+                         'harmonic': harm[i], 
+                         'mode':mname, 
+                         'mlt':ev.avg('mlt'),
+                         'lpp':lpp(evline),
+                         'mlat':ev.avg('mlat'),
+                         'lshell':ev.avg('lshell') } )
+
+      # If no modes were found, bail. 
+      if len(waves) == 0:
+        print 'SKIPPING ' + ev.name + ' DUE TO NO SUITABLE MODES. '
+        continue
+
+      # If there are multiple strong modes, keep only the strongest. It's
+      # possible, in principle, to have a strong even harmonic and a strong odd
+      # harmonic superimposed... but it's unlikely. 
+      if len(waves) > 1:
+        maxstrength = max( w['strength'] for w in waves )
+        maxwave = [ w for w in waves if w['strength'] == maxstrength ][0]
+      else:
+        maxwave = waves[0]
+
+      # Save the mode, its location, and the location of the plasmapause. 
+      append(format(maxwave['harmonic'], '.0f') + '\t' +
+             format(maxwave['lshell'], '.1f') + '\t' + 
+             format(maxwave['mlt'], '.1f') + '\t' + 
+             format(maxwave['mlat'], '.1f') + '\t' + 
+             format(maxwave['lpp'], '.1f') + '\t' + 
+             format(maxwave['frequency'], '.0f'), 'locations.txt')
+      print 'Saving ' + ev.name
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------------ Load Event Locations
+  # ---------------------------------------------------------------------------
+
+  locs = read('locations.txt')
+  locarr = np.array( [ [ float(x) for x in l.split('\t') ] for l in locs  ] )
+
+  # Split each row into its own 1D array. 
+  harm = locarr[:, 0]
+  lshell = locarr[:, 1]
+  mlt = locarr[:, 2]
+  mlat = locarr[:, 3]
+  lpp = locarr[:, 4]
+  freq = locarr[:, 5]
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------- Plot Event Location Data
+  # ---------------------------------------------------------------------------
+
+  # Indicate which places are odd or even harmonics. 
+  isodd = harm%2 == 1
+  iseven = harm == 2
+
+  # Split between large and small plasmasphere. 
+  lppavg = np.mean(lpp)
+  isbigpp = lpp > lppavg
+  issmallpp = lpp < lppavg
+
+  # Sanity check... scatter plot of frequency against lshell. 
+  plt.scatter(lshell, freq)
+
+  # Round lshell to the nearest half integer. 
+  lround = 0.5*np.round(2*lshell)
+  lbins = sorted( set(lround) )
+
+  bigf, smallf = [], []
+
+  # Let's also plot the average at each lshell. 
+  for l in lbins:
+
+    # Find the events that are at this lshell. 
+    ishere = lround == l
+
+    indbig = np.nonzero(isbigpp*ishere*isodd)[0]
+    if indbig.size>0:
+      bigf.append( np.mean( freq[indbig] ) )
+    else:
+      bigf.append(None)
+
+    indsmall = np.nonzero(issmallpp*ishere*isodd)[0]
+    if indsmall.size>0:
+      smallf.append( np.mean( freq[indsmall] ) )
+    else:
+      smallf.append(None)
+
+  plt.plot(lbins, bigf, 'r')
+  plt.plot(lbins, smallf, 'b')
+
+  plt.show()
+
+  return
 
 # =============================================================================
 # ============================================================== Plot One Event
@@ -91,13 +220,12 @@ def plot1(evline):
 
   # Set the title and labels. 
   title = notex( 'RBSP-' + probe.upper() + '  on  ' + date + '  from  ' +
-                 notex( timestr(ev.t0)[1] )  + '  to  ' +
-                 notex( timestr(ev.t0)[1] ) )
-
-  title = ev.label()
+                 notex( timestr(ev.t0)[1][:5] )  + '  to  ' +
+                 notex( timestr(ev.t1)[1][:5] ) )
 
   rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
-  collabels = ( notex('B (Red) ; E (Blue)'), notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
+  collabels = ( notex('B (Red) ; E (Blue)'), 
+                notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
   PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
 
   # ---------------------------------------------------------------------------
@@ -116,7 +244,7 @@ def plot1(evline):
   PW[:, 1].setParams( **ev.coords('f', 'c', cramped=True) )
   [ PW[i, 1].setLine( ev.csd(m), 'g' ) for i, m in enumerate(modes) ]
   [ PW[i, 1].setLine( ev.coh(m), 'k' ) for i, m in enumerate(modes) ]
-  [ PW[i, 1].setLine( 0.05 + 0.9*ev.isodd(m), 'm' ) for i, m in enumerate(modes) ]
+  [ PW[i, 1].setLine( 0.1 + 0.8*ev.isodd(m), 'm' ) for i, m in enumerate(modes) ]
 
   # ---------------------------------------------------------------------------
   # -------------------------------------------------------------- Screen Event
@@ -125,9 +253,6 @@ def plot1(evline):
   # Let's keep track of all the strong waves we find. 
   waves = []
 
-  # Keep track of MLT. 
-  mlt = ev.avg('mlt')
-
   # Only look at the poloidal mode. Ignore any components of the spectra that
   # are not coherent or not spectrally dense. 
   for m in modes[:1]:
@@ -135,22 +260,36 @@ def plot1(evline):
 
     # Find any harmonics worth talking about. 
     harm = ev.harm(m)*ev.iscoh(m)*ev.iscsd(m)*ev.ispc4()
-    for i in np.nonzero(harm)[0]:
+
+    for i in np.nonzero(harm==1)[0]:
+#    for i in np.nonzero(harm)[0]:
+
       waves.append( {'strength':ev.coh(m)[i]*ev.csd(m)[i], 
                      'frequency':ev.frq()[i],
                      'harmonic': harm[i], 
+                     'lag':ev.lag(m)[i],
                      'mode':mname, 
-                     'mlt':mlt} )
+                     'mlt':ev.avg('mlt'),
+                     'lpp':ev.lpp,
+                     'va':ev.va(m)[i],
+                     'mlat':ev.avg('mlat'),
+                     'lshell':ev.avg('lshell'),
+                     'compression':ev.comp()[i] } )
 
   if len(waves) == 0:
     print 'SKIPPING ' + ev.name + ' DUE TO NO SUITABLE MODES. '
     return False
 
+
+  sidelabels = []
   for w in waves:
-    print w
-
-  print 'Estimate of plasmapause location... ', lpp(evline)
-
+    sidelabels.append( format(w['frequency'], '.0f') + notex('mHz') + ' \\qquad ' +
+                       format(w['lag'], '+.0f') + '^\\circ' + ' \\qquad ' + 
+                       ' | \\widetilde{B_z} / \\widetilde{B_x} | \\! = \\! ' +
+                       format(100*w['compression'], '.0f')  + '\\% \\qquad ' + 
+                       ' | \\widetilde{E_y} / \\widetilde{B_x} | \\! = \\! ' +
+                       format(1e3*w['va'], '.0f')  + notex('km/s') )
+  PW.setParams( sidelabel=' $\n$ '.join( [ ev.label() ] + sidelabels) )
 
 
   # ---------------------------------------------------------------------------
@@ -357,6 +496,9 @@ class event:
 
   def __init__(self, probe=None, date=None, time=None, t0=None, mins=10):
 
+    # Where is the plasmapause at the time of this event? 
+    self.lpp = lpp(date=date, time=time)
+
     # Store event identifiers, and index this event with a unique name. 
     self.probe, self.date = probe, date.replace('-', '')
 
@@ -455,7 +597,14 @@ class event:
   # Access a quantity. Only the slice during the ten-minute event is returned. 
   def get(self, var):
     # Allow requests for poloidal and toroidal fields. 
-    pt = {'ep':'ey', 'et':'ex', 'bp':'bx', 'bt':'by'}
+
+
+    # The parallel electric field is negligible near apogee. But we care if Bz
+    # is coherent with Ey. So just use Ey for Ez for the moment. 
+    pt = {'ep':'ey', 'et':'ex', 'ez':'ey', 'bp':'bx', 'bt':'by'}
+#    pt = {'ep':'ey', 'et':'ex', 'bp':'bx', 'bt':'by'}
+
+
     if var.lower() in pt:
       return self.get( pt[ var.lower() ] )
     if var=='tcoord':
@@ -480,7 +629,7 @@ class event:
     if var.lower()=='lshell':
       return format(self.avg('lshell'), '.1f')
     elif var.lower()=='mlt':
-      return notex( timestr( 3600*self.avg('mlt') )[1] )
+      return notex( timestr( 3600*self.avg('mlt') )[1][:5] )
     elif var.lower()=='mlat':
       return notex(format(self.avg('mlat'), '+.0f') + '^\\circ')
     else:
@@ -535,6 +684,28 @@ class event:
     return np.angle(signal.csd(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
                       noverlap=t.size/2 - 1)[1], deg=True)
 
+  # Spectral density ratio of the compressional and poloidal magnetic fields
+  # (compared to the poloidal electric field). This is a way to estimate the
+  # azimuthal modenumber; if it's large, Bz should decouple from Bx and Ey. 
+  def comp(self, mode='p'):
+    t = self.get('t')
+    Bx, Bz, Ey = self.get('Bx'), self.get('Bz'), self.get('Ey')
+    csdx = signal.csd(Bx, Ey, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+                      noverlap=t.size/2 - 1)[1]
+    csdz = signal.csd(Bz, Ey, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+                      noverlap=t.size/2 - 1)[1]
+    return np.abs(csdz/csdx)
+
+  # Estimate the Alfven speed by looking at the ratio of the electric field to
+  # the magnetic field for each frequency component. 
+  def va(self, mode='p'):
+    t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
+    bsd = signal.csd(B, B, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+                      noverlap=t.size/2 - 1)[1]
+    esd = signal.csd(E, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+                      noverlap=t.size/2 - 1)[1]
+    return np.sqrt( np.abs(esd/bsd) )
+
   # ---------------------------------------------------------------------------
   # -------------------------------------------------- Spectral Density Filters
   # ---------------------------------------------------------------------------
@@ -588,7 +759,8 @@ class event:
     return ( notex( 'RBSP--' + self.probe.upper() ) + ' \\qquad L \\!=\\! ' +
              self.lbl('lshell') + ' \\qquad ' + self.lbl('mlt') +
              notex(' MLT') + ' \\qquad ' + self.lbl('mlat') + 
-             notex(' MLAT') )
+             notex(' MLAT') + ' \\qquad L_{PP} \\! = \\! ' +
+             format(self.lpp, '.1f') )
 
   # Short, multi-line label for a column label. 
   def lab(self):
@@ -656,13 +828,13 @@ class event:
 
 # Estimate the location of the plasmapause at a given timestamp. This is done
 # by looking at RBSP inbound and outbound crossing times. 
-def lpp(evline):
+def lpp(date, time):
   # Read in Scott's list of plasmapause crossings. Make sure they're sorted by
   # time. Each entry is of the form (date, time, L, probe, in/out)
   crossings = sorted( x.split() for x in read('lpp.txt') )
   # Compare the event date and time to the crossing date and times to find the
   # crossings just before and just after this event. 
-  evtime = timeint( *evline.split()[1:3] )
+  evtime = timeint(date, time)
   crosstimes = np.array( [ timeint( *x[0:2] ) for x in crossings ] )
   iafter = np.argmax(crosstimes > evtime)
   ibefore = iafter - 1
