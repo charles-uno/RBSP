@@ -8,8 +8,8 @@
 # #################################################################### Synopsis
 # #############################################################################
 
-# This routine reads in pickles created by grabber.py, rotates the data into
-# the coordinates we want, and plots it. 
+# This script is for analysis of RBSP data, accessed through the event class
+# defined in event.py. 
 
 # #############################################################################
 # ######################################################### Load Python Modules
@@ -27,6 +27,8 @@ savedir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
+#  # Look at how much of RBSP's orbit is in a range where we would expect to see
+#  # giant pulsations. 
 #  return where()
 
 #  return plotloc()
@@ -37,7 +39,7 @@ def main():
 
   # Flip through the events in random order. This makes it easier to debug -- a
   # different event pops up first every time. 
-  for evline in np.random.permutation( read('events.txt') ):
+  for evline in np.random.permutation( read('goodevents.txt') ):
 
     if plot1(evline):
       break
@@ -53,31 +55,194 @@ def main():
 # #############################################################################
 
 # =============================================================================
+# ============================================================== Plot One Event
+# =============================================================================
+
+# Plot the waveform. Estimate frequency and phase offset with a Fourier series.
+def plot1(evline):
+  global savedir
+
+#  # Force it to use a nice event. 
+#  evline = 'a\t2014-05-02\t10:10:00'
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------- Grab and Check Event Data
+  # ---------------------------------------------------------------------------
+
+  # Based on the event record, create an event object. Make sure it's ok. 
+  probe, date, time = evline.split()
+  ev = event(probe=probe, date=date, time=time)
+  if not ev.isok():
+    print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
+    return False
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------- Set Up Plot Window
+  # ---------------------------------------------------------------------------
+
+  # Create a plot window to look at both probes at the same time -- both the
+  # waveforms and the spectra. 
+  PW = plotWindow(nrows=3, ncols=2)
+
+  # Set the title and labels. 
+  title = notex( 'RBSP-' + probe.upper() + '  on  ' + date + '  from  ' +
+                 notex( timestr(ev.t0)[1][:5] )  + '  to  ' +
+                 notex( timestr(ev.t1)[1][:5] ) )
+
+  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
+  collabels = ( notex('B (Red) ; E (Blue)'), 
+                notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
+  PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
+
+  # ---------------------------------------------------------------------------
+  # ------------------------------------------------- Add Waveforms and Spectra
+  # ---------------------------------------------------------------------------
+
+  # Index the poloidal, toroidal, and field-aligned modes. 
+  modes = ('p', 't', 'z')
+
+  # Plot waveforms. 
+  PW[:, 0].setParams( **ev.coords('t', 'b', cramped=True) )
+  [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
+  [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
+
+  # Plot coherence. 
+  PW[:, 1].setParams( **ev.coords('f', 'c', cramped=True) )
+  [ PW[i, 1].setLine( ev.csd(m), 'g' ) for i, m in enumerate(modes) ]
+  [ PW[i, 1].setLine( ev.coh(m), 'k' ) for i, m in enumerate(modes) ]
+  [ PW[i, 1].setLine( 0.1 + 0.8*ev.isodd(m), 'm' ) for i, m in enumerate(modes) ]
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------------- Screen Event
+  # ---------------------------------------------------------------------------
+
+  # Let's keep track of all the strong waves we find. 
+  waves = []
+
+  # Only look at the poloidal mode. Ignore any components of the spectra that
+  # are not coherent or not spectrally dense. 
+  for m in modes[:1]:
+    mname = {'p':'Poloidal', 't':'Toroidal', 'z':'Parallel'}[m]
+
+    # Find any harmonics worth talking about. 
+    harm = ev.harm(m)*ev.iscoh(m)*ev.iscsd(m)*ev.ispc4()
+
+    for i in np.nonzero(harm==1)[0]:
+#    for i in np.nonzero(harm)[0]:
+
+      waves.append( {'strength':ev.coh(m)[i]*ev.csd(m)[i], 
+                     'frequency':ev.frq()[i],
+                     'harmonic': harm[i], 
+                     'lag':ev.lag(m)[i],
+                     'mode':mname, 
+                     'mlt':ev.avg('mlt'),
+                     'lpp':ev.lpp,
+                     'va':ev.va(m)[i],
+                     'mlat':ev.avg('mlat'),
+                     'lshell':ev.avg('lshell'),
+                     'compression':ev.comp()[i] } )
+
+  if len(waves) == 0:
+    print 'SKIPPING ' + ev.name + ' DUE TO NO SUITABLE MODES. '
+    return False
+
+
+  sidelabels = []
+  for w in waves:
+    sidelabels.append( format(w['frequency'], '.0f') + notex('mHz') + ' \\qquad ' +
+                       format(w['lag'], '+.0f') + '^\\circ' + ' \\qquad ' + 
+                       ' | \\widetilde{B_z} / \\widetilde{B_x} | \\! = \\! ' +
+                       format(100*w['compression'], '.0f')  + '\\% \\qquad ' + 
+                       ' | \\widetilde{E_y} / \\widetilde{B_x} | \\! = \\! ' +
+                       format(1e3*w['va'], '.0f')  + notex('km/s') )
+  PW.setParams( sidelabel=' $\n$ '.join( [ ev.label() ] + sidelabels) )
+
+
+  # ---------------------------------------------------------------------------
+  # ----------------------------------------------------------- Create the Plot
+  # ---------------------------------------------------------------------------
+
+  if '-i' not in argv:
+    print 'Plotting ' + ev.name
+    return PW.render()
+  else:
+    if not os.path.exists(savedir):
+      os.mkdir(savedir)
+    return not PW.render(savedir + ev.name + '.png')
+
+# =============================================================================
 # ============================================= Where Does RBSP Spend Its Time?
 # =============================================================================
 
 def where():
 
-  # ---------------------------------------------------------------------------
-  # ---------------------------------------------- Get a List of Days with Data
-  # ---------------------------------------------------------------------------
+  # What range of lshell values do we want to look at? 
+  lmin, lmax = 5.6, 6.5
 
-  events = read('events.txt')
-  for date in sorted( set( line.split()[1] for line in events ) ):
+  # Pick a random date and probe. We don't benefit from looping over them all,
+  # since they are not randomly distributed in time. 
+  date = choice( ulist( line.split()[1] for line in read('events.txt') ) )
+  probe = choice( ('a', 'b') )
 
-    print 'looking at ', date
+  # Grab the data. If the lshell values are bad, reroll. 
+  ev = event(probe=probe, date=date)
+  if not np.all( np.isfinite(ev.lshell) ):
+    print probe, date, ' X'
+    return where()
 
-    ev = event(probe='a', date=date)
+  # The orbit is about nine hours. If we pick the largest value between 09:00
+  # and 15:00, that should be near apogee for an orbit that does not cross
+  # midnight in either direction. 
+  ibuff = int(ev.t.size*9./24)
+  iapo = ibuff + np.argmax( ev.lshell[ibuff:-ibuff] )
 
+  # Find the minimum in the 9 hours before the perigee. 
+  iper0 = np.argmin( ev.lshell[iapo - ibuff:iapo] ) + (iapo - ibuff)
+  iper1 = np.argmin( ev.lshell[iapo:iapo + ibuff] ) + iapo
 
-    return
+  # Get the actual apogee. 
+  iapo = np.argmax( ev.lshell[iper0:iper1] ) + iper0
 
+  # What fraction of this orbit is spent between lmin and lmax? Assume time
+  # steps of uniform size. 
+  ttotal = ev.t[iper1] - ev.t[iper0]
+  inrange = ( ev.lshell > lmin )*( ev.lshell < lmax )
+  pinrange = np.sum( inrange[iper0:iper1] )*1./(iper1 - iper0)
+  tinrange = ttotal*pinrange
 
+  # Just use Matplotlib for now. We can clean it up later if necessary. 
+  '''
+  PW = plotWindow()
+  PW.setLine(ev.t, ev.lshell, 'k')
+  [ PW.setLine( np.ones(ev.t.shape)*lval, 'r:' ) for lval in (lmin, lmax) ]
+  PW.render()
+  '''
 
+  # Plot the probe's path. 
+  plt.plot(ev.t, ev.lshell, 'k')
 
+  # Indicate prime lshell values for seeing giant pulsations. 
+  plt.plot(ev.t, np.ones(ev.t.shape)*lmin, 'r:')
+  plt.plot(ev.t, np.ones(ev.t.shape)*lmax, 'r:')
 
+  # Indicate the orbit we're tallying. 
+  plt.plot(np.ones(100)*ev.t[iper0], np.linspace(0, 7, 100), 'g:')
+  plt.plot(np.ones(100)*ev.t[iper1], np.linspace(0, 7, 100), 'g:')
 
+  # Give numbers for the orbit duration and how long is spent in Pg range. 
+  plt.gca().text(s=timestr(tinrange)[1][:5] + ' (' +
+                   format(100*pinrange, '.0f') + '%)' + ' with ' + str(lmin) +
+                   ' < L < ' + str(lmax) , x=ev.t[iapo], y=0.5*(lmin + lmax),
+                   horizontalalignment='center')
+  plt.gca().text(s=timestr( ev.t[iper1] - ev.t[iper0] )[1][:5] + ' Orbit Time',
+                 x=0.5*( ev.t[iper0] + ev.t[iper1] ), y=1, 
+                 horizontalalignment='center')
 
+  # Clean up the plot a little bit. 
+  plt.gca().set_xlim( [0, 86400] )
+  plt.gca().set_ylim( [0, 7] )
+
+  return plt.show()
 
 # =============================================================================
 # ================================================= Plot of All Event Locations
@@ -205,122 +370,6 @@ def plotloc():
   plt.show()
 
   return
-
-# =============================================================================
-# ============================================================== Plot One Event
-# =============================================================================
-
-# Plot the waveform. Estimate frequency and phase offset with a Fourier series.
-def plot1(evline):
-  global savedir
-
-#  # Force it to use a nice event. 
-#  evline = 'a\t2014-05-02\t10:10:00'
-
-  # ---------------------------------------------------------------------------
-  # ------------------------------------------------- Grab and Check Event Data
-  # ---------------------------------------------------------------------------
-
-  # Based on the event record, create an event object. Make sure it's ok. 
-  probe, date, time = evline.split()
-  ev = event(probe=probe, date=date, time=time)
-  if not ev.isok():
-    print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
-    return False
-
-  # ---------------------------------------------------------------------------
-  # -------------------------------------------------------- Set Up Plot Window
-  # ---------------------------------------------------------------------------
-
-  # Create a plot window to look at both probes at the same time -- both the
-  # waveforms and the spectra. 
-  PW = plotWindow(nrows=3, ncols=2)
-
-  # Set the title and labels. 
-  title = notex( 'RBSP-' + probe.upper() + '  on  ' + date + '  from  ' +
-                 notex( timestr(ev.t0)[1][:5] )  + '  to  ' +
-                 notex( timestr(ev.t1)[1][:5] ) )
-
-  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
-  collabels = ( notex('B (Red) ; E (Blue)'), 
-                notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
-  PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
-
-  # ---------------------------------------------------------------------------
-  # ------------------------------------------------- Add Waveforms and Spectra
-  # ---------------------------------------------------------------------------
-
-  # Index the poloidal, toroidal, and field-aligned modes. 
-  modes = ('p', 't', 'z')
-
-  # Plot waveforms. 
-  PW[:, 0].setParams( **ev.coords('t', 'b', cramped=True) )
-  [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
-  [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
-
-  # Plot coherence. 
-  PW[:, 1].setParams( **ev.coords('f', 'c', cramped=True) )
-  [ PW[i, 1].setLine( ev.csd(m), 'g' ) for i, m in enumerate(modes) ]
-  [ PW[i, 1].setLine( ev.coh(m), 'k' ) for i, m in enumerate(modes) ]
-  [ PW[i, 1].setLine( 0.1 + 0.8*ev.isodd(m), 'm' ) for i, m in enumerate(modes) ]
-
-  # ---------------------------------------------------------------------------
-  # -------------------------------------------------------------- Screen Event
-  # ---------------------------------------------------------------------------
-
-  # Let's keep track of all the strong waves we find. 
-  waves = []
-
-  # Only look at the poloidal mode. Ignore any components of the spectra that
-  # are not coherent or not spectrally dense. 
-  for m in modes[:1]:
-    mname = {'p':'Poloidal', 't':'Toroidal', 'z':'Parallel'}[m]
-
-    # Find any harmonics worth talking about. 
-    harm = ev.harm(m)*ev.iscoh(m)*ev.iscsd(m)*ev.ispc4()
-
-    for i in np.nonzero(harm==1)[0]:
-#    for i in np.nonzero(harm)[0]:
-
-      waves.append( {'strength':ev.coh(m)[i]*ev.csd(m)[i], 
-                     'frequency':ev.frq()[i],
-                     'harmonic': harm[i], 
-                     'lag':ev.lag(m)[i],
-                     'mode':mname, 
-                     'mlt':ev.avg('mlt'),
-                     'lpp':ev.lpp,
-                     'va':ev.va(m)[i],
-                     'mlat':ev.avg('mlat'),
-                     'lshell':ev.avg('lshell'),
-                     'compression':ev.comp()[i] } )
-
-  if len(waves) == 0:
-    print 'SKIPPING ' + ev.name + ' DUE TO NO SUITABLE MODES. '
-    return False
-
-
-  sidelabels = []
-  for w in waves:
-    sidelabels.append( format(w['frequency'], '.0f') + notex('mHz') + ' \\qquad ' +
-                       format(w['lag'], '+.0f') + '^\\circ' + ' \\qquad ' + 
-                       ' | \\widetilde{B_z} / \\widetilde{B_x} | \\! = \\! ' +
-                       format(100*w['compression'], '.0f')  + '\\% \\qquad ' + 
-                       ' | \\widetilde{E_y} / \\widetilde{B_x} | \\! = \\! ' +
-                       format(1e3*w['va'], '.0f')  + notex('km/s') )
-  PW.setParams( sidelabel=' $\n$ '.join( [ ev.label() ] + sidelabels) )
-
-
-  # ---------------------------------------------------------------------------
-  # ----------------------------------------------------------- Create the Plot
-  # ---------------------------------------------------------------------------
-
-  if '-i' not in argv:
-    print 'Plotting ' + ev.name
-    return PW.render()
-  else:
-    if not os.path.exists(savedir):
-      os.mkdir(savedir)
-    return not PW.render(savedir + ev.name + '.png')
 
 # =============================================================================
 # =========================================================== Plot a Long Event
@@ -499,6 +548,15 @@ def plot2(evline):
     if not os.path.exists(savedir):
       os.mkdir(savedir)
     return not PW.render(savedir + ev[probe].name + '.png')
+
+
+# #############################################################################
+# ############################################################ Helper Functions
+# #############################################################################
+
+# Remove all duplicates from a list or generator. Does not preserve order. 
+def ulist(x):
+  return list( set( list(x) ) )
 
 # #############################################################################
 # ########################################################### For Importability

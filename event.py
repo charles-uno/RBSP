@@ -45,7 +45,7 @@ class event:
   # --------------------------------------------------- Initialize Event Object
   # ---------------------------------------------------------------------------
 
-  def __init__(self, probe=None, date=None, time=None, mins=10):
+  def __init__(self, probe, date, time='00:00:00', mins=10):
 
     # Where is the plasmapause at the time of this event? 
     self.lpp = lpp(date=date, time=time)
@@ -254,8 +254,9 @@ class event:
   # Array indicating which frequencies are coherent. By default, results are
   # significant to 1.5 standard deviations. 
   def iscoh(self, mode, n=1):
-    coh = self.coh(mode)
-    return np.array( [ c > np.mean(coh) + n*np.std(coh) for c in coh ] )
+    return self.coh(mode) > 0.5
+#    coh = self.coh(mode)
+#    return np.array( [ c > np.mean(coh) + n*np.std(coh) for c in coh ] )
 
   # Array indicating which frequencies are spectrally dense. By default, 
   # results are significant to 1.5 standard deviations. 
@@ -268,8 +269,7 @@ class event:
   # first and third harmonic can be distinguished by frequency. If mlat is
   # within a few degrees of the equator, this function returns all zeros. 
   def harm(self, mode):
-    odds = np.where( self.frq() < 18, 1, 3 )
-    return 2*self.iseven(mode) + odds*self.isodd(mode)
+    return 2*self.iseven(mode) + 1*self.isodd(mode)
 
   # Array indicating which frequencies have a phase lag consistent with an odd
   # mode -- north of the magnetic equator, the electric field should lag, and
@@ -289,7 +289,7 @@ class event:
   # Array of booleans indicating if this frequency is in the pc4 band. Doesn't
   # actually depend on the mode. 
   def ispc4(self, mode='p'):
-    return np.array( [ 6 < f < 22 for f in self.frq() ] )
+    return np.array( [ 6 < f < 23 for f in self.frq() ] )
 
   # ---------------------------------------------------------------------------
   # ---------------------------------------- Labels Indicating Event Properties
@@ -343,9 +343,10 @@ class event:
 #      kargs['ylabel'] = 'B' + notex(' (nT)  ') + 'E' + notex('(\\frac{mV}{m})')
       kargs['ylabel'] = notex('\\cdots (nT ; \\frac{mV}{m})')
       kargs['ylabelpad'] = -2
-      kargs['ylims'] = (-3, 3)
-      kargs['yticks'] = range(-3, 4)
-      kargs['yticklabels'] = ('$-3$', '', '', '$0$', '', '', '$+3$')
+      kargs['ylims'] = (-5, 5)
+      kargs['yticks'] = range(-5, 6)
+      kargs['yticklabels'] = ('', '$-4$', '', '$-2$', '', '$0$', '', '$+2$',
+                              '', '$+4$', '')
     # Vertical axis, plotting Fourier magnitude and phase. 
     elif y.lower() in ('p', 's', 'phase', 'spectra'):
       kargs['ylabel'] = '\\cdots' + notex(' (^\\circ)')
@@ -428,6 +429,8 @@ def load(datadir):
 
 # Load a pickle file. 
 def loadpickle(pklpath):
+  if not os.path.exists(pklpath):
+    return None
   with open(pklpath, 'rb') as handle:
     return pickle.load(handle)
 
