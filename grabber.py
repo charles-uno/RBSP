@@ -27,11 +27,17 @@ from scipy import io
 from subprocess import Popen, PIPE
 from sys import stdout
 
+from event import timeint, timestr
+
+
 # #############################################################################
 # ######################################################################## Main
 # #############################################################################
 
+
 def main():
+
+  return getall()
 
   # Keep everything nicely organized. 
   srcdir = '/home/user1/mceachern/Desktop/rbsp/'
@@ -66,6 +72,83 @@ def main():
       # Create and execute an IDL script to grab position, electric field, and
       # magnetic field data for the day and and dump it into a sav file. 
       out, err = spedas( idlcode(probe=probe, date=date) )
+
+      # Read the IDL output. 
+      if not os.path.exists('temp.sav'):
+        status('X')
+        continue
+      else:
+        temp = io.readsav('temp.sav')
+
+      # Rewrite the data as pickles. (Pickles are Python data files. They are
+      # reasonably efficient in terms of both storage size and load time.)
+      for key, arr in temp.items():
+        with open(pkldir + key + '.pkl', 'wb') as handle:
+          pickle.dump(arr, handle, protocol=-1)
+
+      # Acknowledge successful date access. 
+      status('OK')
+
+    # Move to the next line. 
+    status()
+
+  return
+
+
+# #############################################################################
+# ############################################################# GRAB EVERYTHING
+# #############################################################################
+
+# Let's grab all of the data from October 2012 to July 2014. That includes a
+# full precession around the planet (hence Lei's analysis). Running will take
+# a while, but the size of the data shouldn't really be a problem. It's just not that big. 
+def getall():
+
+  # Keep everything nicely organized. 
+  srcdir = '/home/user1/mceachern/Desktop/rbsp/'
+  rundir = '/home/user1/mceachern/Desktop/rbsp/run/'
+  outdir = '/media/My Passport/rbsp/pkls/'
+
+  # Any files that get dumped should get dumped into the run directory. 
+  os.chdir(rundir)
+
+  # List of days, starting 2012-10-01 and running through 2014-07-31. 
+  dates = []
+  d = '2012-10-01'
+
+  # Let's actually do this in two chunks. We may run out of space in our
+  # scratch directory halfway through and need to clean it out. 
+  while d < '2013-09-01':
+#  while d < '2014-08-01':
+
+
+    dates.append(d)
+    d = timestr(timeint(date=d) + 86400)[0]
+
+  # For each of those dates, we want to grab RBSP data for both probes. 
+  for d in dates[:1]:
+
+    # Limit output to one line per date. 
+    status(d)
+
+    # For each day, make sure we have data for both probes (even if an event
+    # was only identified for one of them). 
+    for p in ('a', 'b'):
+
+      # Mark a status for each probe. 
+      status(p)
+
+      # Make a directory for this day of data. 
+      pkldir = outdir + d.replace('-', '') + '/' + p + '/'
+      if not os.path.exists(pkldir):
+        os.makedirs(pkldir)
+
+      # Nuke the run directory. Leave stdout and stderr. 
+      [ os.remove(x) for x in os.listdir(rundir) if x not in ('stdoe.txt',) ]
+
+      # Create and execute an IDL script to grab position, electric field, and
+      # magnetic field data for the day and and dump it into a sav file. 
+      out, err = spedas( idlcode(probe=p, date=d) )
 
       # Read the IDL output. 
       if not os.path.exists('temp.sav'):

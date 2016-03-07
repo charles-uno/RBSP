@@ -199,6 +199,34 @@ class event:
     return signal.coherence(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
                             noverlap=t.size/2 - 1)[0]*1e3
 
+
+
+  # Fourier transform of a field component. Use the frequencies employed by the
+  # coherence and spectral density routines. Note that this breaks from the
+  # Numpy FFT normalization convention -- we introduce the factor of 1/N here,
+  # so that the FFT weights can be combined directly with basis functions to
+  # recover the original waveform. 
+  def fft(self, var):
+    t, V = self.get('t'), self.get(var)
+    # Refall self.frq() gives frequencies in mHz. 
+    temp = [ np.sum( V*np.exp(2j*pi*f*t) ) for f in 1e-3*self.frq() ]
+    return np.array(temp)/len(temp)
+
+
+
+
+
+  # Auto-spectral density. Not renormalized. Note that the fields are real, so
+  # the autospectral density also must be real. 
+  def asd(self, var):
+    t, V = self.get('t'), self.get(var)
+    return np.real( signal.csd(V, V, fs=1/( t[1] - t[0] ), 
+                      nperseg=t.size/2, noverlap=t.size/2 - 1)[1] )
+
+
+
+
+
   # Mode coherence -- at which frequencies do the electric and magnetic field
   # line up for a given mode? Essentially, this is the normalized magnitude of
   # the cross-spectral density. 
@@ -210,12 +238,11 @@ class event:
   # Absolute value of cross-spectral density, normalized to the unit interval. 
   # The units are sorta arbitrary, so we're not really losing any information. 
   # Note that the angle can be recovered from the phase lag function below. 
-  def csd(self, mode, deg=True):
+  def csd(self, mode):
     t, B, E = self.get('t'), self.get('B' + mode), self.get('E' + mode)
     temp = signal.csd(B, E, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
                       noverlap=t.size/2 - 1)[1]
     return np.abs(temp)/np.max( np.abs(temp) )
-
 
   # Phase offset -- at each frequency, for each mode, what's the phase lag
   # between of the electric field relative to the magnetic field? This is
@@ -257,6 +284,10 @@ class event:
     return self.coh(mode) > 0.5
 #    coh = self.coh(mode)
 #    return np.array( [ c > np.mean(coh) + n*np.std(coh) for c in coh ] )
+
+  # Array indicating which frequencies have B (respectively, E) fields above 0.25 nT (mV/m). 
+  def has(self, var):
+    return np.abs( self.fft(var) ) > 0.25
 
   # Array indicating which frequencies are spectrally dense. By default, 
   # results are significant to 1.5 standard deviations. 

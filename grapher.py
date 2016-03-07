@@ -125,7 +125,8 @@ def plot1(evline):
     mname = {'p':'Poloidal', 't':'Toroidal', 'z':'Parallel'}[m]
 
     # Find any harmonics worth talking about. 
-    harm = ev.harm(m)*ev.iscoh(m)*ev.iscsd(m)*ev.ispc4()
+#    harm = ev.harm(m)*ev.iscoh(m)*ev.iscsd(m)*ev.ispc4()*ev.has('Ey')
+    harm = ev.harm(m)*ev.iscoh(m)*ev.ispc4()*ev.has('Bx')*ev.has('Ey')
 
     for i in np.nonzero(harm==1)[0]:
 #    for i in np.nonzero(harm)[0]:
@@ -146,6 +147,23 @@ def plot1(evline):
     print 'SKIPPING ' + ev.name + ' DUE TO NO SUITABLE MODES. '
     return False
 
+#  print 'CSD magnitudes: '
+#  for c in ev.csd('p'):
+#    print '\t', c
+
+#  print 'FFT frequencies... note that there are twice as many compared to the CSD'
+#  for x in ev.fft('Ep'):
+#    print '\t', np.abs(x)
+
+  print 'root unnormalized autospectral densities. '
+  print 'freq\tBx ASD\tBx FFT\tEy ASD\tEy FFT'
+  for i in range(10):
+    print format(ev.frq()[i], '5.1f') + '\t' + format(np.sqrt( ev.asd('Bx') )[i], '5.1f') + '\t' + format(np.abs( ev.fft('Bx') )[i], '5.1f') + '\t' + format(np.sqrt( ev.asd('Ey') )[i], '5.1f') + '\t' + format(np.abs( ev.fft('Ey') )[i], '5.1f')
+
+
+  print 'max poloidal E, B'
+
+  print '\t', np.max( ev.get('Ep') ), np.max( ev.get('Bp') )
 
   sidelabels = []
   for w in waves:
