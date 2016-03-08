@@ -138,7 +138,7 @@ help, lshell, /st
 help, mlt, /st
 help, mlat, /st
 
-save, time, xgse, lshell, mlt, mlat, egse, bgse, filename='~/Desktop/rbsp/run/temp.sav'
+save, time, xgse, lshell, mlt, mlat, egse, bgse, filename='temp.sav'
 
 ;; -----------------------------------------------------------------------------
 ;; -------------------------------------------------------------------- Plotting
