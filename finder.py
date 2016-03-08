@@ -25,49 +25,92 @@ from plotmod import *
 # ######################################################################## Main
 # #############################################################################
 
+
 def main():
 
-  today = day(probe='a', date='2012-10-01')
+  for date in sorted( os.listdir('/media/My Passport/rbsp/pkls/') )[:1]:
 
+    print '\n' + date
 
+    for probe in ('a', 'b')[:1]:
 
-  ev = today.getslice('20:40', '20:50')
+      checkdate(probe, date, mpc=30)
 
-  if not ev.isok():
-    print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
-    return
-
-
-
-
+  return
 
 
 
 
 
+def col(x, width=12, unit=''):
+  if isinstance(x, float):
+    return format(x, str(width - len(unit) - 2) + '.1f') + unit + ' '
+  else:
+    return str(x).rjust(width - len(unit) - 1) + unit + ' '
 
 
-# Break a given date into chunks and look for fundamental mode Pc4 events in
-# that chunk. Each chunk is mpc minutes long -- minutes per chunk. 
-def checkdate(d, mpc=20):
 
-  print d
 
-  for p in ('a', 'b'):
 
-    today = day(probe=p, date=d)
+# Check a given date for one probe. Break the day into chunks of mpc minutes. 
+def checkdate(probe, date, mpc=30):
 
-    # Scroll through each 20 minute chunk. 
-    for t in range(0, 86400, 60*mpc)[:3]:
+  today = day(probe=probe, date=date)
 
-      print '\t' + p + '\t' + timestr(t)[1], 
+  print '\n' + col('probe') + col('time') + col('frequency') + col('magnitude') + col('coherence')
 
-      ev = today.getslice(t, duration=60*mpc)
+  # Scroll through each 20 minute chunk. 
+  for t in range(0, 86400, 60*mpc):
+#  for t in ( timeint(time='20:40:00'), timeint(time='20:50:00') ):
 
-      if ev.isok():
-        print '\tOK'
-      else:
-        print '\tX'
+    print col(probe) + col( timestr(t)[1] ),
+
+    ev = today.getslice(t, duration=60*mpc)
+
+    # Make sure the data is OK. 
+    if not ev.isok():
+      print col('X')
+      continue
+
+    # Find the strongest component of the poloidal electric field. 
+    i = np.argmax( ev.fft('ey') )
+    print col(ev.frq()[i], unit='mHz'),
+
+    # If it's not in the Pc4 range, bail. 
+    if not ev.ispc4()[i]:
+      print col('X')
+      continue
+
+    # How strong is the electric field at this point? Note that Lei based his
+    # cutoff instead on the magnetic field. That's awkward for us since the
+    # magnetic field has a node at the magnetic equator, which we're near. 
+    print col( np.abs( ev.fft('ey')[i] ), unit='mV/m'),
+
+    # If it's too small, bail. 
+    if np.abs( ev.fft('ey')[i] ) < 0.25:
+      print col('X')
+      continue
+
+    # Is this spectral component coherent? That's important if we want to judge
+    # the phase accurately. 
+    print col( ev.coh('p')[i] ),
+
+    if ev.coh('p')[i] < 0.75:
+      print col('X')
+      continue
+
+    # How does the phase offset of this Fourier mode line up with the mlat? 
+    # This gives the parity of the harmonic mode. 
+    print col( ev.harm('p')[i] ),
+
+    if not ev.isodd('p')[i]:
+      print col('X')
+      continue
+
+
+
+
+    print col('ok')
 
 
 # #############################################################################
