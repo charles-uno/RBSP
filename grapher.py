@@ -41,6 +41,8 @@ def main():
   # different event pops up first every time. 
   for evline in np.random.permutation( read('goodevents.txt') ):
 
+    evline = 'a\t2012-10-02\t04:50:00'
+
     if plot1(evline):
       break
 
@@ -145,7 +147,7 @@ def plot1(evline):
 
   if len(waves) == 0:
     print 'SKIPPING ' + ev.name + ' DUE TO NO SUITABLE MODES. '
-    return False
+#    return False
 
 #  print 'CSD magnitudes: '
 #  for c in ev.csd('p'):
