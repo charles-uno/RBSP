@@ -27,40 +27,19 @@ from plotmod import *
 
 def main():
 
-  today = day(probe='a', date='2012-10-02')
+  today = day(probe='a', date='2012-10-01')
 
-  ev = today.getslice('04:50', '05:10')
+
+
+  ev = today.getslice('20:40', '20:50')
 
   if not ev.isok():
     print 'SKIPPING ' + ev.name + ' DUE TO BAD DATA. '
     return
 
-  # Create plot window to hold waveforms and spectra. 
-  PW = plotWindow(nrows=3, ncols=2)
 
-  # Put title and labels on the plot. 
-  title = notex('TITLE')
-  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
-  collabels = ( notex('B (Red) ; E (Blue)'), 
-                notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
-  PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
 
-  # Index the poloidal, toroidal, and field-aligned modes. 
-  modes = ('p', 't', 'z')
 
-  # Plot waveforms. 
-  PW[:, 0].setParams( **ev.coords('waveform', cramped=True) )
-  [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
-  [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
-
-  # Plot coherence. 
-  PW[:, 1].setParams( **ev.coords('coherence', cramped=True) )
-  [ PW[i, 1].setLine( ev.csd(m), 'g' ) for i, m in enumerate(modes) ]
-  [ PW[i, 1].setLine( ev.coh(m), 'k' ) for i, m in enumerate(modes) ]
-  [ PW[i, 1].setLine( 0.1 + 0.8*ev.isodd(m), 'm' ) for i, m in enumerate(modes) ]
-
-  # Show the plot. 
-  return PW.render()
 
 
 
@@ -91,6 +70,32 @@ def checkdate(d, mpc=20):
         print '\tX'
 
 
+# #############################################################################
+# ############################################################### Plot an Event
+# #############################################################################
+
+def plot(ev):
+  # Create plot window to hold waveforms and spectra. 
+  PW = plotWindow(nrows=3, ncols=2)
+  # Put title and labels on the plot. 
+  title = notex(ev.name)
+  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
+  collabels = ( notex('B (Red) ; E (Blue)'), 
+                notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
+  PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
+  # Index the poloidal, toroidal, and field-aligned modes. 
+  modes = ('p', 't', 'z')
+  # Plot waveforms. 
+  PW[:, 0].setParams( **ev.coords('waveform', cramped=True) )
+  [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
+  [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
+  # Plot spectral properties. 
+  PW[:, 1].setParams( **ev.coords('coherence', cramped=True) )
+  [ PW[i, 1].setLine( ev.csd(m), 'g' ) for i, m in enumerate(modes) ]
+  [ PW[i, 1].setLine( ev.coh(m), 'k' ) for i, m in enumerate(modes) ]
+  [ PW[i, 1].setLine( 0.1 + 0.8*ev.isodd(m), 'm' ) for i, m in enumerate(modes) ]
+  # Show the plot. 
+  return PW.render()
 
 # #############################################################################
 # ########################################################### For Importability

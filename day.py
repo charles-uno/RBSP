@@ -56,6 +56,11 @@ class day:
     self.mlt = pickles['mlt']
     self.mlat = pickles['mlat']
 
+    # Sanity check -- does the time coordinate line up with the date? 
+    if self.date != timestr( pickles['time'][0] )[0]:
+      print 'ERROR: Expected ' + self.date + ' but found ' + timestr( pickles['time'][0] )[0]
+      exit()
+
     # Offset the time to start at midnight, rather than in 1970. 
     self.t = pickles['time'] - timeint(date=self.date)
 
@@ -188,6 +193,10 @@ class event:
     '''
 
     self.__dict__ = evdict
+
+    self.name = self.date.replace('-', '') + '_' + timestr(self.t0)[1].replace(':', '') + '_' + self.probe
+
+
 
     return
 
