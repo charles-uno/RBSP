@@ -47,8 +47,15 @@ def main():
 
   # Load one chunk of dates at a time. We may need to clean out the scratch
   # directory in between chunks. 
-  for d in listdates(onlydai=False)[200:300]:
+  for d in listdates(onlydai=False)[300:400]:
     grabdate(d)
+
+# [  0:100] DONE
+# [100:200] DONE
+# [200:300] Working...
+# [300:400] Working...
+# [400:500]
+# [500:]
 
   return
 
