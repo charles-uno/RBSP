@@ -33,7 +33,7 @@ def main():
     os.remove('oddevents.txt')
 
   # There's one pickle directory for each date we're supposed to look at. 
-  for date in sorted( os.listdir('/media/My Passport/rbsp/pkls/') )[:200]:
+  for date in sorted( os.listdir('/media/My Passport/rbsp/pkls/') )[:400]:
 
     # Check each date for both probes. Thirty minute chunks. 
     [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
@@ -81,45 +81,47 @@ def checkevent(ev):
   if not ev.isok():
     return False
 
-  # RBSP is near (ish) to the equator, so an odd-mode poloidal FLR should have
-  # an electric field antinode. Threshold out anything without a Fourier
-  # component of at least 0.25mV/m. 
-  efft = ev.fft('ey')
-  if np.max(efft) < 0.25:
+  # This filter is a bit trickier than Lei's, because we're going a level deeper. We need not only the magnetic field, but also the electric field and how they relate to one another. 
+
+  # Let's look for the maximum component as judged by the product of the poloidal electric and magnetic fields. This is something like the cross-spectral density, though there's no averaging over windows. 
+  bfft, efft = ev.fft('bx'), ev.fft('ey')
+  csd = np.abs(bfft*efft)
+  imax = np.argmax(csd)
+
+  # Threshold at 0.2 nT mV/m. This is pretty small. 
+  if csd[imax] < 0.2:
     return False
 
-  # Filter by frequency. Insist that the peak frequency is in the Pc4 band. 
-  ipeak = np.argmax(efft)
-  if not ev.ispc4()[ipeak]:
+  # Filter frequencies phenomenologically, rather than per the IAGA designations. Pgs are sometimes as slow as 5mHz, and top out at 17mHz (anything faster than that is probably a third harmonic). 
+  if not ( 5 < ev.frq()[imax] < 17 ):
     return False
 
-  # Filter by cross-spectral density. Make sure the peak cross-spectral density
-  # for the poloidal mode is near the peak for the poloidal electric field (in
-  # Fourier space) -- though they need not match exactly! This is to filter out
-  # the surprisingly-common events where Bx is dominated by an oscillation
-  # clearly different from the one dominant in Ey... perhaps due to a
-  # superposition of first and second harmonics? 
-  if np.abs( ev.frq()[ np.argmax( ev.csd('p') ) ] - ev.frq()[ipeak] ) > 5:
+  # The coherence needs to be high so that we can compute a meaningful phase offset. 
+  if not ev.coh('p')[imax] > 0.9:
     return False
 
-  # Filter by coherence. This is how we ensure the phase lag is meaningful. 
-  if not ev.iscoh('p')[ipeak]:
-   return False
-
-  # Filter by harmonic. We only want odd modes. 
-  if not ev.harm('p')[ipeak] % 2:
+  # The phase must fall between 60 and 120 degrees, with the correct sign. 
+  if not ev.isodd('p')[imax]:
     return False
+
+  # Let's also note the comparison between phase computed from CSD with phase computed from FFT components. 
+  print '\tCoherence = ', ev.coh('p')[imax]
+  print '\tMLAT      = ', ev.avg('mlat')
+  print '\tPhase     = ', np.angle( ev.fft('ey')*np.conj( ev.fft('bx') ) , deg=True)[imax], 'degrees'
+  print '\tCSD       = ', np.abs( ev.fft('ey')*ev.fft('bx') )[imax], ' nT mV/m'
 
   # If an event is found, return a line describing it. 
   return ( col(ev.probe) + col(ev.date) + col(ev.time) +
-           col(ev.frq()[ipeak], unit='mHz') +
-           col(np.max(efft), unit='mV/m') +
-#           col( ev.coh('p')[ipeak], unit='COH' ) +
-           col(ev.lag('p')[ipeak], unit='*') + 
-           col(ev.avg('lshell'), unit='L') + 
+           col(ev.frq()[imax], unit='mHz') +
+           col(np.max(csd), unit='nTmV/m') +
+#           col( ev.coh('p')[imax], unit='COH' ) +
+           col(ev.lag('p')[imax], unit='deg') + 
+#           col(ev.avg('lshell'), unit='L') + 
 #           col(ev.avg('mlt'), unit='MLT') + 
 #           col(ev.avg('mlat'), unit='*MLAT') + 
-           col(ev.lpp, unit='LPP') )
+#           col(ev.lpp, unit='LPP') 
+           col(ev.coh('p')[imax], unit='Coh')
+         )
 
 # #############################################################################
 # ############################################################# Plotting Events
@@ -131,19 +133,26 @@ def plot(ev, save=False):
   PW = plotWindow(nrows=3, ncols=2)
   # Index the poloidal, toroidal, and field-aligned modes. 
   modes = ('p', 't', 'z')
-  # Plot waveforms. 
+  # Plot waveforms as a function of time. 
   PW[:, 0].setParams( **ev.coords('waveform', cramped=True) )
   [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
   [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
-  # Plot spectral properties. 
-  PW[:, 1].setParams( **ev.coords('coherence', cramped=True) )
-  [ PW[i, 1].setLine( ev.csd(m), 'g' ) for i, m in enumerate(modes) ]
-  [ PW[i, 1].setLine( ev.coh(m), 'k' ) for i, m in enumerate(modes) ]
-  [ PW[i, 1].setLine( 0.1 + 0.8*ev.isodd(m), 'm' ) for i, m in enumerate(modes) ]
+  # Plot Fourier component magnitudes as a function of frequency. 
+  PW[:, 1].setParams( **ev.coords('spectra', cramped=True) )
+  [ PW[i, 1].setLine( ev.coh(m), 'g' ) for i, m in enumerate(modes) ]
+  bfft = [ np.abs( ev.fft('B' + m) ) for m in modes ]
+  efft = [ np.abs( ev.fft('E' + m) ) for m in modes ]
+  cfft = [ np.abs( ev.fft('B' + m)*ev.fft('E' + m) ) for m in modes ]
+  [ PW[i, 1].setLine(c/np.max(c), 'm') for i, c in enumerate(cfft) ]
+  [ PW[i, 1].setLine(b/np.max(b), 'r:') for i, b in enumerate(bfft) ]
+  [ PW[i, 1].setLine(e/np.max(e), 'b:') for i, e in enumerate(efft) ]
+  # Parity clogs up the plot too much. 
+#  [ PW[i, 1].setLine( 0.9*ev.isodd(m), 'orange' ) for i, m in enumerate(modes) ]
   # Put title and labels on the plot. 
   rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
   collabels = ( notex('B (Red) ; E (Blue)'), 
-                notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
+                notex('\\overset{\\sim}{E}\\,\\overset{\\sim}{B} (Magenta) ;' +
+                      ' Coherence (Green)') )
   PW.setParams(collabels=collabels, sidelabel=ev.label(), title=ev.descr('p'), 
                rowlabels=rowlabels)
   # Show the plot, or save it as an image. 

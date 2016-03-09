@@ -247,12 +247,18 @@ class event:
 
   # Fourier transform coefficients. Note that half of the components get
   # tossed, since we want the frequency domain to match with the coherence and
-  # cross-spectral density functions. Return only magnitude. 
+  # cross-spectral density functions. 
   def fft(self, name):
     v = self.get(name)
     # Recall self.frq() gives frequencies in mHz. 
-    temp = [ np.sum( v*np.exp(2j*pi*f*self.t) ) for f in 1e-3*self.frq() ]
-    return np.abs( np.array(temp)/len(temp) )
+    temp = [ np.sum( v*np.exp(-2j*pi*f*self.t) ) for f in 1e-3*self.frq() ]
+    return np.array(temp)/len(temp)
+
+  # Phase offset -- at each frequency, for each mode, what's the phase lag
+  # between of the electric field relative to the magnetic field? 
+  def lag(self, mode, deg=True):
+    b, e = self.fft('b' + mode), self.fft('e' + mode)
+    return np.angle(e*np.conj(b), deg=True)
 
   # Mode coherence -- at which frequencies do the electric and magnetic field
   # line up for a given mode? Essentially, this is the normalized magnitude of
@@ -270,14 +276,6 @@ class event:
     temp = signal.csd(b, e, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
                       noverlap=t.size/2 - 1)[1]
     return np.abs(temp)/np.max( np.abs(temp) )
-
-  # Phase offset -- at each frequency, for each mode, what's the phase lag
-  # between of the electric field relative to the magnetic field? This is
-  # determined from the complex phase of the cross-spectral density. 
-  def lag(self, mode, deg=True):
-    t, b, e = self.get('t'), self.get('b' + mode), self.get('e' + mode)
-    return np.angle(signal.csd(b, e, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
-                      noverlap=t.size/2 - 1)[1], deg=True)
 
   # ---------------------------------------------------------------------------
   # --------------------------------------------------- Frequency-Domain Ratios
@@ -321,16 +319,16 @@ class event:
   # mode -- north of the magnetic equator, the electric field should lag, and
   # south it should lead. 
   def isodd(self, mode):
-    lag = self.lag(mode)
-    mlat = self.avg('mlat')
-    return (np.abs(mlat) > 3)*( np.sign(mlat) != np.sign(lag) )
+    lag, mlat = self.lag(mode), self.avg('mlat')
+    about90 = ( np.abs(lag) > 60 )*( np.abs(lag) < 120 )
+    return (np.abs(mlat) > 3)*( np.sign(mlat) != np.sign(lag) )*about90
 
   # Array of booleans indicating which frequencies have a phase lag consistent
   # with an even harmonic. 
   def iseven(self, mode):
-    lag = self.lag(mode)
-    mlat = self.avg('mlat')
-    return (np.abs(mlat) > 3)*( np.sign(mlat) == np.sign(lag) )
+    lag, mlat = self.lag(mode), self.avg('mlat')
+    about90 = ( np.abs(lag) > 60 )*( np.abs(lag) < 120 )
+    return (np.abs(mlat) > 3)*( np.sign(mlat) == np.sign(lag) )*about90
 
   # Array of booleans indicating if this frequency is in the pc4 band. Doesn't
   # actually depend on the mode. 
@@ -364,14 +362,16 @@ class event:
   # Label describing the best wave in the given mode, selected based on electric
   # field FFT magnitude. 
   def descr(self, mode):
-    ipeak = np.argmax( self.fft('e' + mode) )
-    return notex( format(self.fft('ey')[ipeak], '.1f') + '\\frac{mV}{m}' + 
-                  '\\qquad' + format(self.frq()[ipeak], '.0f') + 'mHz\\qquad' +
-                  format(self.lag('p')[ipeak], '+.0f') + '^\\circ\\qquad' +
-                 '|\\overset{\\sim}{B}_z/\\overset{\\sim}{B}_x|\\!=\\!' +
-                 format(100*self.comp()[ipeak], '.0f') + '\\%\\qquad' + 
-                 '|\\overset{\\sim}{E}_y/\\overset{\\sim}{B}_x|\\!=\\!' +
-                 format(1e3*self.va('p')[ipeak], '.0f')  + '\\frac{km}{s}' )
+    befft = np.abs( self.fft('e' + mode)*np.conj( self.fft('b' + mode) ) )
+    imax = np.argmax(befft)
+    return notex( format(self.frq()[imax], '.0f') + 'mHz\\qquad' +
+                  format(self.lag('p')[imax], '+.0f') + '^\\circ\\qquad' +
+                  '\\overset{\\sim}{E}_y\\overset{\\sim}{B}_x\\!=\\!' +
+                  format(befft[imax], '.1f') + '\\frac{mV}{m}nT\\qquad' +
+                  '\\overset{\\sim}{B}_z/\\overset{\\sim}{B}_x\\!=\\!' +
+                  format(100*self.comp()[imax], '.0f') + '\\%\\qquad' + 
+                  '\\overset{\\sim}{E}_y/\\overset{\\sim}{B}_x\\!=\\!' +
+                  format(1e3*self.va('p')[imax], '.0f')  + '\\frac{km}{s}' )
 
   # ---------------------------------------------------------------------------
   # -------------------------------------------- Axis Limits, Ticks, and Labels
