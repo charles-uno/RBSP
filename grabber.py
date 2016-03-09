@@ -17,7 +17,7 @@
 # ######################################################### Load Python Modules
 # #############################################################################
 
-from event import timeint, timestr
+from day import timeint, timestr
 try:
   import cPickle as pickle
 except ImportError:
@@ -35,7 +35,7 @@ from sys import stdout
 
 # Keep everything nicely organized. 
 srcdir = '/home/user1/mceachern/Desktop/rbsp/'
-rundir = '/home/user1/mceachern/Desktop/rbsp/run_' + now() + '/'
+rundir = '/home/user1/mceachern/Desktop/rbsp/run' + now() + '/'
 outdir = '/media/My Passport/rbsp/pkls/'
 
 def main():
@@ -47,15 +47,8 @@ def main():
 
   # Load one chunk of dates at a time. We may need to clean out the scratch
   # directory in between chunks. 
-  for d in listdates(onlydai=False)[300:400]:
+  for d in listdates(onlydai=False)[400:401]:
     grabdate(d)
-
-# [  0:100] DONE
-# [100:200] DONE
-# [200:300] Working...
-# [300:400] Working...
-# [400:500]
-# [500:]
 
   return
 
@@ -139,79 +132,6 @@ def idlcode(probe, date):
   crib[iprobe] = 'probe = \'' + probe + '\''
   # Return the list of IDL commands as a newline-delimited string. 
   return '\n'.join(crib)
-
-
-
-
-
-
-'''
-# #############################################################################
-# ############################################################# Grab Event Data
-# #############################################################################
-
-# Let's grab all of the data from October 2012 to July 2014. That includes a
-# full precession around the planet (hence Lei's analysis). Running will take
-# a while, but the size of the data shouldn't really be a problem. 
-def grabdate(dates):
-
-  # Keep everything nicely organized. 
-  srcdir = '/home/user1/mceachern/Desktop/rbsp/'
-  rundir = '/home/user1/mceachern/Desktop/rbsp/run/'
-  outdir = '/media/My Passport/rbsp/pkls/'
-
-  # Any files that get dumped should get dumped into the run directory. 
-  os.chdir(rundir)
-
-  # For each of these dates -- working a chunk of days at a time in case we
-  # need to clean out the scratch directory -- grab RBSP data for both probes. 
-  for d in dates[:100]:
-    # Limit output to one line per date. 
-    status(d)
-
-    # For each day, make sure we have data for both probes (even if an event
-    # was only identified for one of them). 
-    for p in ('a', 'b'):
-      # Mark a status for each probe. 
-      status(p)
-
-      # Make a directory for this day of data. 
-      pkldir = outdir + d.replace('-', '') + '/' + p + '/'
-      if not os.path.exists(pkldir):
-        os.makedirs(pkldir)
-
-      # Nuke the run directory. Leave stdout and stderr. 
-      [ os.remove(x) for x in os.listdir(rundir) if x not in ('stdoe.txt',) ]
-
-      # Create and execute an IDL script to grab position, electric field, and
-      # magnetic field data for the day and and dump it into a sav file. 
-      out, err = spedas( idlcode(probe=p, date=d) )
-
-      # Read the IDL output. 
-      if not os.path.exists('temp.sav'):
-        status('X')
-        continue
-      else:
-        temp = io.readsav('temp.sav')
-
-      # Rewrite the data as pickles. (Pickles are Python data files. They are
-      # reasonably efficient in terms of both storage size and load time.)
-      for key, arr in temp.items():
-        with open(pkldir + key + '.pkl', 'wb') as handle:
-          pickle.dump(arr, handle, protocol=-1)
-
-      # Acknowledge successful date access. 
-      status('OK')
-
-    # Move to the next line. 
-    status()
-
-  return
-
-# #############################################################################
-# ############################################################# IDL Script Text
-# #############################################################################
-'''
 
 # #############################################################################
 # ############################################################ Helper Functions

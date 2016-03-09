@@ -33,7 +33,7 @@ def main():
     os.remove('oddevents.txt')
 
   # There's one pickle directory for each date we're supposed to look at. 
-  for date in sorted( os.listdir('/media/My Passport/rbsp/pkls/') )[22:23]:
+  for date in sorted( os.listdir('/media/My Passport/rbsp/pkls/') )[:200]:
 
     # Check each date for both probes. Thirty minute chunks. 
     [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
@@ -52,26 +52,20 @@ def main():
 # through a few different filters to seek out odd-harmonic poloidal Pc4 waves. 
 def checkdate(probe, date, mpc=30):
 
+  print date, probe
+
   # Load the day's data into a day object. 
   today = day(probe=probe, date=date)
 
-  print date, probe
-
   # Break the day into chunks and look at each chunk. 
   for t in range(0, 86400, 60*mpc):
-
-#    print '\t' + timestr(t)[1]
 
     # Whenever an event is found, save it to file. 
     ev = today.getslice(t, duration=60*mpc)
     evline = checkevent(ev)
     if evline:
       print append(evline, 'oddevents.txt')
-
-      plot(ev)
-      exit()
-
-
+      plot(ev, save=True)
 
   return
 

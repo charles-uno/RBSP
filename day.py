@@ -27,7 +27,6 @@ except ImportError:
 from plotmod import *
 from scipy import signal
 from time import gmtime
-
 from plotmod import notex
 
 # #############################################################################
@@ -39,9 +38,7 @@ from plotmod import notex
 
 class day:
 
-  '''
   garbage = False
-  '''
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------------------- Initialize Day Object
@@ -53,15 +50,12 @@ class day:
     self.probe = probe
     self.date = timestr( timeint(date=date) )[0]
 
-    # Load the position, electric field, and magnetic field data. 
+    # Load the pickles, and make sure they contain actual data. 
     pickles = self.loadpickles()
-
-    '''
-    # If there's something wrong with the data, bail. 
-    if not pickles:
+    if not all( x.size > 1 for x in pickles.values() ):
       self.garbage = True
+      print 'WARNING: No data for ' + self.date + ' RBSP-' + self.probe.upper()
       return
-    '''
 
     # Grab the position data out of the pickle dictionary. 
     self.lshell = pickles['lshell']
@@ -103,21 +97,6 @@ class day:
   def loadpickles(self):
     pkls = [ x for x in os.listdir( self.path() ) if x.endswith('.pkl') ]
     return dict( ( p[:-4], self.loadpickle( p[:-4] ) ) for p in pkls )
-
-  '''
-  # Load a pickle file. 
-  def loadpickle(self, name):
-    if not os.path.exists(self.path() + name + '.pkl'):
-      return None
-    with open(self.path() + name + '.pkl', 'rb') as handle:
-      return pickle.load(handle)
-
-  # Load all of the pickles for this day. Check if any data is bad. 
-  def loadpickles(self):
-    names = [ x[:-4] for x in os.listdir( self.path() ) if x.endswith('.pkl') ]
-    pkldict = dict( ( name, self.loadpickle(name) ) for name in names )
-    return None if None in pkldict.values() else pkldict
-  '''
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------- Compute Background Magnetic Field
@@ -173,16 +152,6 @@ class day:
   # strings ('hh:mm' or 'hh:mm:ss') or integers (in seconds from midnight). If
   # neither a finish nor a duration is given, the event is 10 minutes long. 
   def getslice(self, start, finish=None, duration=600):
-
-    '''
-    # If the data for this day is garbage, return an event that knows just
-    # enough to tell you it's broken. 
-    if self.garbage:
-      print 'WARNING: Today\'s data is garbage. '
-      return event( evdict={'probe':self.probe, 'date':self.date, 
-                            'time':timestr(t0)[1], 't':[] } )
-    '''
-
     t0 = timeint(time=start) if isinstance(start, str) else start
     # If a finish time is given, use it. 
     if finish is not None:
@@ -190,6 +159,11 @@ class day:
     # Otherwise, figure out the finish time from the duration. 
     else:
       t1 = t0 + duration
+    # If the data for this day is garbage, return an event that knows just
+    # enough to tell you it's broken. 
+    if self.garbage:
+      return event( evdict={'probe':self.probe, 'date':self.date, 
+                            'time':timestr(t0)[1], 't':np.array(None) } )
     # Find the indeces that correspond to the desired times. Note that the
     # timestamps don't quite start and end at midnight! 
     i0, i1 = np.argmax(self.t > t0), np.argmax(self.t > t1)
@@ -226,7 +200,7 @@ class event:
 
     # Uniquely identify this event. 
     self.name = ( self.date.replace('-', '') + '_' + 
-                  timestr(self.t0)[1].replace(':', '') + '_' + self.probe )
+                  self.time.replace(':', '') + '_' + self.probe )
 
     '''
     print self.name, '\t', self.t.size
@@ -242,7 +216,7 @@ class event:
   # Typically, bad data means that the spin axis was too close to the magnetic
   # field direction, causing problems in the E dot B = 0 assumption. 
   def isok(self):
-    return len(self.t) > 0 and np.all( np.isfinite(self.ex + self.ey) )
+    return self.t.size > 1 and np.all( np.isfinite(self.ex + self.ey) )
 
   # ---------------------------------------------------------------------------
   # --------------------------------------------------------------- Data Access
@@ -392,7 +366,7 @@ class event:
   def descr(self, mode):
     ipeak = np.argmax( self.fft('e' + mode) )
     return notex( format(self.fft('ey')[ipeak], '.1f') + '\\frac{mV}{m}' + 
-                  '\\qquad' + format(self.frq()[ipeak], '.1f') + 'mHz\\qquad' +
+                  '\\qquad' + format(self.frq()[ipeak], '.0f') + 'mHz\\qquad' +
                   format(self.lag('p')[ipeak], '+.0f') + '^\\circ\\qquad' +
                  '|\\overset{\\sim}{B}_z/\\overset{\\sim}{B}_x|\\!=\\!' +
                  format(100*self.comp()[ipeak], '.0f') + '\\%\\qquad' + 
