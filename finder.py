@@ -9,123 +9,132 @@
 # #############################################################################
 
 # Lei's got some filters in his data which are designed to screen out
-# fundamental mode Pc4 pulsations. Can we come up with our own list of events? 
-# Specifically, a list of fundamental mode Pc4 pulsations? 
+# fundamental mode Pc4 pulsations. We run through the same date with different
+# filters, specifically to find those fundamental mode poloidal Pc4 events. 
 
 # #############################################################################
 # ######################################################### Load Python Modules
 # #############################################################################
 
 from day import *
-
 from plotmod import *
-
 
 # #############################################################################
 # ######################################################################## Main
 # #############################################################################
 
+# A timestamped directory, in case we want to save any plots.  
+plotdir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
-  for date in sorted( os.listdir('/media/My Passport/rbsp/pkls/') )[:1]:
+  # Nuke any previous event list to avoid double counting. 
+  if os.path.exists('oddevents.txt'):
+    os.remove('oddevents.txt')
 
-    print '\n' + date
+  # There's one pickle directory for each date we're supposed to look at. 
+  for date in sorted( os.listdir('/media/My Passport/rbsp/pkls/') )[22:23]:
 
-    for probe in ('a', 'b')[:1]:
-
-      checkdate(probe, date, mpc=30)
+    # Check each date for both probes. Thirty minute chunks. 
+    [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
 
   return
 
+# #############################################################################
+# ######################################################## Searching for Events
+# #############################################################################
 
+# =============================================================================
+# ====================================================== Check a Day for Events
+# =============================================================================
 
-
-
-def col(x, width=12, unit=''):
-  if isinstance(x, float):
-    return format(x, str(width - len(unit) - 2) + '.1f') + unit + ' '
-  else:
-    return str(x).rjust(width - len(unit) - 1) + unit + ' '
-
-
-
-
-
-# Check a given date for one probe. Break the day into chunks of mpc minutes. 
+# The day is broken into chunks (mpc is minutes per chunk). Each chunk is run
+# through a few different filters to seek out odd-harmonic poloidal Pc4 waves. 
 def checkdate(probe, date, mpc=30):
 
+  # Load the day's data into a day object. 
   today = day(probe=probe, date=date)
 
-  print '\n' + col('probe') + col('time') + col('frequency') + col('magnitude') + col('coherence')
+  print date, probe
 
-  # Scroll through each 20 minute chunk. 
+  # Break the day into chunks and look at each chunk. 
   for t in range(0, 86400, 60*mpc):
-#  for t in ( timeint(time='20:40:00'), timeint(time='20:50:00') ):
 
-    print col(probe) + col( timestr(t)[1] ),
+#    print '\t' + timestr(t)[1]
 
+    # Whenever an event is found, save it to file. 
     ev = today.getslice(t, duration=60*mpc)
+    evline = checkevent(ev)
+    if evline:
+      print append(evline, 'oddevents.txt')
 
-    # Make sure the data is OK. 
-    if not ev.isok():
-      print col('X')
-      continue
-
-    # Find the strongest component of the poloidal electric field. 
-    i = np.argmax( ev.fft('ey') )
-    print col(ev.frq()[i], unit='mHz'),
-
-    # If it's not in the Pc4 range, bail. 
-    if not ev.ispc4()[i]:
-      print col('X')
-      continue
-
-    # How strong is the electric field at this point? Note that Lei based his
-    # cutoff instead on the magnetic field. That's awkward for us since the
-    # magnetic field has a node at the magnetic equator, which we're near. 
-    print col( np.abs( ev.fft('ey')[i] ), unit='mV/m'),
-
-    # If it's too small, bail. 
-    if np.abs( ev.fft('ey')[i] ) < 0.25:
-      print col('X')
-      continue
-
-    # Is this spectral component coherent? That's important if we want to judge
-    # the phase accurately. 
-    print col( ev.coh('p')[i] ),
-
-    if ev.coh('p')[i] < 0.75:
-      print col('X')
-      continue
-
-    # How does the phase offset of this Fourier mode line up with the mlat? 
-    # This gives the parity of the harmonic mode. 
-    print col( ev.harm('p')[i] ),
-
-    if not ev.isodd('p')[i]:
-      print col('X')
-      continue
+      plot(ev)
+      exit()
 
 
 
+  return
 
-    print col('ok')
+# =============================================================================
+# ====================================================== Check a Chunk of a Day
+# =============================================================================
 
+# Check if the given event -- which is a slice of a day's worth of data -- has
+# any odd-mode poloidal Pc4 events. 
+def checkevent(ev):
+
+  # If the event's data is no good, obviously there can be no event. 
+  if not ev.isok():
+    return False
+
+  # RBSP is near (ish) to the equator, so an odd-mode poloidal FLR should have
+  # an electric field antinode. Threshold out anything without a Fourier
+  # component of at least 0.25mV/m. 
+  efft = ev.fft('ey')
+  if np.max(efft) < 0.25:
+    return False
+
+  # Filter by frequency. Insist that the peak frequency is in the Pc4 band. 
+  ipeak = np.argmax(efft)
+  if not ev.ispc4()[ipeak]:
+    return False
+
+  # Filter by cross-spectral density. Make sure the peak cross-spectral density
+  # for the poloidal mode is near the peak for the poloidal electric field (in
+  # Fourier space) -- though they need not match exactly! This is to filter out
+  # the surprisingly-common events where Bx is dominated by an oscillation
+  # clearly different from the one dominant in Ey... perhaps due to a
+  # superposition of first and second harmonics? 
+  if np.abs( ev.frq()[ np.argmax( ev.csd('p') ) ] - ev.frq()[ipeak] ) > 5:
+    return False
+
+  # Filter by coherence. This is how we ensure the phase lag is meaningful. 
+  if not ev.iscoh('p')[ipeak]:
+   return False
+
+  # Filter by harmonic. We only want odd modes. 
+  if not ev.harm('p')[ipeak] % 2:
+    return False
+
+  # If an event is found, return a line describing it. 
+  return ( col(ev.probe) + col(ev.date) + col(ev.time) +
+           col(ev.frq()[ipeak], unit='mHz') +
+           col(np.max(efft), unit='mV/m') +
+#           col( ev.coh('p')[ipeak], unit='COH' ) +
+           col(ev.lag('p')[ipeak], unit='*') + 
+           col(ev.avg('lshell'), unit='L') + 
+#           col(ev.avg('mlt'), unit='MLT') + 
+#           col(ev.avg('mlat'), unit='*MLAT') + 
+           col(ev.lpp, unit='LPP') )
 
 # #############################################################################
-# ############################################################### Plot an Event
+# ############################################################# Plotting Events
 # #############################################################################
 
-def plot(ev):
+def plot(ev, save=False):
+  global plotdir
   # Create plot window to hold waveforms and spectra. 
   PW = plotWindow(nrows=3, ncols=2)
-  # Put title and labels on the plot. 
-  title = notex(ev.name)
-  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
-  collabels = ( notex('B (Red) ; E (Blue)'), 
-                notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
-  PW.setParams(title=title, collabels=collabels, rowlabels=rowlabels)
   # Index the poloidal, toroidal, and field-aligned modes. 
   modes = ('p', 't', 'z')
   # Plot waveforms. 
@@ -137,8 +146,30 @@ def plot(ev):
   [ PW[i, 1].setLine( ev.csd(m), 'g' ) for i, m in enumerate(modes) ]
   [ PW[i, 1].setLine( ev.coh(m), 'k' ) for i, m in enumerate(modes) ]
   [ PW[i, 1].setLine( 0.1 + 0.8*ev.isodd(m), 'm' ) for i, m in enumerate(modes) ]
-  # Show the plot. 
-  return PW.render()
+  # Put title and labels on the plot. 
+  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
+  collabels = ( notex('B (Red) ; E (Blue)'), 
+                notex('Coh. (Black) ; CSD (Green) ; Par. (Violet)') )
+  PW.setParams(collabels=collabels, sidelabel=ev.label(), title=ev.descr('p'), 
+               rowlabels=rowlabels)
+  # Show the plot, or save it as an image. 
+  if save is True:
+    if not os.path.exists(plotdir):
+      os.makedirs(plotdir)
+    return PW.render(plotdir + ev.name + '.png')
+  else:
+    return PW.render()
+
+# #############################################################################
+# ############################################################ Helper Functions
+# #############################################################################
+
+# Space out a nice right-justified column. 
+def col(x, width=12, unit=''):
+  if isinstance(x, float):
+    return format(x, str(width - len(unit) - 1) + '.1f') + unit + ' '
+  else:
+    return str(x).rjust(width - len(unit) - 1) + unit + ' '
 
 # #############################################################################
 # ########################################################### For Importability
