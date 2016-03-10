@@ -79,6 +79,8 @@ def tex(x):
              'Ex':'E_x', 
              'Ey':'E_y', 
              'Ez':'E_z', 
+             # Units. 
+             'mV/m':'\\frac{mV}{m}',
              # Axis labels. 
              'alt':notex('Altitude (km)'), 
              'L':notex('L (R_E)'), 
@@ -466,6 +468,12 @@ class tunaPlotter:
     # Dipole plots need outlines drawn on them. 
     if xaxis=='X' and yaxis=='Z':
       coords['outline'] = True
+      # We know how big the dipole is. Stop worrying about generalizability and
+      # set ticks and tick labels manually. 
+      coords['xticks'] = (0, 2.5, 5, 7.5, 10)
+      coords['xticklabels'] = ('$0$', '', '$5$', '', '$10$')
+      coords['yticks'] = (-4, -2, 0, 2, 4)
+      coords['yticklabels'] = ('$-4$', '', '$0$', '', '$+4$')
     # If we're looking at electromagnetic energy on the y axis, we want a log
     # scale, and we also need a minimum. 
     if yaxis=='U':
@@ -665,6 +673,9 @@ class plotWindow:
       # Accept a string as the window supertitle. 
       elif key=='title':
         self.tax.text(s='$' + val + '$', fontsize=12, **targs)
+      # Put a little label over the color bar indicating units. 
+      elif key=='unitlabel':
+        self.uax.text(s='$' + val + '$', **targs)
       # Overwrite the automatically-determined color bar range. 
       elif key=='zmax':
         self.zmaxManual = val

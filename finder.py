@@ -33,7 +33,9 @@ def main():
     os.remove('oddevents.txt')
 
   # There's one pickle directory for each date we're supposed to look at. 
-  for date in sorted( os.listdir('/media/My Passport/rbsp/pkls/') )[:400]:
+  for date in sorted( os.listdir('/media/My Passport/rbsp/pkls/') ):
+
+    print date
 
     # Check each date for both probes. Thirty minute chunks. 
     [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
@@ -51,8 +53,6 @@ def main():
 # The day is broken into chunks (mpc is minutes per chunk). Each chunk is run
 # through a few different filters to seek out odd-harmonic poloidal Pc4 waves. 
 def checkdate(probe, date, mpc=30):
-
-  print date, probe
 
   # Load the day's data into a day object. 
   today = day(probe=probe, date=date)
@@ -104,24 +104,16 @@ def checkevent(ev):
   if not ev.isodd('p')[imax]:
     return False
 
-  # Let's also note the comparison between phase computed from CSD with phase computed from FFT components. 
-  print '\tCoherence = ', ev.coh('p')[imax]
-  print '\tMLAT      = ', ev.avg('mlat')
-  print '\tPhase     = ', np.angle( ev.fft('ey')*np.conj( ev.fft('bx') ) , deg=True)[imax], 'degrees'
-  print '\tCSD       = ', np.abs( ev.fft('ey')*ev.fft('bx') )[imax], ' nT mV/m'
-
   # If an event is found, return a line describing it. 
-  return ( col(ev.probe) + col(ev.date) + col(ev.time) +
-           col(ev.frq()[imax], unit='mHz') +
-           col(np.max(csd), unit='nTmV/m') +
-#           col( ev.coh('p')[imax], unit='COH' ) +
-           col(ev.lag('p')[imax], unit='deg') + 
-#           col(ev.avg('lshell'), unit='L') + 
-#           col(ev.avg('mlt'), unit='MLT') + 
-#           col(ev.avg('mlat'), unit='*MLAT') + 
+  return col(ev.probe) + col(ev.date) + col(ev.time)
+#           col(ev.frq()[imax], unit='mHz')
+#           col(np.max(csd), unit='nTmV/m')
+#           col(ev.lag('p')[imax], unit='deg') 
+#           col(ev.avg('lshell'), unit='L') 
+#           col(ev.avg('mlt'), unit='MLT')
+#           col(ev.avg('mlat'), unit='*MLAT')
 #           col(ev.lpp, unit='LPP') 
-           col(ev.coh('p')[imax], unit='Coh')
-         )
+#           col(ev.coh('p')[imax], unit='Coh')
 
 # #############################################################################
 # ############################################################# Plotting Events
