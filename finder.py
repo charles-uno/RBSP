@@ -106,24 +106,19 @@ def checkevent(ev):
 
   # Filter out anything that's not in the Pc4 frequency range. 
   if not ev.ispc4()[imax]:
-    print 'Not Pc4. '
     return False
 
   # Insist that all events be highly coherent so that phase offset is meaningful. 
   if not ev.iscoh('p')[imax]:
-    print 'Not coherent. '
     return False
 
   # The magnetic latitude and the EB* phase must have opposite signs. This is
   # how we distinguish odd from even harmonics. 
   if not ev.isodd('p')[imax]:
-    print 'Not odd. ' 
     return False
 
-  # Insist that the standing wave have a magnitude equivalent to at least
-  # 0.1mW/m^2 when mapped to Earth. 
-  if np.abs( np.imag( sfft[imax] ) ) < 0.1:
-    print 'Not significantly sized. '
+  # Impose a cutoff on magnitude after mapping the Poynting flux to Earth. 
+  if np.abs( np.imag( sfft[imax] ) ) < 0.02:
     return False
 
   # Notably, we are not filtering by spectral width. This should allow us to see giant pulsations in proportion. 
