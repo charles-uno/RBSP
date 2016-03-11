@@ -254,6 +254,11 @@ class event:
     temp = [ np.sum( v*np.exp(-2j*pi*f*self.t) ) for f in 1e-3*self.frq() ]
     return np.array(temp)/len(temp)
 
+  # Poynting flux in Fourier space, scaled to show values at the atmosphere. 
+  def sfft(self, mode):
+    lllom = self.avg('lshell')**3 / phys.mu0
+    return self.fft('e' + mode)*np.conj( self.fft('b' + mode) )*lllom
+
   # Phase offset -- at each frequency, for each mode, what's the phase lag
   # between of the electric field relative to the magnetic field? 
   def lag(self, mode, deg=True):
@@ -273,9 +278,8 @@ class event:
   # Note that the angle can be recovered from the phase lag function below. 
   def csd(self, mode):
     t, b, e = self.get('t'), self.get('b' + mode), self.get('e' + mode)
-    temp = signal.csd(b, e, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
+    return signal.csd(b, e, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
                       noverlap=t.size/2 - 1)[1]
-    return np.abs(temp)/np.max( np.abs(temp) )
 
   # ---------------------------------------------------------------------------
   # --------------------------------------------------- Frequency-Domain Ratios
@@ -296,18 +300,8 @@ class event:
   # ---------------------------------------------------------------------------
 
   # Array indicating which frequencies are coherent. 
-  def iscoh(self, mode, n=1):
-    return self.coh(mode) > 0.75
-
-  # Gives which Fourier components have B (E) above 0.25 nT (mV/m). 
-  def has(self, name):
-    return np.abs( self.fft(name) ) > 0.25
-
-  # Array indicating which frequencies are spectrally dense. By default, 
-  # results are significant to 1.5 standard deviations. 
-  def iscsd(self, mode, n=1):
-    csd = self.csd(mode)
-    return np.array( [ c > np.mean(csd) + n*np.std(csd) for c in csd ] )
+  def iscoh(self, mode):
+    return self.coh(mode) > 0.9
 
   # Array of integers guessing a harmonic for each frequency. The phase lag
   # between electric and magnetic fields gives the parity. If mlat is within a
@@ -320,15 +314,13 @@ class event:
   # south it should lead. 
   def isodd(self, mode):
     lag, mlat = self.lag(mode), self.avg('mlat')
-    about90 = ( np.abs(lag) > 60 )*( np.abs(lag) < 120 )
-    return (np.abs(mlat) > 3)*( np.sign(mlat) != np.sign(lag) )*about90
+    return (np.abs(mlat) > 3)*( np.sign(mlat) != np.sign(lag) )
 
   # Array of booleans indicating which frequencies have a phase lag consistent
   # with an even harmonic. 
   def iseven(self, mode):
     lag, mlat = self.lag(mode), self.avg('mlat')
-    about90 = ( np.abs(lag) > 60 )*( np.abs(lag) < 120 )
-    return (np.abs(mlat) > 3)*( np.sign(mlat) == np.sign(lag) )*about90
+    return (np.abs(mlat) > 3)*( np.sign(mlat) == np.sign(lag) )
 
   # Array of booleans indicating if this frequency is in the pc4 band. Doesn't
   # actually depend on the mode. 
@@ -362,16 +354,14 @@ class event:
   # Label describing the best wave in the given mode, selected based on electric
   # field FFT magnitude. 
   def descr(self, mode):
-    befft = np.abs( self.fft('e' + mode)*np.conj( self.fft('b' + mode) ) )
-    imax = np.argmax(befft)
+    sfft = self.sfft(mode)
+    # Choose the mode with the most power in the standing wave. 
+    imax = np.argmax( np.abs( np.imag(sfft) ) )
     return notex( format(self.frq()[imax], '.0f') + 'mHz\\qquad' +
-                  format(self.lag('p')[imax], '+.0f') + '^\\circ\\qquad' +
-                  '\\overset{\\sim}{E}_y\\overset{\\sim}{B}_x\\!=\\!' +
-                  format(befft[imax], '.1f') + '\\frac{mV}{m}nT\\qquad' +
-                  '\\overset{\\sim}{B}_z/\\overset{\\sim}{B}_x\\!=\\!' +
-                  format(100*self.comp()[imax], '.0f') + '\\%\\qquad' + 
-                  '\\overset{\\sim}{E}_y/\\overset{\\sim}{B}_x\\!=\\!' +
-                  format(1e3*self.va('p')[imax], '.0f')  + '\\frac{km}{s}' )
+                  tex('imag') + '\\frac{L^3}{\\mu_0}' + tex('SFFT') + '\\!=\\!' +
+                  format(float( np.imag( sfft[imax] ) ), '.1f') + '\\frac{mW}{m^2}\\qquad' +  
+                  tex('real') + '\\frac{L^3}{\\mu_0}' + tex('SFFT') + '\\!=\\!' +
+                  format(float( np.real( sfft[imax] ) ), '.1f') + '\\frac{mW}{m^2}' )
 
   # ---------------------------------------------------------------------------
   # -------------------------------------------- Axis Limits, Ticks, and Labels

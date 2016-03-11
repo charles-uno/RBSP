@@ -79,8 +79,13 @@ def tex(x):
              'Ex':'E_x', 
              'Ey':'E_y', 
              'Ez':'E_z', 
+             'SFFT':'\\widetilde{E}_y\\widetilde{B}^*_x', 
              # Units. 
              'mV/m':'\\frac{mV}{m}',
+             'mW/m^2':'\\frac{mW}{m^2}',
+             # Real/imaginary labels. 
+             'imag':'\\mathbb{I}\\mathrm{m}',
+             'real':'\\mathbb{R}\\mathrm{e}',
              # Axis labels. 
              'alt':notex('Altitude (km)'), 
              'L':notex('L (R_E)'), 

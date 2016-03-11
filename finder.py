@@ -28,6 +28,19 @@ plotdir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
+  '''
+  # Debug with a known super-nice event. 
+  date = '2012-10-23'
+  probe = 'a'
+  t = timeint(time='22:00:00')
+  today = day(probe=probe, date=date)
+  mpc = 30
+  ev = today.getslice(t, duration=60*mpc)
+  evline = checkevent(ev)
+  print evline
+  return plot(ev)
+  '''
+
   # Nuke any previous event list to avoid double counting. 
   if os.path.exists('oddevents.txt'):
     os.remove('oddevents.txt')
@@ -81,28 +94,41 @@ def checkevent(ev):
   if not ev.isok():
     return False
 
-  # This filter is a bit trickier than Lei's, because we're going a level deeper. We need not only the magnetic field, but also the electric field and how they relate to one another. 
+  # This filter is a bit trickier than Lei's, because we're going a level
+  # deeper. We need not only the magnetic field, but also the electric field
+  # and how they relate to one another. 
 
-  # Let's look for the maximum component as judged by the product of the poloidal electric and magnetic fields. This is something like the cross-spectral density, though there's no averaging over windows. 
-  bfft, efft = ev.fft('bx'), ev.fft('ey')
-  csd = np.abs(bfft*efft)
-  imax = np.argmax(csd)
+  # Get the (complex) poloidal Poynting flux in Fourier space. Find the point
+  # at which its imaginary (standing wave) component is strongest. The value
+  # is then scaled by L^3/mu0 (to map it to Poynting flux at the atmosphere). 
+  sfft = ev.sfft('p')
+  imax = np.argmax( np.imag(sfft) )
 
-  # Threshold at 0.2 nT mV/m. This is pretty small. 
-  if csd[imax] < 0.2:
+  # Filter out anything that's not in the Pc4 frequency range. 
+  if not ev.ispc4()[imax]:
+    print 'Not Pc4. '
     return False
 
-  # Filter frequencies phenomenologically, rather than per the IAGA designations. Pgs are sometimes as slow as 5mHz, and top out at 17mHz (anything faster than that is probably a third harmonic). 
-  if not ( 5 < ev.frq()[imax] < 17 ):
+  # Insist that all events be highly coherent so that phase offset is meaningful. 
+  if not ev.iscoh('p')[imax]:
+    print 'Not coherent. '
     return False
 
-  # The coherence needs to be high so that we can compute a meaningful phase offset. 
-  if not ev.coh('p')[imax] > 0.9:
-    return False
-
-  # The phase must fall between 60 and 120 degrees, with the correct sign. 
+  # The magnetic latitude and the EB* phase must have opposite signs. This is
+  # how we distinguish odd from even harmonics. 
   if not ev.isodd('p')[imax]:
+    print 'Not odd. ' 
     return False
+
+  # Insist that the standing wave have a magnitude equivalent to at least
+  # 0.1mW/m^2 when mapped to Earth. 
+  if np.abs( np.imag( sfft[imax] ) ) < 0.1:
+    print 'Not significantly sized. '
+    return False
+
+  # Notably, we are not filtering by spectral width. This should allow us to see giant pulsations in proportion. 
+
+  # We're also not filtering by how much of the cross-spectral density is in the standing mode... this might have to change. 
 
   # If an event is found, return a line describing it. 
   return col(ev.probe) + col(ev.date) + col(ev.time)
@@ -131,20 +157,23 @@ def plot(ev, save=False):
   [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
   # Plot Fourier component magnitudes as a function of frequency. 
   PW[:, 1].setParams( **ev.coords('spectra', cramped=True) )
-  [ PW[i, 1].setLine( ev.coh(m), 'g' ) for i, m in enumerate(modes) ]
-  bfft = [ np.abs( ev.fft('B' + m) ) for m in modes ]
-  efft = [ np.abs( ev.fft('E' + m) ) for m in modes ]
-  cfft = [ np.abs( ev.fft('B' + m)*ev.fft('E' + m) ) for m in modes ]
-  [ PW[i, 1].setLine(c/np.max(c), 'm') for i, c in enumerate(cfft) ]
+  # Dotted lines for the magnitudes of field transforms. 
+  bfft = [ np.abs( ev.fft('b' + m) ) for m in modes ]
+  efft = [ np.abs( ev.fft('e' + m) ) for m in modes ]
   [ PW[i, 1].setLine(b/np.max(b), 'r:') for i, b in enumerate(bfft) ]
   [ PW[i, 1].setLine(e/np.max(e), 'b:') for i, e in enumerate(efft) ]
-  # Parity clogs up the plot too much. 
-#  [ PW[i, 1].setLine( 0.9*ev.isodd(m), 'orange' ) for i, m in enumerate(modes) ]
+  # Also -- more interestingly -- plot the real and imaginary components of the
+  # Fourier-space Poynting flux. 
+  sfft = [ ev.sfft(m)/np.max( np.abs( ev.sfft(m) ) ) for m in modes ]
+  sfftr = [ np.abs( np.real(s) ) for s in sfft ]
+  sffti = [ np.abs( np.imag(s) ) for s in sfft ]
+  [ PW[i, 1].setLine(s, 'm') for i, s in enumerate(sffti) ]
+  [ PW[i, 1].setLine(s, 'g') for i, s in enumerate(sfftr) ]
   # Put title and labels on the plot. 
   rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
   collabels = ( notex('B (Red) ; E (Blue)'), 
-                notex('\\overset{\\sim}{E}\\,\\overset{\\sim}{B} (Magenta) ;' +
-                      ' Coherence (Green)') )
+                tex('imag') + tex('SFFT') + notex(' (Magenta) ; ') + 
+                tex('real') + tex('SFFT') + notex(' (Green)') )
   PW.setParams(collabels=collabels, sidelabel=ev.label(), title=ev.descr('p'), 
                rowlabels=rowlabels)
   # Show the plot, or save it as an image. 
