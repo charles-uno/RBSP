@@ -102,7 +102,7 @@ def checkevent(ev):
   # at which its imaginary (standing wave) component is strongest. The value
   # is then scaled by L^3/mu0 (to map it to Poynting flux at the atmosphere). 
   sfft = ev.sfft('p')
-  imax = np.argmax( np.imag(sfft) )
+  imax = np.argmax( np.abs( np.imag(sfft) ) )
 
   # Filter out anything that's not in the Pc4 frequency range. 
   if not ev.ispc4()[imax]:
