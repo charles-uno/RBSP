@@ -166,7 +166,8 @@ class day:
                             'time':timestr(t0)[1], 't':np.array(None) } )
     # Find the indeces that correspond to the desired times. Note that the
     # timestamps don't quite start and end at midnight! 
-    i0, i1 = np.argmax(self.t > t0), np.argmax(self.t > t1)
+    i0 = np.argmax(self.t > t0)
+    i1 = self.t.size if t1 > self.t[-1] else np.argmax(self.t > t1)
     # Pack up that slice of all the data arrays into a dictionary and use that
     # to create an event object. 
     return event( evdict={ 'probe':self.probe, 'date':self.date, 
