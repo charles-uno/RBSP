@@ -41,19 +41,72 @@ def main():
   return plot(ev)
   '''
 
-  # Nuke any previous event list to avoid double counting. 
-  if os.path.exists('oddevents.txt'):
-    os.remove('oddevents.txt')
+#  # Nuke any previous event list to avoid double counting. 
+#  if os.path.exists('oddevents.txt'):
+#    os.remove('oddevents.txt')
 
   # There's one pickle directory for each date we're supposed to look at. 
   for date in sorted( os.listdir('/media/My Passport/rbsp/pkls/') ):
 
     print date
 
-    # Check each date for both probes. Thirty minute chunks. 
-    [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
+#    # Figure where the probes spent their time. Five minute chunks. 
+#    [ trackpos(probe, date, mpc=5) for probe in ('a', 'b') ]
+
+#    # Check each date for both probes. Thirty minute chunks. 
+#    [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
 
   return
+
+# #############################################################################
+# #################################################### Tallying RBSP's Position
+# #############################################################################
+
+def trackpos(probe, date, mpc=5):
+
+  print 'THERE IS NO REASON YOU SHOULD BE CALLING THIS AGAIN. '
+  exit()
+
+  # Load the day's data into a day object. 
+  today = day(probe=probe, date=date)
+
+  # If the event is no good, bail. 
+  if today.garbage:
+    return
+
+  # Scroll through the day a few minutes at a time. 
+  for t in range(0, 86400, 60*mpc):
+    # Grab a slice of the day. Print location and if the data is OK. 
+    ev = today.getslice(t, duration=60*mpc)
+
+    lshell, mlt, mlat = [ ev.avg(name) for name in ('lshell', 'mlt', 'mlat') ]
+
+    evline = ( ev.probe + '\t' + ev.date + '\t' + ev.time + '\t' + format(ev.avg('lshell'), '.1f') + '\t' + format(ev.avg('mlt'), '.1f') + '\t' + format(ev.avg('mlat'), '.1f') )
+
+    append(evline + '\t' + ( 'ok' if ev.isok() else 'X' ), 'pos.txt')
+
+  return
+
+
+#    evline = checkevent(ev)
+#    if evline:
+#      print append(evline, 'oddevents.txt')
+#      plot(ev, save=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # #############################################################################
 # ######################################################## Searching for Events
@@ -70,9 +123,8 @@ def checkdate(probe, date, mpc=30):
   # Load the day's data into a day object. 
   today = day(probe=probe, date=date)
 
-  # Break the day into chunks and look at each chunk. 
+  # Break the day into chunks and look for events in each chunk. 
   for t in range(0, 86400, 60*mpc):
-
     # Whenever an event is found, save it to file. 
     ev = today.getslice(t, duration=60*mpc)
     evline = checkevent(ev)
