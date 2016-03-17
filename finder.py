@@ -112,44 +112,6 @@ def trackpos(probe, date, mpc=5):
 
 def bullseye():
 
-  '''
-  # PRACTICE MAKING A BULLSEYE FROM EXAMPLES. 
-  # Center theta on the hour. 
-  theta, r = np.mgrid[-0.5:24:1, 1:7:7j]
-  # Map it to radians, noting that Matplotlib puts zero degrees facing right. 
-  theta = 0.5*np.pi - theta*2*np.pi/24
-  # Random data, but mark midnight in blue and morning in red. 
-  z = np.random.random(theta.size).reshape(theta.shape)
-  z[0, :] = 0
-  z[6, :] = 1
-  # Set up the subplot. 
-  fig, ax = plt.subplots(ncols=1, subplot_kw=dict(projection='polar'))
-  # Plot the data. No radial ticks. 
-  ax.pcolormesh(theta, r, z)
-  ax.set_yticklabels([])
-  ax.set_ylim([0, 7])
-  # No outline. 
-  ax.spines['polar'].set_visible(False)
-  # Set ticks around the edge. 
-  nticks = 4
-  # Ticks in units of days. 
-  dticks = np.arange(nticks)*1./nticks
-  # Convert to radians for the label locations. 
-  xticks = 2*np.pi*dticks
-  # Put zero on the top and get clock time for the labels. 
-  xticklabels = [ timestr( (0.25 - d)*86400 )[1][:5] for d in dticks ]
-  ax.set_xticks(xticks)
-  ax.set_xticklabels(xticklabels)
-  # Let's draw some lines to mark boundaries. 
-  for i in range(24):
-    # Radial line between hours. 
-    ax.plot(np.ones(2)*(i+0.5)*np.pi/12, np.linspace(1, 7, 2), 'k')
-    # Spiderwebbing. Not quite circles! 
-    for j in range(1, 8):
-      ax.plot( np.linspace( (i-0.5)*2*np.pi/24, (i+0.5)*2*np.pi/24, 2 ), np.ones(2)*j, 'k' )
-  return plt.show()
-  '''
-
   PW = plotWindow(square=True, colorbar='lin')
 
   PW.setParams( xlims=(-8, 8), ylims=(-8, 8) )
