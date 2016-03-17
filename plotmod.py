@@ -540,7 +540,7 @@ class plotWindow:
   # --------------------------------- Initialize Plot Window and Space Out Axes
   # ---------------------------------------------------------------------------
 
-  def __init__(self, ncols=1, nrows=1, cells=None, **kargs):
+  def __init__(self, ncols=1, nrows=1, cells=None, square=False, joinlabel=None, **kargs):
     # If initialized with an array of cells, this isn't a real Plot Window... 
     # it's a temporary object that allows the access of a slice of cells. 
     if cells is not None:
@@ -566,7 +566,8 @@ class plotWindow:
     sideMargin = 40
     cellPadding = 5
     titleMargin = 15
-    headMargin = 1 if ncols==1 else 10
+    headMargin = 1 if ncols<2 and joinlabel is None else 10
+    unitMargin = 10
     footMargin = 20
     # The size of each subplot depends on how many columns there are. The total
     # width of the subplot area (including padding) will always be the same.
@@ -574,7 +575,7 @@ class plotWindow:
     cellWidth = {1:175, 2:80, 3:55, 4:40}[ancols]
     # Cells are proportioned to show a dipole plot, which is 10RE wide and 8RE
     # tall, in proper proportion. 
-    cellHeight = 4*cellWidth/5
+    cellHeight = cellWidth if square is True else 4*cellWidth/5 
     # Tally up how many tiles we need. 
     tileWidth = ancols*cellWidth + (ancols-1)*cellPadding + 2*sideMargin
     tileHeight = ( nrows*cellHeight + (nrows-1)*cellPadding + titleMargin +
@@ -590,54 +591,53 @@ class plotWindow:
     plt.subplots_adjust(bottom=0., left=0., right=1., top=1.)
     # Create a lattice of axes and use it to initialize an array of Plot Cells.
     self.cells = np.empty( (nrows, oncols), dtype=object)
-    if ncols<0:
-      for row in range(nrows):
-        ypos = titleMargin + headMargin + row*(cellHeight + cellPadding)
-        ax = plt.subplot( tiles[ypos:ypos + cellHeight, 
-                                sideMargin:-sideMargin] )
+    for row in range(nrows):
+      top = titleMargin + headMargin + row*(cellHeight + cellPadding)
+      bot = top + cellHeight
+      if ncols<0:
+        ax = plt.subplot( tiles[top:bot, sideMargin:-sideMargin] )
         self.cells[row, 0] = plotCell(ax)
-    else:
-      for row in range(nrows):
+      else:
         for col in range(ncols):
-          xpos = sideMargin + col*(cellWidth + cellPadding)
-          ypos = titleMargin + headMargin + row*(cellHeight + cellPadding)
-          ax = plt.subplot( tiles[ypos:ypos + cellHeight, 
-                                  xpos:xpos + cellWidth] )
+          left = sideMargin + col*(cellWidth + cellPadding)
+          right = left + cellWidth
+          ax = plt.subplot( tiles[top:bot, left:right] )
           self.cells[row, col] = plotCell(ax)
     # Space out the title axis. 
     self.tax = plt.subplot( tiles[:titleMargin, sideMargin:-sideMargin] )
     # Space out an array of side axes to hold row labels. 
     self.sax = np.empty( (nrows,), dtype=object)
+    left, right = 0, sideMargin - 3*cellPadding
     for row in range(nrows):
-      ypos = titleMargin + headMargin + row*(cellHeight + cellPadding)
-      self.sax[row] = plt.subplot( tiles[ypos:ypos + cellHeight, 
-                                         :sideMargin - 3*cellPadding] )
+      top = titleMargin + headMargin + row*(cellHeight + cellPadding)
+      bot = top + cellHeight
+      self.sax[row] = plt.subplot( tiles[top:bot, left:right] )
     # Space out an array of header axes on the top to hold column labels. 
-    self.hax = np.empty( (oncols,), dtype=object)
-    if ncols<0:
-      self.hax[0] = plt.subplot( tiles[titleMargin:titleMargin + headMargin, 
-                                       sideMargin:-sideMargin] )
+    if joinlabel is True:
+      self.hax = np.empty( (1,), dtype=object)
+      top, bot = titleMargin, titleMargin + headMargin
+      self.hax[0] = plt.subplot( tiles[top:bot, sideMargin:-sideMargin] )
     else:
-      for col in range(oncols):
-        xpos = sideMargin + col*(cellWidth + cellPadding)
-        self.hax[col] = plt.subplot( tiles[titleMargin:titleMargin +
-                                                       headMargin,
-                                           xpos:xpos + cellWidth] )
+      self.hax = np.empty( (ancols,), dtype=object)
+      top, bot = titleMargin, titleMargin + headMargin
+      for col in range(ancols):
+        left = sideMargin + col*(cellWidth + cellPadding)
+        right = left + cellWidth
+        self.hax[col] = plt.subplot( tiles[top:bot, left:right] )
     # Side header axis, for the row label header. 
-    self.shax = plt.subplot( tiles[titleMargin:titleMargin + headMargin, 
-                                   :sideMargin - 3*cellPadding] )
+    top, bot = titleMargin, titleMargin + headMargin
+    left, right = 0, sideMargin - 3*cellPadding
+    self.shax = plt.subplot( tiles[top:bot, left:right] )
     # Narrow axis on the right side for the color bar. 
-    self.cax = plt.subplot( tiles[titleMargin + headMargin:-footMargin, 
-                                  -sideMargin + cellPadding:-sideMargin +
-                                                            3*cellPadding] )
-    # TODO: Space out a tiny axis above the color bar to indicate units. If
-    # there are multiple columns, then it can just line up with the column
-    # labels. But if there's only one column, there are no column labels... 
-    # then, the title should extend only over the plot itself (?). Also tell
-    # setParams how to add text to it. 
-    self.uax = plt.subplot( tiles[titleMargin:titleMargin + headMargin, 
-                                  -sideMargin + cellPadding:-sideMargin +
-                                                            3*cellPadding] )
+    top, bot = titleMargin + headMargin, -footMargin
+    left, right = -sideMargin + cellPadding, -sideMargin + 3*cellPadding
+    self.cax = plt.subplot( tiles[top:bot, left:right] )
+    # Space out a tiny axis above the color bar to indicate units. Size it to
+    # line up with the column labels. If there's only one column, and so the
+    # column labels are compressed, still pretend they are sized normally. 
+    top, bot = titleMargin + headMargin - unitMargin, titleMargin + headMargin
+    left, right = -sideMargin + cellPadding, -sideMargin + 3*cellPadding
+    self.uax = plt.subplot( tiles[top:bot, left:right] )
     # The title, header, and side axes are for spacing text, not showing data.
     # The axes themselves need to be hidden. The colorbar axis is hidden by
     # default as well, though it may be un-hidden later. 
@@ -793,7 +793,8 @@ class plotWindow:
     self.setParams( xlims=(xmin, xmax), ylims=(ymin, ymax) )
     # Only the leftmost cells get y axis labels and tick labels. 
     for cell in self.cells[:, 1:].flatten():
-      cell.setParams( ylabel='', yticklabels=() )
+      if not cell.rightaxis:
+        cell.setParams( ylabel='', yticklabels=() )
     # Only the bottom cells get x axis labela and tick labels. 
     for cell in self.cells[:-1, :].flatten():
       cell.setParams( xlabel='', xticklabels=() )
@@ -836,6 +837,12 @@ class plotCell:
   outline = False
   # Cells can be small. Let's try to keep the number of ticks under control.
   nxticks, nyticks = 3, 4
+  # Sometimes we want an extra axis label on the right. Make sure the window
+  # doesn't delete it when it's cleaning up the non-edge ticks and labels. 
+  rightaxis = False
+
+  xtickrelax, ytickrelax = False, False
+
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------------------------- Initialize Cell
@@ -854,15 +861,20 @@ class plotCell:
     for key, val in kargs.items():
       # Keys are caps insensitive. 
       key = key.lower()
+      # Sometimes we want to sneak in an extra axis of labels. 
+      if key=='axright' and bool(val) is True:
+        self.rightaxis = True
+        self.ax.yaxis.set_label_position('right')
+        self.ax.yaxis.tick_right()
+        self.ax.yaxis.set_ticks_position('both')
       # Sometimes we have to finagle with the number of ticks. 
-      if key=='nxticks':
+      elif key=='nxticks':
         self.nxticks = val
       elif key=='nyticks':
         self.nyticks = val
       # Draw an outline around the plot contents. 
       elif key=='outline':
         self.outline = val
-
       # Add text inside the cell, along the top. If we want to do anything more
       # sophisticated with text, like control its position or rotation or
       # color or size, we'll probably need to add a setText method. 
@@ -870,7 +882,6 @@ class plotCell:
         targs = {'x':0.5, 'y':0.85, 'horizontalalignment':'center', 
                  'verticalalignment':'center', 'transform':self.ax.transAxes}
         self.ax.text(s='$' + val + '$', fontsize=9, **targs)
-
       # Horizontal axis coordinate. 
       elif key=='x':
         self.x = val
@@ -894,6 +905,10 @@ class plotCell:
       elif key=='xticklabels':
         self.ax.set_xticklabels(val)
         self.nxticks = None
+
+      elif key=='xtickrelax':
+        self.xtickrelax = val
+
       # Set the horizontal axis ticks manually. 
       elif key=='xticks':
         self.ax.set_xticks(val)
@@ -921,6 +936,10 @@ class plotCell:
       elif key=='yticklabels':
         self.ax.set_yticklabels(val)
         self.nyticks = None
+
+      elif key=='ytickrelax':
+        self.ytickrelax = val
+
       # Set the vertical axis ticks manually. 
       elif key=='yticks':
         self.ax.set_yticks(val)
@@ -1020,19 +1039,23 @@ class plotCell:
     self.ax.set_xlim(self.xlims)
     self.ax.set_ylim(self.ylims)
 
-    # There can be a lot of frames on these figures. Be economical. 
+    # There can be a lot of cells. Try to be economical. 
     if not self.xlog:
       if self.nxticks is not None:
         self.ax.xaxis.set_major_locator( plt.MaxNLocator(self.nxticks,
                                                          integer=True) )
-      self.ax.xaxis.get_majorticklabels()[0].set_horizontalalignment('left')
-      self.ax.xaxis.get_majorticklabels()[-1].set_horizontalalignment('right')
+      if not self.xtickrelax:
+        self.ax.xaxis.get_majorticklabels()[0].set_horizontalalignment('left')
+        self.ax.xaxis.get_majorticklabels()[-1].set_horizontalalignment('right')
+
     if not self.ylog:
       if self.nyticks is not None:
         self.ax.yaxis.set_major_locator( plt.MaxNLocator(self.nyticks, 
                                                          integer=True) )
-      self.ax.yaxis.get_majorticklabels()[0].set_verticalalignment('bottom')
-      self.ax.yaxis.get_majorticklabels()[-1].set_verticalalignment('top')
+
+      if not self.ytickrelax:
+        self.ax.yaxis.get_majorticklabels()[0].set_verticalalignment('bottom')
+        self.ax.yaxis.get_majorticklabels()[-1].set_verticalalignment('top')
     return
 
 # #############################################################################

@@ -28,6 +28,16 @@ plotdir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
+
+
+  # Let's plot where the data is! 
+  return bullseye()
+
+
+
+
+
+
   '''
   # Debug with a known super-nice event. 
   date = '2012-10-23'
@@ -92,6 +102,128 @@ def trackpos(probe, date, mpc=5):
 #    if evline:
 #      print append(evline, 'oddevents.txt')
 #      plot(ev, save=True)
+
+
+
+
+# =============================================================================
+# ======================================================= Plotting the Position
+# =============================================================================
+
+def bullseye():
+
+  '''
+  # PRACTICE MAKING A BULLSEYE FROM EXAMPLES. 
+  # Center theta on the hour. 
+  theta, r = np.mgrid[-0.5:24:1, 1:7:7j]
+  # Map it to radians, noting that Matplotlib puts zero degrees facing right. 
+  theta = 0.5*np.pi - theta*2*np.pi/24
+  # Random data, but mark midnight in blue and morning in red. 
+  z = np.random.random(theta.size).reshape(theta.shape)
+  z[0, :] = 0
+  z[6, :] = 1
+  # Set up the subplot. 
+  fig, ax = plt.subplots(ncols=1, subplot_kw=dict(projection='polar'))
+  # Plot the data. No radial ticks. 
+  ax.pcolormesh(theta, r, z)
+  ax.set_yticklabels([])
+  ax.set_ylim([0, 7])
+  # No outline. 
+  ax.spines['polar'].set_visible(False)
+  # Set ticks around the edge. 
+  nticks = 4
+  # Ticks in units of days. 
+  dticks = np.arange(nticks)*1./nticks
+  # Convert to radians for the label locations. 
+  xticks = 2*np.pi*dticks
+  # Put zero on the top and get clock time for the labels. 
+  xticklabels = [ timestr( (0.25 - d)*86400 )[1][:5] for d in dticks ]
+  ax.set_xticks(xticks)
+  ax.set_xticklabels(xticklabels)
+  # Let's draw some lines to mark boundaries. 
+  for i in range(24):
+    # Radial line between hours. 
+    ax.plot(np.ones(2)*(i+0.5)*np.pi/12, np.linspace(1, 7, 2), 'k')
+    # Spiderwebbing. Not quite circles! 
+    for j in range(1, 8):
+      ax.plot( np.linspace( (i-0.5)*2*np.pi/24, (i+0.5)*2*np.pi/24, 2 ), np.ones(2)*j, 'k' )
+  return plt.show()
+  '''
+
+  PW = plotWindow(square=True, colorbar='lin')
+
+  PW.setParams( xlims=(-8, 8), ylims=(-8, 8) )
+
+  # Cell bounds in terms of L and MLT. 
+  l, mlt = np.mgrid[1:7:7j, -0.5:24:1]
+  # Map to GSE coordinates. 
+  x, y = l*np.cos(2*pi*mlt/24), l*np.sin(2*pi*mlt/24)
+
+  # Draw radial lines. 
+  [ PW.setLine(x[i, :], y[i, :], 'k') for i in range(7) ]
+  [ PW.setLine(x[:, j], y[:, j], 'k') for j in range(24) ]
+
+  # Random data, but mark midnight in blue and morning in red. 
+  z = np.random.random(x.size).reshape(x.shape)
+  z[0, :] = 0
+  z[6, :] = 1
+
+  ax = PW.cells.flatten()[0].ax
+
+#  # Draw a grid. 
+#  [ PW.setLine(i*np.ones(2), np.linspace(0, 7, 2), 'k') for i in range(25) ]
+#  [ PW.setLine(np.linspace(0, 24, 2), i*np.ones(2), 'k') for i in range(8) ]
+
+  return PW.render()
+
+
+
+
+
+
+
+  N = 100000
+
+  # Grab all of the lines where RBSP has usable data. 
+  poslines = [ line for line in read('pos.txt') if line.endswith('ok') ]
+
+  # Duration. Measure in probe-days (double duration, due to 2 probes). 
+  start = {'date':poslines[0].split()[1], 'time':poslines[0].split()[2]}
+  finish = {'date':poslines[N].split()[1], 'time':poslines[N].split()[2]}
+  duration = 2*( timeint(**finish) - timeint(**start) )/86400.
+  usable = 300*len( poslines[:N] )/86400.
+
+  # Indicate usable time in the title. 
+  title = format(usable, '.1f') + ' usable probe-days over ' + format(duration, '.1f') + ' probe-days'
+  plt.title(title)
+
+  # Turn the position strings into numbers. 
+  pos = np.array( [ [ float(x) for x in p.split()[3:6] ] for p in poslines ] )
+
+  # Bin the numbers by L and MLT. MLAT is less important. 
+  hist = np.histogram2d( pos[:N, 0], pos[:N, 1], bins=(7, 24), range=[ (0, 7), (0, 24) ] )[0]
+  # Scale from five-minute chunks to days. 
+  days = 300*hist/86400.
+
+  # Draw a grid. 
+  [ plt.plot(i*np.ones(2), np.linspace(0, 7, 2), 'k') for i in range(25) ]
+  [ plt.plot(np.linspace(0, 24, 2), i*np.ones(2), 'k') for i in range(8) ]
+
+  plt.contourf( 0.5+np.arange(24), 0.5+np.arange(7), days )
+
+  plt.colorbar()
+
+  plt.show()
+
+
+
+
+
+
+  return
+
+
+
 
 
 
