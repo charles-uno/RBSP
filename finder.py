@@ -31,7 +31,7 @@ def main():
 
 
   # Let's plot where the data is! 
-  return bullseye()
+  return bullseye(save='-i' in argv)
 
 
 
@@ -110,97 +110,80 @@ def trackpos(probe, date, mpc=5):
 # ======================================================= Plotting the Position
 # =============================================================================
 
-def bullseye():
+def bullseye(save=False, unit='days'):
+  global plotdir
 
-  PW = plotWindow(square=True, colorbar='lin')
+#  unit = 'hours'
 
-  PW.setParams( xlims=(-8, 8), ylims=(-8, 8) )
-
-  # Cell bounds in terms of L and MLT. 
-  l, mlt = np.mgrid[1:7:7j, -0.5:24:1]
-  # Map to GSE coordinates. 
-  x, y = l*np.cos(2*pi*mlt/24), l*np.sin(2*pi*mlt/24)
-
-  # Draw radial lines. 
-  [ PW.setLine(x[i, :], y[i, :], 'k') for i in range(7) ]
-  [ PW.setLine(x[:, j], y[:, j], 'k') for j in range(24) ]
-
-  # Random data, but mark midnight in blue and morning in red. 
-  z = np.random.random(x.size).reshape(x.shape)
-  z[0, :] = 0
-  z[6, :] = 1
-
-  ax = PW.cells.flatten()[0].ax
-
-#  # Draw a grid. 
-#  [ PW.setLine(i*np.ones(2), np.linspace(0, 7, 2), 'k') for i in range(25) ]
-#  [ PW.setLine(np.linspace(0, 24, 2), i*np.ones(2), 'k') for i in range(8) ]
-
-  return PW.render()
+  secondsper = 86400. if unit=='days' else 1440.
 
 
-
-
-
-
-
-  N = 100000
-
-  # Grab all of the lines where RBSP has usable data. 
+  # The orbit of both RBSP paths has been broken into five-minute chunks. Grab
+  # the position of each chunk which gives good data for E dot B = 0. 
   poslines = [ line for line in read('pos.txt') if line.endswith('ok') ]
 
-  # Duration. Measure in probe-days (double duration, due to 2 probes). 
-  start = {'date':poslines[0].split()[1], 'time':poslines[0].split()[2]}
-  finish = {'date':poslines[N].split()[1], 'time':poslines[N].split()[2]}
-  duration = 2*( timeint(**finish) - timeint(**start) )/86400.
-  usable = 300*len( poslines[:N] )/86400.
+  # Tally up the total amount of usable data at five minutes per line, in days.
+  utime = 300*len(poslines)/secondsper
 
-  # Indicate usable time in the title. 
-  title = format(usable, '.1f') + ' usable probe-days over ' + format(duration, '.1f') + ' probe-days'
-  plt.title(title)
+  # Get the date range. 
+  date0, date1 = poslines[0].split()[1], poslines[-1].split()[1]
+#  start = {'date':poslines[0].split()[1], 'time':poslines[0].split()[2]}
+#  finish = { 'date':poslines[-1].split()[1], 'time':poslines[-1].split()[2] }
+#  pdays = 2*( timeint(**finish) - timeint(**start) )/86400.
+#  title = notex(format(udays, '.1f') + ' usable probe-days over ' + format(pdays, '.1f') + ' probe-days')
 
-  # Turn the position strings into numbers. 
+  # Parse the positions into an array of floats. 
   pos = np.array( [ [ float(x) for x in p.split()[3:6] ] for p in poslines ] )
 
-  # Bin the numbers by L and MLT. MLAT is less important. 
-  hist = np.histogram2d( pos[:N, 0], pos[:N, 1], bins=(7, 24), range=[ (0, 7), (0, 24) ] )[0]
-  # Scale from five-minute chunks to days. 
-  days = 300*hist/86400.
+  # Figure out appropriate bin sizes for the position data. 
+  dl, dm = 0.5, 1
+  lmin, lmax = np.floor( np.min( pos[:, 0] ) ), np.ceil( np.max( pos[:, 0] ) )
+  mmin, mmax = np.floor( np.min( pos[:, 1] ) ), np.ceil( np.max( pos[:, 1] ) )
+  lbins, mbins = int( (lmax - lmin)/dl ) + 1, int( (mmax - mmin)/dm ) + 1
 
-  # Draw a grid. 
-  [ plt.plot(i*np.ones(2), np.linspace(0, 7, 2), 'k') for i in range(25) ]
-  [ plt.plot(np.linspace(0, 24, 2), i*np.ones(2), 'k') for i in range(8) ]
+  # Bin the position data into a 2D histogram, then scale it to days. 
+  hist = np.histogram2d( pos[:, 0], pos[:, 1], bins=(lbins-1, mbins-1), 
+                         range=[ (lmin, lmax), (mmin, mmax) ] )[0]
+  z = 300*hist/secondsper
 
-  plt.contourf( 0.5+np.arange(24), 0.5+np.arange(7), days )
+  # Bin bounds in terms of L and MLT. 
+  l, m = np.mgrid[lmin:lmax:lbins*1j, mmin - dm/2.:mmax - dm/2.:mbins*1j]
+  # Map to GSE coordinates. Put MLT=0 at the bottom. 
+  x, y = l*np.sin(2*pi*m/24.), -l*np.cos(2*pi*m/24.)
 
-  plt.colorbar()
+  # Create the plot window and scale the axes properly. 
+  PW = plotWindow(square=True, colorbar='pos')
+  lms, tks = (-8, 8), np.mgrid[-8:8:9j]
+  tls = [ '$' + format(t, '+.0f') + '$' if t%4==0 else '' for t in tks  ]
+  tls[4] = '$0$'
+  PW.setParams(xlims=lms, ylims=lms, xticks=tks, yticks=tks, 
+               xticklabels=tls, yticklabels=tls)
 
-  plt.show()
+  # Set the title and labels. 
+  xlbl, ylbl = 'Y' + notex(' (R_E)'), 'X' + notex(' (R_E)')
+  ulabel = notex(unit)
+  title = notex('Usable Data ' + date0 + ' to ' + date1 + ' (' + format(utime, '.0f') + ' ' + unit + ' total)')
+  PW.setParams(title=title, unitlabel=ulabel, xlabel=xlbl, ylabel=ylbl)
 
+  # Draw the grid. 
+  [ PW.setLine(x[i, :], y[i, :], 'k') for i in range( 1, x.shape[0] ) ]
+  [ PW.setLine(x[:, j], y[:, j], 'k') for j in range( x.shape[1] ) ]
 
+  # Draw Earth. This is a bit kludgey. 
+  ax = ax = PW.cells.flatten()[0].ax
+  ax.add_artist( Wedge( (0, 0), 1, 0, 180, fc='w' ) )
+  ax.add_artist( Wedge( (0, 0), 1, 180, 360, fc='k' ) )
 
+  # Add the data to the plot. 
+  PW.setMesh(x, y, z)
 
-
-
-  return
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  # Show the plot, or save it as an image. 
+  if save is True:
+    if not os.path.exists(plotdir):
+      os.makedirs(plotdir)
+    return PW.render(plotdir + 'pos.pdf')
+  else:
+    return PW.render()
 
 # #############################################################################
 # ######################################################## Searching for Events
