@@ -354,15 +354,49 @@ class event:
 
   # Label describing the best wave in the given mode, selected based on electric
   # field FFT magnitude. 
-  def descr(self, mode):
+  def descr(self, mode, imax=None, harm=None):
     sfft = self.sfft(mode)
     # Choose the mode with the most power in the standing wave. 
-    imax = np.argmax( np.abs( np.imag(sfft) ) )
-    return notex( format(self.frq()[imax], '.0f') + 'mHz\\qquad' +
-                  tex('imag') + '\\frac{L^3}{\\mu_0}' + tex('SFFT') + '\\!=\\!' +
-                  format(float( np.imag( sfft[imax] ) ), '.1f') + '\\frac{mW}{m^2}\\qquad' +  
-                  tex('real') + '\\frac{L^3}{\\mu_0}' + tex('SFFT') + '\\!=\\!' +
-                  format(float( np.real( sfft[imax] ) ), '.1f') + '\\frac{mW}{m^2}' )
+    if imax is None:
+      imax = np.argmax( np.abs( np.imag(sfft) ) )
+    # Figure out the harmonic parity. 
+    if harm is None:
+      harm = self.harm(mode)[imax]
+
+    # Format a float. 
+    def fmt(x, digs=0):
+      return format(float(x), '.' + str(digs) + 'f')
+
+    # Format a complex. 
+    def cmt(x, digs=0):
+      rpart, ipart = [ fmt(ri(x), digs=digs) for ri in (np.real, np.imag) ]
+      return (rpart + '+' + ipart + 'i').replace('+-', '-')
+
+    # Give the structure of this wave. 
+    modename = notex( {'p':'POL', 't':'TOR'}[mode] )
+    harmname = notex( {1:'ODD', 2:'EVEN'}[harm] )
+    freqname = 'f=' + format(self.frq()[imax], '.0f') + tex('mHz')
+    lllsname = tex('L3S') + '=(' + cmt(sfft[imax], digs=2) + ')' + tex('mW/m^2')
+
+#    rkeyname = tex('real') + tex('L3S') + '\\!=\\!'
+#    rvalname = format(float( np.real( sfft[imax] ) ), '.2f') + tex('mW/m^2')
+#    ikeyname = tex('imag') + tex('L3S') + '\\!=\\!'
+#    ivalname = format(float( np.imag( sfft[imax] ) ), '.2f') + tex('mW/m^2')
+#    return notex( '\\qquad{}'.join( (modename, harmname, freqname, ikeyname + ivalname, rkeyname + rvalname) ) )
+
+#    for i in range(imax-3, imax+4):
+#      print ( '\t', i, '\t', format( self.frq()[i], '.1f'), '\t', format( float( np.real( sfft[i] ) ), '+.3f'), 
+#                                                            '\t', format( float( np.imag( sfft[i] ) ), '+.3f'), 
+#                                                            '\t', format( float( np.abs( sfft[i] ) ), '.3f') )
+
+    return '\\qquad{}'.join( (modename, harmname, freqname, lllsname) )
+
+#    return notex( modename + '\\qquad' + harmname + '\\qquad' + 
+#                  freqname + '\\qquad' +
+#                  tex('imag') + tex('S' + mode + 'FFT') + '\\!=\\!' +
+#                  format(float( np.imag( sfft[imax] ) ), '.2f') + tex('mW/m^2') + '\\qquad' +  
+#                  tex('real') + tex('S' + mode + 'FFT') + '\\!=\\!' +
+#                  format(float( np.real( sfft[imax] ) ), '.2f') + tex('mW/m^2') )
 
   # ---------------------------------------------------------------------------
   # -------------------------------------------- Axis Limits, Ticks, and Labels

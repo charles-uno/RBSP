@@ -18,6 +18,9 @@
 
 from day import *
 from plotmod import *
+from scipy.optimize import curve_fit
+
+from warnings import catch_warnings, simplefilter
 
 # #############################################################################
 # ######################################################################## Main
@@ -28,12 +31,28 @@ plotdir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
+  # What dates do we have data for? 
+  dates = sorted( os.listdir('/media/My Passport/rbsp/pkls/') )
+
+  # If we're saving our data, nuke the previous list to avoid double-counting. 
+  if '-i' in argv and os.path.exists('oddevents.txt'):
+    os.remove('oddevents.txt')
+
+  # Search for events. Do the days in random order, for easier debugging. We can just look at the first event we find. 
+  for date in np.random.permutation(dates):
+    print date
+    # Check both probes. Thirty minute chunks. 
+    [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
 
 
-  # Let's plot where the data is! 
-  return bullseye(save='-i' in argv)
+#  # Tally the probes' positions. 
+#  for date in dates:
+#    print date
+#    # Figure where the probes spent their time. Five minute chunks. 
+#    [ trackpos(probe, date, mpc=5) for probe in ('a', 'b') ]
 
-
+#  # Plot the location of the usable data. 
+#  return bullseye(save='-i' in argv)
 
 
 
@@ -51,22 +70,211 @@ def main():
   return plot(ev)
   '''
 
-#  # Nuke any previous event list to avoid double counting. 
-#  if os.path.exists('oddevents.txt'):
-#    os.remove('oddevents.txt')
+  return
 
-  # There's one pickle directory for each date we're supposed to look at. 
-  for date in sorted( os.listdir('/media/My Passport/rbsp/pkls/') ):
+# #############################################################################
+# ######################################################## Searching for Events
+# #############################################################################
 
-    print date
+# =============================================================================
+# ====================================================== Check a Day for Events
+# =============================================================================
 
-#    # Figure where the probes spent their time. Five minute chunks. 
-#    [ trackpos(probe, date, mpc=5) for probe in ('a', 'b') ]
+# The day is broken into chunks (mpc is minutes per chunk). Each chunk is run
+# through a few different filters to seek out odd-harmonic poloidal Pc4 waves. 
+def checkdate(probe, date, mpc=30):
 
-#    # Check each date for both probes. Thirty minute chunks. 
-#    [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
+  # Load the day's data into a day object. 
+  today = day(probe=probe, date=date)
+
+  # Break the day into chunks and look for events in each chunk. 
+  for t in range(0, 86400, 60*mpc):
+
+    ev = today.getslice(t, duration=60*mpc)
+
+    # Check each chunk of time for an event. 
+    checkevent(ev)
 
   return
+
+# =============================================================================
+# ================================================== Fit Waveform to a Gaussian
+# =============================================================================
+
+# Define Gaussian function. 
+def gauss(x, amp, avg, std):
+  return amp*np.exp( -(x - avg)**2/(2.*std**2) )
+
+# Fit a Gaussian to data. The guess is amplitude, mean, spread. 
+def gaussfit(x, y, guess=None):
+  # Try to fit a peak around the highest value. 
+  if guess is None:
+    guess = (np.max(y), x[ np.argmax(y) ], 1)
+  # Suppress warnings, but don't return bad data. 
+  try:
+    with catch_warnings():
+      simplefilter('ignore')
+      return curve_fit(gauss, x, y, p0=guess)[0]
+  except:
+    return None
+
+# =============================================================================
+# ====================================================== Check a Chunk of a Day
+# =============================================================================
+
+# Check if the given event -- which is a slice of a day's worth of data -- has
+# any odd-mode poloidal Pc4 events. 
+def checkevent(ev):
+
+  # If the event's data is no good, obviously there can be no event. 
+  if not ev.isok():
+    return False
+
+  # This filter is a bit trickier than Lei's, because we're going a level
+  # deeper. We need not only the magnetic field, but also the electric field
+  # and how they relate to one another. 
+
+  # Get the Fourier-domain Poynting flux. Really, get the absolute value of the
+  # imaginary component... we want to know the strength of the standing wave. 
+  freq = ev.frq()
+  modes = ('p', 't')
+  spti = [ np.abs( np.imag( ev.sfft(m) ) ) for m in modes ]
+
+  # Fit a Gaussian to each spectrum. Make sure it works. 
+  args = [ gaussfit(freq, s) for s in spti ]
+  if None in args:
+    print 'Bad data. '
+    return False
+
+  # Which Gaussian is larger? Consider only that one from here on. 
+  im = 0 if args[0][0] > args[1][0] else 1
+  speak, fpeak, dfpeak = args[im]
+  mode = modes[im]
+
+  # Threshold on frequency: 7 to 25 mHz.  
+  if not 7 < fpeak < 25:
+    print 'Not Pc4. '
+    return False
+
+  # Threshold on magnitude: at least 0.01 mW/m^2 in the standing wave. 
+  if not speak > 1e-2:
+    print 'Too weak. '
+    return False
+
+  # Threshold on fit quality: if the peaks are off by 5mHz or more, bail. 
+  imax = np.argmax( spti[im] )
+  if not np.abs(freq[imax] - fpeak) < 5:
+    print 'Bad fit. '
+    return False
+
+  # Threshold on harmonic: anything too close to the equator is ambiguous. 
+  harm = ev.harm(mode)
+  ipeak = np.argmin( np.abs(freq - fpeak) )
+  if harm[ipeak]==0:
+    print 'Ambiguous harmonic. '
+    return False
+
+  # Threshold on coherence: anything below 0.9 is too messy. 
+  if not ev.coh(mode)[ipeak] > 0.9:
+    print '\tIncoherent. '
+    return False
+
+  # Return information about this event. 
+  pdt = col(ev.probe) + col(ev.date) + col(ev.time)
+  pos = col( ev.avg('lshell') ) + col( ev.avg('mlt') ) + col( ev.avg('mlat') )
+  pol = col( {'p':'POL', 't':'TOR'}[mode] )
+  mag = col(speak)
+  par = col( {1:'ODD', 2:'EVEN'}[ harm[ipeak] ] )
+  fdf = col(fpeak) + col(2.355*dfpeak)
+  return pdt + pos + pol + mag + par + fdf
+
+  '''
+  # If the (fit) peak doesn't coincide with the (data) max, investivate. 
+  print '\tPolarization: ', mode
+  if imax==ipeak:
+    print '\tMagnitude:    ', speak
+    print '\tFrequency:    ', fpeak
+    print '\tFWHM:         ', dfpeak
+    print '\tParity:       ', harm[ipeak]
+  else:
+    print '\tMagnitude:    ', speak, ' ... or ... ', spti[im][imax]
+    print '\tFrequency:    ', fpeak, ' ... or ... ', f[imax]
+    print '\tFWHM:         ', dfpeak
+    print '\tParity:       ', harm[ipeak], ' ... or ... ', harm[imax]
+
+  PW = plotWindow(nrows=2, ncols=2)
+  for i, m in enumerate(modes):
+    t, B, E = ev.get('t'), ev.get('B' + m), ev.get('E' + m)
+    t = ( t - t[0] )/60.
+    PW[i, 0].setLine(t, B, 'r')
+    PW[i, 0].setLine(t, E, 'b')
+    PW[i, 0].setParams( xlims=(0, 30), ylims=(-5, 5) )
+    PW[i, 1].setLine(freq, spti[i], 'm')
+
+    color = 'k' if i==im else 'k:'
+    PW[i, 1].setLine(freq, gauss( freq, *args[i] ), color)
+
+    PW[i, 1].setParams( xlims=(0, 40), ylims=( 0, 2*args[i][0] ) )
+  PW.render()
+  exit()
+  '''
+
+
+  kargs = {'mode':mode, 'imax':imax}
+
+  # If we're storing the events and the images...
+  if '-i' in argv:
+    print append(evline, 'oddevents.txt')
+    return plot(ev, save=True, **kargs)
+  # If we're just looking/debugging... 
+  else:
+    print evline
+    plot(ev, **kargs)
+    exit()
+
+# #############################################################################
+# ############################################################# Plotting Events
+# #############################################################################
+
+def plot(ev, save=False, **kargs):
+  global plotdir
+  # Create plot window to hold waveforms and spectra. 
+  PW = plotWindow(nrows=3, ncols=2)
+  # Index the poloidal, toroidal, and field-aligned modes. 
+  modes = ('p', 't', 'z')
+  # Plot waveforms as a function of time. 
+  PW[:, 0].setParams( **ev.coords('waveform', cramped=True) )
+  [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
+  [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
+  # Plot Fourier component magnitudes as a function of frequency. 
+  PW[:, 1].setParams( **ev.coords('spectra', cramped=True) )
+  # Dotted lines for the magnitudes of field transforms. 
+  bfft = [ np.abs( ev.fft('b' + m) ) for m in modes ]
+  efft = [ np.abs( ev.fft('e' + m) ) for m in modes ]
+  [ PW[i, 1].setLine(b/np.max(b), 'r:') for i, b in enumerate(bfft) ]
+  [ PW[i, 1].setLine(e/np.max(e), 'b:') for i, e in enumerate(efft) ]
+  # Also -- more interestingly -- plot the real and imaginary components of the
+  # Fourier-space Poynting flux. 
+  sfft = [ ev.sfft(m)/np.max( np.abs( ev.sfft(m) ) ) for m in modes ]
+  sfftr = [ np.abs( np.real(s) ) for s in sfft ]
+  sffti = [ np.abs( np.imag(s) ) for s in sfft ]
+  [ PW[i, 1].setLine(s, 'm') for i, s in enumerate(sffti) ]
+  [ PW[i, 1].setLine(s, 'g') for i, s in enumerate(sfftr) ]
+  # Put title and labels on the plot. 
+  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
+  collabels = ( notex('B (Red) ; E (Blue)'), 
+                tex('imag') + tex('EB') + notex(' (Magenta) ; ') + 
+                tex('real') + tex('EB') + notex(' (Green)') )
+  PW.setParams(collabels=collabels, sidelabel=ev.label(), 
+               title=ev.descr(**kargs), rowlabels=rowlabels)
+  # Show the plot, or save it as an image. 
+  if save is True:
+    if not os.path.exists(plotdir):
+      os.makedirs(plotdir)
+    return PW.render(plotdir + ev.name + '.png')
+  else:
+    return PW.render()
+
 
 # #############################################################################
 # #################################################### Tallying RBSP's Position
@@ -96,15 +304,6 @@ def trackpos(probe, date, mpc=5):
     append(evline + '\t' + ( 'ok' if ev.isok() else 'X' ), 'pos.txt')
 
   return
-
-
-#    evline = checkevent(ev)
-#    if evline:
-#      print append(evline, 'oddevents.txt')
-#      plot(ev, save=True)
-
-
-
 
 # =============================================================================
 # ======================================================= Plotting the Position
@@ -139,6 +338,10 @@ def bullseye(save=False, unit='days'):
   dl, dm = 0.5, 1
   lmin, lmax = np.floor( np.min( pos[:, 0] ) ), np.ceil( np.max( pos[:, 0] ) )
   mmin, mmax = np.floor( np.min( pos[:, 1] ) ), np.ceil( np.max( pos[:, 1] ) )
+
+  lmin, lmax = 4.5, 6.5
+
+
   lbins, mbins = int( (lmax - lmin)/dl ) + 1, int( (mmax - mmin)/dm ) + 1
 
   # Bin the position data into a 2D histogram, then scale it to days. 
@@ -166,7 +369,8 @@ def bullseye(save=False, unit='days'):
   PW.setParams(title=title, unitlabel=ulabel, xlabel=xlbl, ylabel=ylbl)
 
   # Draw the grid. 
-  [ PW.setLine(x[i, :], y[i, :], 'k') for i in range( 1, x.shape[0] ) ]
+#  [ PW.setLine(x[i, :], y[i, :], 'k') for i in range( 1, x.shape[0] ) ]
+  [ PW.setLine(x[i, :], y[i, :], 'k') for i in range( x.shape[0] ) ]
   [ PW.setLine(x[:, j], y[:, j], 'k') for j in range( x.shape[1] ) ]
 
   # Draw Earth. This is a bit kludgey. 
@@ -182,129 +386,6 @@ def bullseye(save=False, unit='days'):
     if not os.path.exists(plotdir):
       os.makedirs(plotdir)
     return PW.render(plotdir + 'pos.pdf')
-  else:
-    return PW.render()
-
-# #############################################################################
-# ######################################################## Searching for Events
-# #############################################################################
-
-# =============================================================================
-# ====================================================== Check a Day for Events
-# =============================================================================
-
-# The day is broken into chunks (mpc is minutes per chunk). Each chunk is run
-# through a few different filters to seek out odd-harmonic poloidal Pc4 waves. 
-def checkdate(probe, date, mpc=30):
-
-  # Load the day's data into a day object. 
-  today = day(probe=probe, date=date)
-
-  # Break the day into chunks and look for events in each chunk. 
-  for t in range(0, 86400, 60*mpc):
-    # Whenever an event is found, save it to file. 
-    ev = today.getslice(t, duration=60*mpc)
-    evline = checkevent(ev)
-    if evline:
-      print append(evline, 'oddevents.txt')
-      plot(ev, save=True)
-
-  return
-
-# =============================================================================
-# ====================================================== Check a Chunk of a Day
-# =============================================================================
-
-# Check if the given event -- which is a slice of a day's worth of data -- has
-# any odd-mode poloidal Pc4 events. 
-def checkevent(ev):
-
-  # If the event's data is no good, obviously there can be no event. 
-  if not ev.isok():
-    return False
-
-  # This filter is a bit trickier than Lei's, because we're going a level
-  # deeper. We need not only the magnetic field, but also the electric field
-  # and how they relate to one another. 
-
-  # Get the (complex) poloidal Poynting flux in Fourier space. Find the point
-  # at which its imaginary (standing wave) component is strongest. The value
-  # is then scaled by L^3/mu0 (to map it to Poynting flux at the atmosphere). 
-  sfft = ev.sfft('p')
-  imax = np.argmax( np.abs( np.imag(sfft) ) )
-
-  # Filter out anything that's not in the Pc4 frequency range. 
-  if not ev.ispc4()[imax]:
-    return False
-
-  # Insist that all events be highly coherent so that phase offset is meaningful. 
-  if not ev.iscoh('p')[imax]:
-    return False
-
-  # The magnetic latitude and the EB* phase must have opposite signs. This is
-  # how we distinguish odd from even harmonics. 
-  if not ev.isodd('p')[imax]:
-    return False
-
-  # Impose a cutoff on magnitude after mapping the Poynting flux to Earth. 
-  if np.abs( np.imag( sfft[imax] ) ) < 0.02:
-    return False
-
-  # Notably, we are not filtering by spectral width. This should allow us to see giant pulsations in proportion. 
-
-  # We're also not filtering by how much of the cross-spectral density is in the standing mode... this might have to change. 
-
-  # If an event is found, return a line describing it. 
-  return col(ev.probe) + col(ev.date) + col(ev.time)
-#           col(ev.frq()[imax], unit='mHz')
-#           col(np.max(csd), unit='nTmV/m')
-#           col(ev.lag('p')[imax], unit='deg') 
-#           col(ev.avg('lshell'), unit='L') 
-#           col(ev.avg('mlt'), unit='MLT')
-#           col(ev.avg('mlat'), unit='*MLAT')
-#           col(ev.lpp, unit='LPP') 
-#           col(ev.coh('p')[imax], unit='Coh')
-
-# #############################################################################
-# ############################################################# Plotting Events
-# #############################################################################
-
-def plot(ev, save=False):
-  global plotdir
-  # Create plot window to hold waveforms and spectra. 
-  PW = plotWindow(nrows=3, ncols=2)
-  # Index the poloidal, toroidal, and field-aligned modes. 
-  modes = ('p', 't', 'z')
-  # Plot waveforms as a function of time. 
-  PW[:, 0].setParams( **ev.coords('waveform', cramped=True) )
-  [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
-  [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
-  # Plot Fourier component magnitudes as a function of frequency. 
-  PW[:, 1].setParams( **ev.coords('spectra', cramped=True) )
-  # Dotted lines for the magnitudes of field transforms. 
-  bfft = [ np.abs( ev.fft('b' + m) ) for m in modes ]
-  efft = [ np.abs( ev.fft('e' + m) ) for m in modes ]
-  [ PW[i, 1].setLine(b/np.max(b), 'r:') for i, b in enumerate(bfft) ]
-  [ PW[i, 1].setLine(e/np.max(e), 'b:') for i, e in enumerate(efft) ]
-  # Also -- more interestingly -- plot the real and imaginary components of the
-  # Fourier-space Poynting flux. 
-  sfft = [ ev.sfft(m)/np.max( np.abs( ev.sfft(m) ) ) for m in modes ]
-  sfftr = [ np.abs( np.real(s) ) for s in sfft ]
-  sffti = [ np.abs( np.imag(s) ) for s in sfft ]
-  [ PW[i, 1].setLine(s, 'm') for i, s in enumerate(sffti) ]
-  [ PW[i, 1].setLine(s, 'g') for i, s in enumerate(sfftr) ]
-  # Put title and labels on the plot. 
-  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
-  collabels = ( notex('B (Red) ; E (Blue)'), 
-                tex('imag') + tex('SFFT') + notex(' (Magenta) ; ') + 
-                tex('real') + tex('SFFT') + notex(' (Green)') )
-  PW.setParams(collabels=collabels, sidelabel=ev.label(), title=ev.descr('p'), 
-               rowlabels=rowlabels)
-  # Show the plot, or save it as an image. 
-  if save is True:
-    if not os.path.exists(plotdir):
-      os.makedirs(plotdir)
-    return PW.render(plotdir + ev.name + '.png')
   else:
     return PW.render()
 

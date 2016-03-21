@@ -47,7 +47,7 @@ def main():
 
   # Load one chunk of dates at a time. We may need to clean out the scratch
   # directory in between chunks. 
-  for d in listdates(onlydai=False)[500:]:
+  for d in listdates(onlydai=False)[:200]:
     grabdate(d)
 
   return
@@ -71,8 +71,10 @@ def listdates(onlydai=False):
   # Grab all of the dates from October 2012 to July 2014. 
   else:
     dates = []
-    d = '2012-10-01'
-    while d < '2014-08-01':
+#    d = '2012-10-01'
+#    while d < '2014-08-01':
+    d = '2015-02-06'
+    while d < '2016-03-16':
       dates.append(d)
       d = timestr(timeint(date=d) + 86400)[0]
   return dates

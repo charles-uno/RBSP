@@ -22,6 +22,12 @@
 # ##################################################### Import Python Libraries
 # #############################################################################
 
+
+# Change matplotlib settings to allow use over SSH without X forwarding. 
+import matplotlib
+import os
+if 'DISPLAY' not in os.environ or os.environ['DISPLAY'] is '':
+  matplotlib.use('Agg')
 # The cPickle module is faster, but not always available. 
 try:
   import cPickle as pickle
@@ -35,7 +41,6 @@ from matplotlib.colors import LogNorm, Normalize
 from matplotlib.patches import Wedge
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 from os.path import basename
 from random import choice
 from sys import argv, stdout
@@ -81,13 +86,19 @@ def tex(x):
              'Ex':'E_x', 
              'Ey':'E_y', 
              'Ez':'E_z', 
-             'SFFT':'\\widetilde{E}_y\\widetilde{B}^*_x', 
+             'L3S':'L^3\\widetilde{S}', 
+             'EB':'\\widetilde{E}\\widetilde{B}^*', 
+             'EBp':'-\\widetilde{E}_y\\widetilde{B}^*_x', 
+             'EBt':'\\widetilde{E}_x\\widetilde{B}^*_y', 
+             'SpFFT':'-\\frac{L^3}{\\mu_0}\\widetilde{E}_y\\widetilde{B}^*_x', 
+             'StFFT':'\\frac{L^3}{\\mu_0}\\widetilde{E}_x\\widetilde{B}^*_y', 
              # Units. 
+             'mHz':notex('mHz'),
              'mV/m':notex('\\frac{mV}{m}'),
              'mW/m^2':notex('\\frac{mW}{m^2}'),
-             # Real/imaginary labels. 
-             'imag':'\\mathbb{I}\\mathrm{m}',
-             'real':'\\mathbb{R}\\mathrm{e}',
+             # Field Modifiers. 
+             'imag':'\\mathbb{I}\\mathrm{m}\\;',
+             'real':'\\mathbb{R}\\mathrm{e}\\;',
              # Axis labels. 
              'alt':notex('Altitude (km)'), 
              'L':notex('L (R_E)'), 
