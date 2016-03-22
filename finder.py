@@ -34,8 +34,8 @@ def main():
 #  # Plot the location of the usable data. 
 #  return bullseye(save='-i' in argv)
 
-  # Plot the location of events... ?
-  return rateplot(save='-i' in argv)
+#  # Plot the location of events... ?
+#  return rateplot(save='-i' in argv)
 
   # What dates do we have data for? 
   dates = sorted( os.listdir('/media/My Passport/rbsp/pkls/') )
@@ -277,10 +277,9 @@ def checkevent(ev):
   pdt = col(ev.probe) + col(ev.date) + col(ev.time)
   pos = col( ev.avg('lshell') ) + col( ev.avg('mlt') ) + col( ev.avg('mlat') )
   pol = col( {'p':'POL', 't':'TOR'}[mode] )
-  mag = col(speak)
   par = col( {1:'ODD', 2:'EVEN'}[ harm[ipeak] ] )
   fdf = col(fpeak) + col(2.355*dfpeak)
-  return pdt + pos + pol + mag + par + fdf
+  return pdt + pos + pol + col(speak) + par + fdf + col(ev.lpp)
 
 # #############################################################################
 # ############################################################# Plotting Events
