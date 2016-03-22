@@ -342,7 +342,9 @@ class event:
     comp = np.abs( np.imag( self.fft('Bz')/self.fft('B' + mode) ) )[ifit]
     # Assemble information about the wave/fit into a dictionary to return. 
     return {'mode':mode, 's':gfit[0], 'f':gfit[1], 'df':gfit[2], 'i':ifit,
-            'coh':coh, 'harm':harm, 'comp':comp}
+            'coh':coh, 'harm':harm, 'comp':comp, 'date':self.date, 
+            'time':self.time, 'probe':self.probe, 'lshell':self.avg('lshell'), 
+            'mlat':self.avg('mlat'), 'mlt':self.avg('mlt'), 'lpp':self.lpp}
 
   # ---------------------------------------------------------------------------
   # --------------------------------------------------- Frequency-Domain Ratios
@@ -408,11 +410,12 @@ class event:
 
   # Assemble event properties into a label. 
   def label(self):
-    return notex( self.date + '\\quad' + self.time + '\\quad ' + 'RBSP-' +
-                  self.probe.upper() + '\\quad{}L\\!=\\!' +
-                  self.lbl('lshell') + '\\quad' + self.lbl('mlt') + 'MLT' +
-                  '\\quad' + self.lbl('mlat') + 'MLAT\\quad{}L_{PP}\\!=\\!' +
-                  format(self.lpp, '.1f') )
+    probename = 'RBSP-' + self.probe.upper()
+    lname = 'L\\!=\\!' + self.lbl('lshell')
+    mltname = self.lbl('mlt') + 'MLT'
+    mlatname = self.lbl('mlat') + 'MLAT'
+    lppname = 'L_{PP}\\!=\\!' + format(self.lpp, '.1f')
+    return notex( '\\quad{}'.join( (probename, self.date, self.time[:5], lname, mltname, mlatname, lppname) ) )
 
   # Label describing the best wave in the given mode, selected based on electric
   # field FFT magnitude. 

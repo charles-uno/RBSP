@@ -37,6 +37,16 @@ def main():
   # What dates do we have data for? 
   dates = sorted( os.listdir('/media/My Passport/rbsp/pkls/') )
 
+#  # If we're saving our data, nuke the previous list to avoid double-counting. 
+#  if '-i' in argv and os.path.exists('pos.txt'):
+#    print 'Removing old position listing'
+#    os.remove('pos.txt')
+
+#  # Tally the probes' positions. 
+#  for date in dates:
+#    print date
+#    [ trackpos(probe, date, mpc=5) for probe in ('a', 'b') ]
+
   # If we're saving our data, nuke the previous list to avoid double-counting. 
   if '-i' in argv and os.path.exists('events.txt'):
     print 'Removing old event listing'
@@ -45,19 +55,9 @@ def main():
   # Search for events. Do the days in random order, for easier debugging. We
   # can just look at the first event we find. 
   for date in np.random.permutation(dates):
-
-    date = '2012-10-23'
-
     print date
-
     # Check both probes. Thirty minute chunks. 
     [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
-
-#  # Tally the probes' positions. 
-#  for date in dates:
-#    print date
-#    # Figure where the probes spent their time. Five minute chunks. 
-#    [ trackpos(probe, date, mpc=5) for probe in ('a', 'b') ]
 
   return
 
@@ -92,233 +92,101 @@ def trackpos(probe, date, mpc=5):
 # #############################################################################
 
 # =============================================================================
-# ====================================================== Check a Day for Events
+# ===================================================== Search a Day for Events
 # =============================================================================
 
 # The day is broken into chunks (mpc is minutes per chunk). Each chunk is run
 # through a few different filters to seek out odd-harmonic poloidal Pc4 waves. 
 def checkdate(probe, date, mpc=30):
-
   # Load the day's data into a day object. 
   today = day(probe=probe, date=date)
-
   # Iterate over each chunk of the day. 
   for t in range(0, 86400, 60*mpc):
-
-    print probe, timestr(t)[1]
-
+    print '\t' + timestr(t)[1]
     # Check for poloidal and toroidal events independently. 
     ev = today.getslice(t, duration=60*mpc)
-    evlines = [ checkevent(ev, mode) for mode in ('p', 't') ]
-
+    evdicts = [ checkevent(ev, mode) for mode in ('p', 't') ]
     # If there's anything to save, do so, then plot it. 
-    keepevent(evlines)
-
-
-
-
-    '''
-    # If this chunk of time has no events, bail. 
-    if len(evlines)==0:
-      continue
-    # Otherwise, 
-    # If there's an event, print it out and plot it. 
-    if len(evlines)==1:
-      # If we're saving the events... 
-      if '-i' in argv:
-        print append( ''.join( evdescr[0] ), 'events.txt')
-        plot(ev, save=True)
-      # If we're just debugging... 
-      else:
-        print ''.join( evdescr[0] )
-        plot(ev)
+    if keepevent(evdicts):
+      plotevent(ev)
+      # If we're debugging, stop after a single plot. 
+      if '-i' not in argv:
         exit()
-#    evline = checkevent(ev)
-#    if not evline:
-#      continue
-    # Show or save the event info. 
-    if '-i' in argv:
-      print append(evline, 'events.txt')
-      plot(ev, save=True)
-    else:
-      print evline
-      plot(ev)
-      exit()
-    '''
-  return
-
-
-
-
-# =============================================================================
-# ============================================================== Store an Event
-# =============================================================================
-
-
-def keepevent(evlines):
-
-  # Filter out non-events.
-  events = [ line for line in evlines if line ]
-  # If there are no events, bail. 
-  if len(events)==0:
-    return 0
-
-  print 'KEEPING: ', events
-  exit()
-
-  # Assemble a list of strings about this event. It'll get joined later. 
-  pdt = col(ev.probe) + col(ev.date) + col(ev.time)
-  pos = col( ev.avg('lshell') ) + col( ev.avg('mlt') ) + col( ev.avg('mlat') )
-  pol = col( {'p':'POL', 't':'TOR'}[mode] )
-  par = col( {1:'ODD', 2:'EVEN'}[ harm[ipeak] ] )
-  fdf = col(fpeak) + col(2.355*dfpeak)
-  return pdt + pos + col(speak) + par + pol + fdf + col(ev.lpp)
-
-
-  # Filter out non-events.
-  events = [ line for line in evlines if line ]
-  # If there are no events, bail. 
-  if len(events)==0:
-    return 0
-  elif len(events)==1:
-
-    
-
-
-    if len(evlines)==1:
-      # If we're saving the events... 
-      if '-i' in argv:
-        print append( ''.join( evdescr[0] ), 'events.txt')
-        plot(ev, save=True)
-      # If we're just debugging... 
-      else:
-        print ''.join( evdescr[0] )
-        plot(ev)
-        exit()
-
-
-
-
-
-  for line in evlines:
-    print evline
-
-  exit()
-
   return
 
 # =============================================================================
-# ====================================================== Check a Chunk of a Day
+# ============================================================= Filter an Event
 # =============================================================================
 
 # Check if the given event -- which is a slice of a day's worth of data -- has
 # any odd-mode poloidal Pc4 events. 
 def checkevent(ev, mode):
-  global plotdir
-
   # Grab a dictionary of standing wave parameters. 
-  sdict = ev.standing(mode)
-
+  evdict = ev.standing(mode)
   # If there's something wrong with the fit, bail. 
-  if sdict is None:
-    print 'Fit failed. '
+  if evdict is None:
     return False
-
   # If it's not in the Pc4 frequency range, bail. 
-  if not 7 < sdict['f'] < 25:
-    print 'Not Pc4. '
+  if not 7 < evdict['f'] < 25:
     return False
-
   # If the magnitude isn't at least 1e-2 mW/m^2 at Earth, bail. 
-  if not sdict['s'] > 0.01:
-    print 'Too weak. '
+  if not evdict['s'] > 0.01:
     return False
-
   # If the wave passes those tests, return it. 
-  return sdict
+  return evdict
 
-  '''
-  # If the event's data is no good, obviously there can be no event. 
-  if not ev.isok():
-    print '\t' + mode + ': bad data. '
-    return False
-  # This filter is a bit trickier than Lei's, because we're going a level
-  # deeper. We need not only the magnetic field, but also the electric field
-  # and how they relate to one another. 
-  # Get the Fourier-domain Poynting flux. Really, get the absolute value of the
-  # imaginary component... we want to know the strength of the standing wave. 
-  freq = ev.frq()
-  sfft = np.abs( np.imag( ev.sfft(mode) ) )
-  # Fit a Gaussian to the spectrum. Make sure it works. 
-  speak, fpeak, dfpeak = gaussfit(freq, sfft)
-  if None in (speak, fpeak, dfpeak):
-    print '\t' + mode + ': fit failed. '
-    return False
-  # Threshold on frequency: 7 to 25 mHz.  
-  if not 7 < fpeak < 25:
-    print '\t' + mode + ': not Pc4. '
-    return False
-  # Threshold on magnitude: at least 0.01 mW/m^2 in the standing wave. 
-  if not speak > 1e-2:
-    print '\t' + mode + ': too weak. '
-    return False
-  # Threshold on fit quality: if the peaks are off by 5mHz or more, bail. 
-  imax = np.argmax(sfft)
-  if not np.abs(freq[imax] - fpeak) < 5:
-    print '\t' + mode + ': bad fit. '
-    return False
-  # Threshold on harmonic: anything too close to the equator is ambiguous. 
-  harm = ev.harm(mode)
-  ipeak = np.argmin( np.abs(freq - fpeak) )
-  if harm[ipeak]==0:
-    print '\t' + mode + ': ambiguous harmonic. '
-    return False
-  # Threshold on coherence: anything below 0.9 is too messy. 
-  if not ev.coh(mode)[ipeak] > 0.9:
-    print '\t' + mode + ': incoherent. '
-    return False
-  # Assemble a list of strings about this event. It'll get joined later. 
-  pdt = col(ev.probe) + col(ev.date) + col(ev.time)
-  pos = col( ev.avg('lshell') ) + col( ev.avg('mlt') ) + col( ev.avg('mlat') )
-  pol = col( {'p':'POL', 't':'TOR'}[mode] )
-  par = col( {1:'ODD', 2:'EVEN'}[ harm[ipeak] ] )
-  fdf = col(fpeak) + col(2.355*dfpeak)
-  return pdt + pos + col(speak) + par + pol + fdf + col(ev.lpp)
-  modes = ('p', 't')
-  spti = [ np.abs( np.imag( ev.sfft(m) ) ) for m in modes ]
-  # Fit a Gaussian to each spectrum. Make sure it works. 
-  args = [ gaussfit(freq, s) for s in spti ]
-  if None in args:
-    return False
-  # Which Gaussian is larger? Consider only that one from here on. 
-  im = 0 if args[0][0] > args[1][0] else 1
-  speak, fpeak, dfpeak = args[im]
-  mode = modes[im]
-  # Threshold on frequency: 7 to 25 mHz.  
-  if not 7 < fpeak < 25:
-    return False
-  # Threshold on magnitude: at least 0.01 mW/m^2 in the standing wave. 
-  if not speak > 1e-2:
-    return False
-  # Threshold on fit quality: if the peaks are off by 5mHz or more, bail. 
-  imax = np.argmax( spti[im] )
-  if not np.abs(freq[imax] - fpeak) < 5:
-    return False
-  # Threshold on harmonic: anything too close to the equator is ambiguous. 
-  harm = ev.harm(mode)
-  ipeak = np.argmin( np.abs(freq - fpeak) )
-  if harm[ipeak]==0:
-    return False
-  # Threshold on coherence: anything below 0.9 is too messy. 
-  if not ev.coh(mode)[ipeak] > 0.9:
-    return False
-  '''
+# =============================================================================
+# ============================================================== Store an Event
+# =============================================================================
+
+# Assemble a dictionary about the event into a one-line summary. 
+def evline(d):
+  pdt = col( d['probe'] ) + col( d['date'] ) + col( d['time'] )
+  pos = col( d['lshell'] ) + col( d['mlt'] ) + col( d['mlat'] )
+  pol = col( {'p':'POL', 't':'TOR'}[ d['mode'] ] )
+  par = col( {1:'ODD', 2:'EVEN'}[ d['harm'] ] )
+  fdf = col( d['f'] ) + col( 2.355*d['df'] )
+  mag = col( d['s'] )
+  lpp = col( d['lpp'] )
+  return pdt + pos + par + mag + pol + fdf + lpp
+
+# Write out the event to file. If there are two simultaneous events, indicate
+# which is larger. 
+def keepevent(evdicts):
+  # Filter out non-events.
+  evds = [ d for d in evdicts if d ]
+  # If there are no events, bail. 
+  if len(evds)==0:
+    return 0
+  # If there's one event, save it. 
+  elif len(evds)==1:
+    text = evline( evds[0] )
+  # If there are two events, indicate which is larger. 
+  elif len(evds)==2:
+    ip = 0 if evds[0]['s'] > evds[1]['s'] else 1
+    text = ( evline( evds[ip] ) + col('BIG') + '\n' + 
+             evline( evds[1-ip] ) + col('SMALL') )
+  # If we're storing the data, do so. In either case, print it. 
+  if '-i' in argv:
+    print append(text, 'events.txt')
+  else:
+    print text
+  # Return an indication of how many events. 
+  return len(evds)
 
 # #############################################################################
 # ############################################################### Plot an Event
 # #############################################################################
 
-def plot(ev, save=False):
+def evtitle(d):
+  mh = d['mode'].upper() + str( d['harm'] )
+  frq = 'f\\!=\\!' + fmt(d['f'], digs=2) + tex('mHz')
+  fwhm = '\\delta\\!f\\!=\\!' + fmt(2.355*d['df'], digs=2) + tex('mHz')
+  mag = tex('imag') + tex('L3S') + '\\!=\\!' + fmt(d['s'], digs=2) + tex('mW/m^2')
+  comp = tex('imag') + tex( 'BB' + d['mode'] ) + '\\!=\\!' + fmt(d['comp'], digs=2)
+  return '\\qquad{}'.join( (mh, frq, fwhm, mag, comp) )
+
+def plotevent(ev, save=False):
   global plotdir
   # Create plot window to hold waveforms and spectra. 
   PW = plotWindow(nrows=3, ncols=2)
@@ -328,23 +196,55 @@ def plot(ev, save=False):
   PW[:, 0].setParams( **ev.coords('waveform', cramped=True) )
   [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
   [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
-  # Grab the Fourier-domain Poynting flux, scaled by L^3. 
-  modes = ('p', 't')
+  # Grab real and imaginary Fourier-domain Poynting flux, scaled by L^3. 
   sift = [ np.abs( np.imag( ev.sfft(m) ) ) for m in modes ]
   srft = [ np.abs( np.real( ev.sfft(m) ) ) for m in modes ]
+  # Compute poloidal and/or toroidal standing waves. 
+  stand = [ ev.standing(m) for m in ('p', 't') ]
+  # Scale the Poynting flux by the largest value or the largest fit. 
+  standmax = max( st['s'] for st in stand if st is not None )
+  snorm = max(np.max(sift), np.max(srft), standmax)
+  # Plot the real and imaginary spectral components. 
+  PW[:, 1].setParams( **ev.coords('spectra', cramped=True) )
+  [ PW[i, 1].setLine(s/snorm, 'm') for i, s in enumerate(sift) ]
+  [ PW[i, 1].setLine(s/snorm, 'g') for i, s in enumerate(srft) ]
+  # Plot the Gaussian fit of the imaginary spectral component. 
+  f = np.linspace(0, 50, 1000)
+  for i, st in enumerate(stand):
+    args = (0, 0, 1) if st is None else ( st['s'], st['f'], st['df'] )
+    PW[i, 1].setLine(f, ev.gauss(f, *args)/snorm, 'k--')
+  # Plot title and labels. 
+  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
+  collabels = ( notex('B (Red) ; E (Blue)'), 
+                tex('imag') + tex('L3S') + notex(' (Magenta) ; ') + 
+                tex('real') + tex('L3S') + notex(' (Green)') )
+  PW.setParams(collabels=collabels, title=ev.label(), rowlabels=rowlabels)
+  # Information about the wave(s) goes in the side label. 
+  tlist = [ evtitle(st) for st in stand if st is not None ]
+  PW.setParams( sidelabel='$\n$'.join(tlist) )
+
+
+  return PW.render()
+
+
+
+
+
   # Do a Gaussian fit of the imaginary component. Identify the larger mode. 
   freq = ev.frq()
-  args = [ gaussfit(freq, s) for s in sift ]
+  args = [ ev.gaussfit(freq, s) for s in sift ]
   im = 0 if args[0][0] > args[1][0] else 1
   # Scale the spectra to the largest value, in the data or in a fit. 
   smax = max( np.max(sift), np.max(srft), args[im][0] )
+
+
   # Plot the real and imaginary spectral components. 
   PW[:, 1].setParams( **ev.coords('spectra', cramped=True) )
   [ PW[i, 1].setLine(s/smax, 'm') for i, s in enumerate(sift) ]
   [ PW[i, 1].setLine(s/smax, 'g') for i, s in enumerate(srft) ]
   # Plot the Gaussian fit of the imaginary component. 
   f = np.linspace(0, 50, 1000)
-  [ PW[i, 1].setLine(f, gauss( f, *args[i] )/smax, 'k--') for i in range(2) ]
+  [ PW[i, 1].setLine(f, ev.gauss( f, *args[i] )/smax, 'k--') for i in range(2) ]
   # Plot labels. 
   rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
   collabels = ( notex('B (Red) ; E (Blue)'), 

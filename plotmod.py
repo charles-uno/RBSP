@@ -92,6 +92,8 @@ def tex(x):
              'EBt':'\\widetilde{E}_x\\widetilde{B}^*_y', 
              'SpFFT':'-\\frac{L^3}{\\mu_0}\\widetilde{E}_y\\widetilde{B}^*_x', 
              'StFFT':'\\frac{L^3}{\\mu_0}\\widetilde{E}_x\\widetilde{B}^*_y', 
+             'BBp':'\\widetilde{B}_z/\\widetilde{B}_x', 
+             'BBt':'\\widetilde{B}_z/\\widetilde{B}_y', 
              # Units. 
              'mHz':notex('mHz'),
              'mV/m':notex('\\frac{mV}{m}'),
