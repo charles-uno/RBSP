@@ -312,9 +312,9 @@ class event:
   # Get the absolute value of the imaginary component of the Fourier-domain 
   # Poynting flux. This corresponds to the power in the standing wave. Try to
   # fit a Gaussian to the spectrum. 
-  def standing(self, mode):
+  def standing(self, mode, pc4=False, thresh=None):
     # If the event is bad, bail. 
-    if not self.isok:
+    if not self.isok():
       return None
     # Get the spectrum, fit it, and check for a bad fit. 
     f, s = self.frq(), np.abs( np.imag( self.sfft(mode) ) )
@@ -325,6 +325,12 @@ class event:
     # spectral peak, something is wrong. 
     imax = np.argmax(s)
     if not np.abs( f[imax] - gfit[1] ) < 5:
+      return None
+    # Optionally, only return a standing wave if it's in the Pc4 band. 
+    if pc4 is True and not 7 < gfit[1] < 25:
+      return None
+    # Optionally, insist the peak be greater than a threshold. 
+    if not gfit[0] > thresh:
       return None
     # If the coherence is low, then we're just fitting noise. Bail. 
     ifit = np.argmin( np.abs( f - gfit[1] ) )
@@ -337,9 +343,10 @@ class event:
     if not harm:
       return None
     # Grab the strength of the compressional coupling, too. Note that we want
-    # the imaginary component because parallel and perpendicular magnetic
-    # fields should have opposite harmonic structure. 
-    comp = np.abs( np.imag( self.fft('Bz')/self.fft('B' + mode) ) )[ifit]
+    # the real component -- even though the parallel and perpendicular magnetic
+    # fields have opposite harmonic structures, they should return to
+    # equilibrium in phase with one another. 
+    comp = np.abs( np.real( self.fft('Bz')/self.fft('B' + mode) ) )[ifit]
     # Assemble information about the wave/fit into a dictionary to return. 
     return {'mode':mode, 's':gfit[0], 'f':gfit[1], 'df':gfit[2], 'i':ifit,
             'coh':coh, 'harm':harm, 'comp':comp, 'date':self.date, 
@@ -447,17 +454,16 @@ class event:
       kargs['x'] = self.get('t')
       kargs['xlims'] = (self.t0, self.t1)
       kargs['xlabel'] = notex('Time (hh:mm)')
-      nxticks = 5 if cramped else 11
+      nxticks = 5 if cramped else 9
       kargs['xticks'] = np.linspace(self.t0, self.t1, nxticks)
-      kargs['xticklabels'] = [ '$' + notex( timestr(t)[1] ) + '$' for t in kargs['xticks'] ]
-      kargs['xticklabels'][::2] = ['']*len( kargs['xticklabels'][::2] )
+      kargs['xticklabels'] = [ '$' + notex( timestr(t)[1][:5] ) + '$' for t in kargs['xticks'] ]
+      kargs['xticklabels'][1::2] = ['']*len( kargs['xticklabels'][1::2] )
       # Vertical axis. 
       kargs['ylabel'] = notex('\\cdots (nT ; \\frac{mV}{m})')
       kargs['ylabelpad'] = -2
-      kargs['ylims'] = (-5, 5)
-      kargs['yticks'] = range(-5, 6)
-      kargs['yticklabels'] = ('', '$-4$', '', '$-2$', '', '$0$', '', '$+2$',
-                              '', '$+4$', '')
+      kargs['ylims'] = (-4, 4)
+      kargs['yticks'] = range(-4, 5)
+      kargs['yticklabels'] = ('$-4$', '', '$-2$', '', '$0$', '', '$+2$', '', '$+4$')
     # Plot coherence, cross-spectral density, etc in the frequency domain. 
     else:
       # Horizontal axis. 

@@ -58,7 +58,6 @@ def main():
     print date
     # Check both probes. Thirty minute chunks. 
     [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
-
   return
 
 
@@ -102,38 +101,17 @@ def checkdate(probe, date, mpc=30):
   today = day(probe=probe, date=date)
   # Iterate over each chunk of the day. 
   for t in range(0, 86400, 60*mpc):
-    print '\t' + timestr(t)[1]
+#    print '\t' + timestr(t)[1]
     # Check for poloidal and toroidal events independently. 
     ev = today.getslice(t, duration=60*mpc)
-    evdicts = [ checkevent(ev, mode) for mode in ('p', 't') ]
+    evdicts = [ ev.standing(m, pc4=True, thresh=0.01) for m in ('p', 't') ]
     # If there's anything to save, do so, then plot it. 
     if keepevent(evdicts):
-      plotevent(ev)
+      plotevent(ev, save='-i' in argv)
       # If we're debugging, stop after a single plot. 
       if '-i' not in argv:
         exit()
   return
-
-# =============================================================================
-# ============================================================= Filter an Event
-# =============================================================================
-
-# Check if the given event -- which is a slice of a day's worth of data -- has
-# any odd-mode poloidal Pc4 events. 
-def checkevent(ev, mode):
-  # Grab a dictionary of standing wave parameters. 
-  evdict = ev.standing(mode)
-  # If there's something wrong with the fit, bail. 
-  if evdict is None:
-    return False
-  # If it's not in the Pc4 frequency range, bail. 
-  if not 7 < evdict['f'] < 25:
-    return False
-  # If the magnitude isn't at least 1e-2 mW/m^2 at Earth, bail. 
-  if not evdict['s'] > 0.01:
-    return False
-  # If the wave passes those tests, return it. 
-  return evdict
 
 # =============================================================================
 # ============================================================== Store an Event
@@ -143,12 +121,12 @@ def checkevent(ev, mode):
 def evline(d):
   pdt = col( d['probe'] ) + col( d['date'] ) + col( d['time'] )
   pos = col( d['lshell'] ) + col( d['mlt'] ) + col( d['mlat'] )
-  pol = col( {'p':'POL', 't':'TOR'}[ d['mode'] ] )
-  par = col( {1:'ODD', 2:'EVEN'}[ d['harm'] ] )
+  lpp = col( d['lpp'] )
+  mh = col( d['mode'].upper() + str( d['harm'] ) )
   fdf = col( d['f'] ) + col( 2.355*d['df'] )
   mag = col( d['s'] )
-  lpp = col( d['lpp'] )
-  return pdt + pos + par + mag + pol + fdf + lpp
+  comp = col( d['comp'] )
+  return pdt + pos + lpp + mh + fdf + mag + comp
 
 # Write out the event to file. If there are two simultaneous events, indicate
 # which is larger. 
@@ -183,7 +161,7 @@ def evtitle(d):
   frq = 'f\\!=\\!' + fmt(d['f'], digs=2) + tex('mHz')
   fwhm = '\\delta\\!f\\!=\\!' + fmt(2.355*d['df'], digs=2) + tex('mHz')
   mag = tex('imag') + tex('L3S') + '\\!=\\!' + fmt(d['s'], digs=2) + tex('mW/m^2')
-  comp = tex('imag') + tex( 'BB' + d['mode'] ) + '\\!=\\!' + fmt(d['comp'], digs=2)
+  comp = tex('real') + tex( 'BB' + d['mode'] ) + '\\!=\\!' + fmt(d['comp'], digs=2)
   return '\\qquad{}'.join( (mh, frq, fwhm, mag, comp) )
 
 def plotevent(ev, save=False):
@@ -200,7 +178,7 @@ def plotevent(ev, save=False):
   sift = [ np.abs( np.imag( ev.sfft(m) ) ) for m in modes ]
   srft = [ np.abs( np.real( ev.sfft(m) ) ) for m in modes ]
   # Compute poloidal and/or toroidal standing waves. 
-  stand = [ ev.standing(m) for m in ('p', 't') ]
+  stand = [ ev.standing(m, pc4=True, thresh=0.01) for m in ('p', 't') ]
   # Scale the Poynting flux by the largest value or the largest fit. 
   standmax = max( st['s'] for st in stand if st is not None )
   snorm = max(np.max(sift), np.max(srft), standmax)
@@ -224,8 +202,6 @@ def plotevent(ev, save=False):
   PW.setParams( sidelabel='$\n$'.join(tlist) )
   # Show the plot, or save it as an image. 
   if save is True:
-    if not os.path.exists(plotdir):
-      os.makedirs(plotdir)
     return PW.render(plotdir + ev.name + '.png')
   else:
     return PW.render()
@@ -285,8 +261,6 @@ def posplot(save=False, unit='days'):
   PW.setMesh(x, y, z)
   # Show the plot, or save it as an image. 
   if save is True:
-    if not os.path.exists(plotdir):
-      os.makedirs(plotdir)
     return PW.render(plotdir + 'pos.pdf')
   else:
     return PW.render()
@@ -364,8 +338,6 @@ def rateplot(save=False):
   PW.setMesh(x, y, z)
   # Show the plot, or save it as an image. 
   if save is True:
-    if not os.path.exists(plotdir):
-      os.makedirs(plotdir)
     return PW.render(plotdir + 'rate.pdf')
   else:
     return PW.render()

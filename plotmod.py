@@ -827,7 +827,10 @@ class plotWindow:
     [ cell.render(**colors) for cellRow in self.cells for cell in cellRow ]
     # If given a filename, save the image. 
     if filename is not None:
-      print 'Saving ' + filename
+      # Make sure the folder exists. 
+      if not os.path.exists( os.path.dirname(filename) ):
+        os.makedirs( os.path.dirname(filename) )
+      # Silently save the image. 
       plt.savefig(filename)
       return True
     # Otherwise, display it. 
