@@ -29,6 +29,12 @@ from scipy import signal
 from time import gmtime
 from plotmod import notex
 
+
+
+from scipy.optimize import curve_fit
+
+from warnings import catch_warnings, simplefilter
+
 # #############################################################################
 # ################################################################## Day Object
 # #############################################################################
@@ -281,6 +287,62 @@ class event:
     t, b, e = self.get('t'), self.get('b' + mode), self.get('e' + mode)
     return signal.csd(b, e, fs=1/( t[1] - t[0] ), nperseg=t.size/2, 
                       noverlap=t.size/2 - 1)[1]
+
+  # ---------------------------------------------------------------------------
+  # -------------------------------------------------- Look for a Standing Wave
+  # ---------------------------------------------------------------------------
+
+  # Define Gaussian function. 
+  def gauss(self, x, amp, avg, std):
+    return amp*np.exp( -(x - avg)**2/(2.*std**2) )
+
+  # Fit a Gaussian to data. The guess is amplitude, mean, spread. 
+  def gaussfit(self, x, y, guess=None):
+    # Try to fit a peak around the highest value. 
+    if guess is None:
+      guess = (np.max(y), x[ np.argmax(y) ], 1)
+    # Suppress warnings, but don't return bad data. 
+    try:
+      with catch_warnings():
+        simplefilter('ignore')
+        return curve_fit(self.gauss, x, y, p0=guess)[0]
+    except:
+      return None
+
+  # Get the absolute value of the imaginary component of the Fourier-domain 
+  # Poynting flux. This corresponds to the power in the standing wave. Try to
+  # fit a Gaussian to the spectrum. 
+  def standing(self, mode):
+    # If the event is bad, bail. 
+    if not self.isok:
+      return None
+    # Get the spectrum, fit it, and check for a bad fit. 
+    f, s = self.frq(), np.abs( np.imag( self.sfft(mode) ) )
+    gfit = self.gaussfit(f, s)
+    if gfit is None:
+      return None
+    # If the frequency of the fit isn't close to the frequency of the actual
+    # spectral peak, something is wrong. 
+    imax = np.argmax(s)
+    if not np.abs( f[imax] - gfit[1] ) < 5:
+      return None
+    # If the coherence is low, then we're just fitting noise. Bail. 
+    ifit = np.argmin( np.abs( f - gfit[1] ) )
+    coh = self.coh(mode)[ifit]
+    if not coh > 0.9:
+      return None
+    # If the harmonic structure of this wave is ambiguous (because we're very
+    # close to the magnetic equator), also bail. 
+    harm = self.harm(mode)[ifit]
+    if not harm:
+      return None
+    # Grab the strength of the compressional coupling, too. Note that we want
+    # the imaginary component because parallel and perpendicular magnetic
+    # fields should have opposite harmonic structure. 
+    comp = np.abs( np.imag( self.fft('Bz')/self.fft('B' + mode) ) )[ifit]
+    # Assemble information about the wave/fit into a dictionary to return. 
+    return {'mode':mode, 's':gfit[0], 'f':gfit[1], 'df':gfit[2], 'i':ifit,
+            'coh':coh, 'harm':harm, 'comp':comp}
 
   # ---------------------------------------------------------------------------
   # --------------------------------------------------- Frequency-Domain Ratios

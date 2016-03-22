@@ -18,9 +18,6 @@
 
 from day import *
 from plotmod import *
-from scipy.optimize import curve_fit
-
-from warnings import catch_warnings, simplefilter
 
 # #############################################################################
 # ######################################################################## Main
@@ -117,6 +114,9 @@ def checkdate(probe, date, mpc=30):
     # If there's anything to save, do so, then plot it. 
     keepevent(evlines)
 
+
+
+
     '''
     # If this chunk of time has no events, bail. 
     if len(evlines)==0:
@@ -156,6 +156,25 @@ def checkdate(probe, date, mpc=30):
 
 
 def keepevent(evlines):
+
+  # Filter out non-events.
+  events = [ line for line in evlines if line ]
+  # If there are no events, bail. 
+  if len(events)==0:
+    return 0
+
+  print 'KEEPING: ', events
+  exit()
+
+  # Assemble a list of strings about this event. It'll get joined later. 
+  pdt = col(ev.probe) + col(ev.date) + col(ev.time)
+  pos = col( ev.avg('lshell') ) + col( ev.avg('mlt') ) + col( ev.avg('mlat') )
+  pol = col( {'p':'POL', 't':'TOR'}[mode] )
+  par = col( {1:'ODD', 2:'EVEN'}[ harm[ipeak] ] )
+  fdf = col(fpeak) + col(2.355*dfpeak)
+  return pdt + pos + col(speak) + par + pol + fdf + col(ev.lpp)
+
+
   # Filter out non-events.
   events = [ line for line in evlines if line ]
   # If there are no events, bail. 
@@ -188,31 +207,6 @@ def keepevent(evlines):
 
   return
 
-
-
-
-
-# =============================================================================
-# ================================================== Fit Waveform to a Gaussian
-# =============================================================================
-
-# Define Gaussian function. 
-def gauss(x, amp, avg, std):
-  return amp*np.exp( -(x - avg)**2/(2.*std**2) )
-
-# Fit a Gaussian to data. The guess is amplitude, mean, spread. 
-def gaussfit(x, y, guess=None):
-  # Try to fit a peak around the highest value. 
-  if guess is None:
-    guess = (np.max(y), x[ np.argmax(y) ], 1)
-  # Suppress warnings, but don't return bad data. 
-  try:
-    with catch_warnings():
-      simplefilter('ignore')
-      return curve_fit(gauss, x, y, p0=guess)[0]
-  except:
-    return None, None, None
-
 # =============================================================================
 # ====================================================== Check a Chunk of a Day
 # =============================================================================
@@ -222,54 +216,67 @@ def gaussfit(x, y, guess=None):
 def checkevent(ev, mode):
   global plotdir
 
+  # Grab a dictionary of standing wave parameters. 
+  sdict = ev.standing(mode)
+
+  # If there's something wrong with the fit, bail. 
+  if sdict is None:
+    print 'Fit failed. '
+    return False
+
+  # If it's not in the Pc4 frequency range, bail. 
+  if not 7 < sdict['f'] < 25:
+    print 'Not Pc4. '
+    return False
+
+  # If the magnitude isn't at least 1e-2 mW/m^2 at Earth, bail. 
+  if not sdict['s'] > 0.01:
+    print 'Too weak. '
+    return False
+
+  # If the wave passes those tests, return it. 
+  return sdict
+
+  '''
   # If the event's data is no good, obviously there can be no event. 
   if not ev.isok():
     print '\t' + mode + ': bad data. '
     return False
-
   # This filter is a bit trickier than Lei's, because we're going a level
   # deeper. We need not only the magnetic field, but also the electric field
   # and how they relate to one another. 
-
   # Get the Fourier-domain Poynting flux. Really, get the absolute value of the
   # imaginary component... we want to know the strength of the standing wave. 
   freq = ev.frq()
   sfft = np.abs( np.imag( ev.sfft(mode) ) )
-
   # Fit a Gaussian to the spectrum. Make sure it works. 
   speak, fpeak, dfpeak = gaussfit(freq, sfft)
   if None in (speak, fpeak, dfpeak):
     print '\t' + mode + ': fit failed. '
     return False
-
   # Threshold on frequency: 7 to 25 mHz.  
   if not 7 < fpeak < 25:
     print '\t' + mode + ': not Pc4. '
     return False
-
   # Threshold on magnitude: at least 0.01 mW/m^2 in the standing wave. 
   if not speak > 1e-2:
     print '\t' + mode + ': too weak. '
     return False
-
   # Threshold on fit quality: if the peaks are off by 5mHz or more, bail. 
   imax = np.argmax(sfft)
   if not np.abs(freq[imax] - fpeak) < 5:
     print '\t' + mode + ': bad fit. '
     return False
-
   # Threshold on harmonic: anything too close to the equator is ambiguous. 
   harm = ev.harm(mode)
   ipeak = np.argmin( np.abs(freq - fpeak) )
   if harm[ipeak]==0:
     print '\t' + mode + ': ambiguous harmonic. '
     return False
-
   # Threshold on coherence: anything below 0.9 is too messy. 
   if not ev.coh(mode)[ipeak] > 0.9:
     print '\t' + mode + ': incoherent. '
     return False
-
   # Assemble a list of strings about this event. It'll get joined later. 
   pdt = col(ev.probe) + col(ev.date) + col(ev.time)
   pos = col( ev.avg('lshell') ) + col( ev.avg('mlt') ) + col( ev.avg('mlat') )
@@ -277,9 +284,6 @@ def checkevent(ev, mode):
   par = col( {1:'ODD', 2:'EVEN'}[ harm[ipeak] ] )
   fdf = col(fpeak) + col(2.355*dfpeak)
   return pdt + pos + col(speak) + par + pol + fdf + col(ev.lpp)
-
-
-  '''
   modes = ('p', 't')
   spti = [ np.abs( np.imag( ev.sfft(m) ) ) for m in modes ]
   # Fit a Gaussian to each spectrum. Make sure it works. 
