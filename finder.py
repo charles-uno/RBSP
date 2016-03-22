@@ -222,46 +222,6 @@ def plotevent(ev, save=False):
   # Information about the wave(s) goes in the side label. 
   tlist = [ evtitle(st) for st in stand if st is not None ]
   PW.setParams( sidelabel='$\n$'.join(tlist) )
-
-
-  return PW.render()
-
-
-
-
-
-  # Do a Gaussian fit of the imaginary component. Identify the larger mode. 
-  freq = ev.frq()
-  args = [ ev.gaussfit(freq, s) for s in sift ]
-  im = 0 if args[0][0] > args[1][0] else 1
-  # Scale the spectra to the largest value, in the data or in a fit. 
-  smax = max( np.max(sift), np.max(srft), args[im][0] )
-
-
-  # Plot the real and imaginary spectral components. 
-  PW[:, 1].setParams( **ev.coords('spectra', cramped=True) )
-  [ PW[i, 1].setLine(s/smax, 'm') for i, s in enumerate(sift) ]
-  [ PW[i, 1].setLine(s/smax, 'g') for i, s in enumerate(srft) ]
-  # Plot the Gaussian fit of the imaginary component. 
-  f = np.linspace(0, 50, 1000)
-  [ PW[i, 1].setLine(f, ev.gauss( f, *args[i] )/smax, 'k--') for i in range(2) ]
-  # Plot labels. 
-  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
-  collabels = ( notex('B (Red) ; E (Blue)'), 
-                tex('imag') + tex('L3S') + notex(' (Magenta) ; ') + 
-                tex('real') + tex('L3S') + notex(' (Green)') )
-  PW.setParams(collabels=collabels, sidelabel=ev.label(), rowlabels=rowlabels)
-  # Dig up some information to put together the title. 
-  ig = np.argmin( np.abs(args[im][1] - freq) )
-  modename = notex( {0:'POL', 1:'TOR'}[im] )
-  freqname = 'f\\!=\\!' + format(args[im][1], '.1f') + tex('mHz')
-  harmname = notex( {1:'ODD', 2:'EVEN'}[ ev.harm( modes[im] )[ig] ] )
-  fwhmname = '\\delta\\!f\\!=\\!' + format(args[im][2], '.1f') + tex('mHz')
-  sfft = srft[im] + 1j*sift[im]
-  sizename = tex('L3S') + '\\!=\\!(' + cmt(sfft[ig], digs=2) + ')' + tex('mW/m^2')
-  title = '\\qquad{}'.join( (modename, harmname, freqname, fwhmname, sizename) )
-  PW.setParams(title=title)
-
   # Show the plot, or save it as an image. 
   if save is True:
     if not os.path.exists(plotdir):
