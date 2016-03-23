@@ -846,7 +846,7 @@ class plotCell:
 
   # If this cell contains a contour, we'll need to hold the spatial coordinates
   # and the data values. We also keep room for any arguments for contourf. 
-  x, y, cz, mz, kargs = None, None, None, None, None
+  x, y, cz, mz, ckargs, mkargs = None, None, None, None, None, None
   # A plot can have any number of lines drawn on it. Those will be stored here. 
   lines = None
   # If we manually set the axis limits, we want to ignore the automatically-set
@@ -855,8 +855,8 @@ class plotCell:
   # If we're on a log scale, we need different rules for placing ticks. 
   xlog, ylog = False, False
   # Keep track if we're supposed to be tracing the outline of our domain, such
-  # as if the data is dipole-shaped. 
-  outline = False
+  # as if the data is dipole-shaped. Or the whole grid. 
+  grid, outline = False, False
   # Cells can be small. Let's try to keep the number of ticks under control.
   nxticks, nyticks = 3, 4
   # Sometimes we want an extra axis label on the right. Make sure the window
@@ -889,6 +889,14 @@ class plotCell:
         self.ax.yaxis.set_label_position('right')
         self.ax.yaxis.tick_right()
         self.ax.yaxis.set_ticks_position('both')
+      # Draw Earth. 
+      elif key=='earth':
+        q = {'l':90, 'r':270, 't':0, 'b':180}[ val[0] ]
+        self.ax.add_artist( Wedge( (0, 0), 1, q,       q + 180, fc='w') )
+        self.ax.add_artist( Wedge( (0, 0), 1, q + 180, q + 360, fc='k') )
+      # Draw the grid. 
+      elif key=='grid':
+        self.grid = val
       # Sometimes we have to finagle with the number of ticks. 
       elif key=='nxticks':
         self.nxticks = val
@@ -977,7 +985,7 @@ class plotCell:
 
   def setContour(self, *args, **kargs):
     # Store any keyword parameters meant for the contourf call. 
-    self.kargs = kargs
+    self.ckargs = kargs
     # Accept the contour with or without its spatial coordinates. 
     if len(args)==1:
       self.cz = args[0]
@@ -1005,7 +1013,7 @@ class plotCell:
 
   def setMesh(self, *args, **kargs):
     # Store any keyword parameters meant for the contourf call. 
-    self.kargs = kargs
+    self.mkargs = kargs
     # Accept the contour with or without its spatial coordinates. 
     if len(args)==1:
       self.mz = args[0]
@@ -1071,12 +1079,12 @@ class plotCell:
     if self.cz is not None:
       # Use the color params we were passed, but allow keyword arguments from
       # the contour call to overwrite them. 
-      kargs = dict( colors.items() + self.kargs.items() )
+      kargs = dict( colors.items() + self.ckargs.items() )
       self.ax.contourf(self.x, self.y, self.cz, **kargs)
     # Same for a mesh. 
     if self.mz is not None:
       # The mesh wants arguments formulated a bit differently. 
-      kargs = dict( colors.items() + self.kargs.items() )
+      kargs = dict( colors.items() + self.mkargs.items() )
       # Make sure we can call the color map. 
       if 'cmap' not in kargs or kargs['cmap'] is None:
         kargs['cmap'] = plt.get_cmap(None)
@@ -1093,6 +1101,12 @@ class plotCell:
     if self.outline:
       [ self.ax.plot(self.x[i, :], self.y[i, :], 'k') for i in (0, -1) ]
       [ self.ax.plot(self.x[:, k], self.y[:, k], 'k') for k in (0, -1) ]
+    # Or the whole grid. 
+    if self.grid:
+      x, y = self.x, self.y
+      [ self.setLine(x[i, :], y[i, :], 'k') for i in range( x.shape[0] ) ]
+      [ self.setLine(x[:, j], y[:, j], 'k') for j in range( x.shape[1] ) ]
+
     # Draw any lines. 
     if self.lines is not None:
       [ self.ax.plot(*args, **kargs) for args, kargs in self.lines ]
