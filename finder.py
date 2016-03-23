@@ -193,7 +193,7 @@ def plotevent(ev, save=False):
   PW.setParams(collabels=collabels, title=ev.label(), rowlabels=rowlabels)
   # Information about the wave(s) goes in the side label. 
   tlist = [ evtitle(st) for st in stand if st is not None ]
-  PW.setParams( sidelabel='$\n$'.join(tlist) )
+  PW.setParams( sidelabel='\n'.join(tlist) )
   # Show the plot, or save it as an image. 
   if save is True:
     return PW.render(plotdir + ev.name + '.png')

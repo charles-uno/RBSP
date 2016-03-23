@@ -3,4 +3,5 @@ run*
 packages/*.zip
 packages/*.tar.Z
 archive/*events.txt
-
+*.pyc
+examples*
