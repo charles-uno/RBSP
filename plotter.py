@@ -161,8 +161,8 @@ def getevents(hargs, unit='days', filt=''):
 # Bullseye params for the plotter. 
 def bep():
   tls = ('$-8$', '', '$-4$', '', '$0$', '', '$+4$', '', '$+8$')
-  return {'earth':'top', 'grid':True, 'square':True, 
-          'xlabel': 'Y' + notex(' (R_E)'), 'xlims':(-8, 8), 
+  return {'earth':'top', 'flipx':True, 'grid':True, 'square':True, 
+          'xlabel': 'Y' + notex(' (R_E)'), 'xlims':(-8, 8),
           'xticks':np.mgrid[-8:8:9j], 'xticklabels':tls, 
           'ylabel': 'X' + notex(' (R_E)'), 'ylims':(-8, 8), 
           'yticks':np.mgrid[-8:8:9j], 'yticklabels':tls, 'ylabelpad':-2 }
