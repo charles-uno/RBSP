@@ -76,12 +76,12 @@ def zmask(x, thresh=0):
 def eventplot(save=False):
   global plotdir
   # Set up the grid and 2D histogram based on probe position. 
-  pos = getpos(dl=1)
+  pos = getpos(dl=2, dm=3)
   x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
   d0, d1 = pos['dates']
   # Create a plot window to show different subsets of the events. 
   mfilt, hfilt = ('P', 'T'), ('1', '2')
-  PW = plotWindow( ncols=2, nrows=2, colorbar='pos', **bep() )
+  PW = plotWindow( ncols=2, nrows=2, colorbar='lg', **bep() )
   # Iterate over the filters. 
   for row, hf in enumerate(hfilt):
     for col, mf in enumerate(mfilt):
@@ -110,8 +110,7 @@ def eventplot(save=False):
 # ==================================================================== Position
 # =============================================================================
 
-def getpos(dl=0.5, dm=1, lmin=None, lmax=None, mmin=None, mmax=None, 
-           unit='days'):
+def getpos(dl=0.5, dm=1, lmin=None, lmax=None, unit='days'):
   # The options for units are hours and days. 
   secondsper = 86400. if unit=='days' else 1440.
   # The orbit of both RBSP paths has been broken into five-minute chunks. Grab
@@ -126,20 +125,21 @@ def getpos(dl=0.5, dm=1, lmin=None, lmax=None, mmin=None, mmax=None,
     lmin = np.floor( np.min( pos[:, 0] ) )
   if lmax is None:
     lmax = np.ceil( np.max( pos[:, 0] ) )
-  if mmin is None:
-    mmin = np.floor( np.min( pos[:, 1] ) )
-  if mmax is None:
-    mmax = np.ceil( np.max( pos[:, 1] ) )
+  # Center MLT bins on the hour, at least at midnight. 
+  mmin, mmax = -dm/2., 24 - dm/2.
+  # We want a bin to be centered at zero. That means anything between (24-dm/2)
+  # and 24 should be mapped to the range (-dm/2) to 0. 
+  posm = np.where( pos[:, 1] > mmax, pos[:, 1] - 24, pos[:, 1] )
   # Number of bins in each direction. 
   lbins, mbins = int( (lmax - lmin)/dl ) + 1, int( (mmax - mmin)/dm ) + 1
   # Keyword arguments for the histogram2d call. 
   hargs = { 'range':( (lmin, lmax), (mmin, mmax) ), 'bins':(lbins-1, mbins-1) }
   # Bin bounds in terms of L and MLT. 
-  l, m = np.mgrid[lmin:lmax:lbins*1j, mmin - dm/2.:mmax - dm/2.:mbins*1j]
+  l, m = np.mgrid[lmin:lmax:lbins*1j, mmin:mmax:mbins*1j]
   # Map to GSE coordinates. Put midnight at the bottom. 
   x, y = l*np.sin(2*pi*m/24.), -l*np.cos(2*pi*m/24.)
   # Bin the position data into a 2D histogram, then scale it to days. 
-  h = np.histogram2d(pos[:, 0], pos[:, 1], **hargs)[0]
+  h = np.histogram2d(pos[:, 0], posm, **hargs)[0]
   z = 300*h/secondsper
   # Return the position data. Total amount of usable time too. 
   return {'dates':dates, 'l':l, 'm':m, 'x':x, 'y':y, 'z':z, 'hargs':hargs}
