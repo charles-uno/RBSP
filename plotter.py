@@ -28,6 +28,8 @@ plotdir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
+  return dungey()
+
 #  # Plot the location of the usable data. 
 #  return posplot(save='-i' in argv)
 
@@ -35,6 +37,147 @@ def main():
   return eventplot(save='-i' in argv)
 
   return
+
+# #############################################################################
+# #################################### Outer Magnetosphere and the Dungey Cycle
+# #############################################################################
+
+'''
+def gauss(x, amp=0, avg=np.pi/2, std=1):
+  return amp*np.exp( -(x - avg)**2/(2.*std**2) )
+
+def lshell(L, stretch=1., qstretch=0., *args, **kargs):
+  q0 = np.arcsin( np.sqrt( 1./np.abs(L) ) )
+  q = np.linspace(q0, np.pi - q0, 100)
+  r = L*np.sin(q)**2 + gauss(q, *args, **kargs)
+  x, z = r*np.sin(q), r*np.cos(q)
+  dx = x - x[0]
+  xnew = x[0] + stretch*dx + qstretch*dx**2
+  return xnew, z
+
+def straighten(x, y):
+  n = x.size
+  xp, yp = x, y  
+  x0, y0 = x[n/2-1], y[n/2-1]
+  xp[n/2:] = np.linspace(x0, 30*np.sign(x0), n/2)
+  yp[n/2:] = y0
+  return xp, yp
+
+def q(L):
+  q0 = np.arcsin( np.sqrt( 1./np.abs(L) ) )
+  return np.linspace(q0, np.pi - q0, 100)
+'''
+
+# L-shell, with a quadratic stretch. 
+def lshell(L, qs=0.):
+  x = np.linspace(-20, 20, 1000)
+  x0 = np.sqrt( np.abs(1./L) ) if L!=0 else 0
+  if L>0:
+    xp = np.where( x<x0, x, x + qs*(x - x0)**2  )
+  else:
+    xp = np.where( x>x0, x, x - qs*(x - x0)**2  )
+  zz = np.where( np.sign(L)==np.sign(xp), np.abs(L*xp**2)**(2./3) - xp**2, 0)
+  z = np.sqrt( np.maximum(zz, 0 ) )
+  return x, np.where( x**2 + z**2 > 1, z, 0)
+
+def openline(x0):
+  x = np.linspace(-20, 20, 1000)
+  c = 0.1*(20 - x0)**2 / np.sqrt(20 - x0)
+  if x0 < 0: 
+    z = 100*c*np.sqrt( np.maximum(0, x0 - x) )
+  else: 
+    z = c*np.sqrt( np.maximum(x - x0, 0) )
+  return x, z
+
+
+def dungey():
+
+  PW = plotWindow(ncols=-2, colorbar=None)
+  PW.setParams( xlims=(-20, 20), ylims=(-8, 8) )
+  PW.setParams(earth='left')
+
+  dstretch = 1.2e-3
+  nstretch = 1.2e-3
+
+  [ PW.setLine( *lshell(L, qs=-nstretch*L), color='b' ) for L in range(2, 12, 4) ]
+  [ PW.setLine( *lshell(L, qs=-dstretch*L), color='b' ) for L in range(-10, 0, 4) ]
+
+  [ PW.setLine( *openline(x0), color='r' ) for x0 in (-18, -14, 16, 18) ]
+
+  for L, x0 in ( (-12, -10), (-20, -6), (-32, -1.5), (12, 14), (18, 10), (32, 2) ):
+    x, zc = lshell(L, qs=-dstretch*L)
+    x, zo = openline(x0)
+    p = 3.
+    PW.setLine(x, (zo**p + zc**p)**(1/p), 'm')
+
+
+
+
+
+
+  return PW.render()
+
+
+  for i, L in enumerate( (2, 4, 6, 8, 10) ):
+
+    PW.setLine( *lshell(-L), color='b' )
+    PW.setLine( *lshell(-L, qstretch=i/200.), color='r' )
+
+    PW.setLine( *lshell(L), color='b' )
+    x, z = straighten( *lshell(L, qstretch=i/100., std=0.1, amp=i/10.) )
+    PW.setLine( x, z, color='r' )
+
+#  for i, x0 in enumerate( range(0, 20, 2) ):
+#    z = (10 - i)*np.sqrt( np.maximum(x - x0, 0)/(20. - x0) )
+#    PW.setLine(x, z, 'g')
+
+  z = np.linspace(-8, 8, 100)
+  for x0 in range(-20, 20, 2):
+    x = x0 + 10*(20 - x0)**-2 * z**2
+    PW.setLine(x, z, 'g')
+
+
+
+
+  return PW.render()
+
+
+
+
+
+
+#  PW.setLine( *lshell(4, amp=0.5, std=1), color='b' )
+#  PW.setLine( *lshell(6, amp=1, std=0.5), color='b' )
+#  PW.setLine( *lshell(8,  amp=1, std=0.1), color='b' )
+#  PW.setLine( *lshell(10,  amp=2, std=0.1), color='b' )
+  x, y0 = straighten( *lshell(12, amp=2, std=0.1) )
+  PW.setLine( x, y0, color='m' )
+
+#  y1 = np.sqrt( np.maximum(x - 10, 0) )
+#  PW.setLine( x, y1, color='g' )
+#  PW.setLine( x, np.sqrt(y0**2 + y1**2), color='orange' )
+
+  y1 = 2*np.sqrt( np.maximum(x - 10, 0)/10. )
+  PW.setLine(x, y1, 'r')
+
+  PW.setLine(x, np.sqrt(y0**2 + y1**2), 'g')
+
+  y2 = 1*np.sqrt( np.maximum(x - 14, 0)/6. )
+  PW.setLine(x, y2, 'r')
+
+#  for i, x0 in enumerate( (16, 14, 12, 10, 8) ):
+#    y = (i+1)*np.sqrt( np.maximum(x - x0, 0)/(20. - x0) )
+#    PW.setLine(x, y, 'r')
+
+  PW.render()
+
+  return
+
+
+
+
+
+
 
 # #############################################################################
 # ########################################################## Position Histogram
