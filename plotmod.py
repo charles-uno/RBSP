@@ -1096,24 +1096,34 @@ class plotCell:
     if self.cz is not None:
       # Use the color params we were passed, but allow keyword arguments from
       # the contour call to overwrite them. 
-      kargs = dict( colors.items() + self.ckargs.items() )
+
+#      kargs = dict( colors.items() + self.ckargs.items() )
+
+      citems = [ ( key, colors[key] ) for key in ('ticks', 'levels', 'norm', 'cmap') ]
+      kargs = dict( citems + self.ckargs.items() )
+
       self.ax.contourf(self.x, self.y, self.cz, **kargs)
     # Same for a mesh. 
     if self.mz is not None:
-      # The mesh wants arguments formulated a bit differently. 
-      kargs = dict( colors.items() + self.mkargs.items() )
-      # Make sure we can call the color map. 
-      if 'cmap' not in kargs or kargs['cmap'] is None:
-        kargs['cmap'] = plt.get_cmap(None)
-      # Get the colors we want for each color level. 
-      clevs = np.array( kargs['levels'] )
-      ulevs = ( clevs - clevs[0] )/( clevs[-1] - clevs[0] )
-      clist = [ kargs['cmap'](u) for u in 0.5*( ulevs[1:] + ulevs[:-1] ) ]
-      # Create a stepwise color map at those colors. 
-      cmap = ListedColormap(clist)
-      # Also create a norm to deliniate the step boundaries. 
-      norm = BoundaryNorm(clevs, cmap.N)
-      self.ax.pcolormesh(self.x, self.y, self.mz, cmap=cmap, norm=norm)
+
+#      # The mesh wants arguments formulated a bit differently. 
+#      kargs = dict( colors.items() + self.mkargs.items() )
+#      # Make sure we can call the color map. 
+#      if 'cmap' not in kargs or kargs['cmap'] is None:
+#        kargs['cmap'] = plt.get_cmap(None)
+#      # Get the colors we want for each color level. 
+#      clevs = np.array( kargs['levels'] )
+#      ulevs = ( clevs - clevs[0] )/( clevs[-1] - clevs[0] )
+#      clist = [ kargs['cmap'](u) for u in 0.5*( ulevs[1:] + ulevs[:-1] ) ]
+#      # Create a stepwise color map at those colors. 
+#      cmap = ListedColormap(clist)
+#      # Also create a norm to deliniate the step boundaries. 
+#      norm = BoundaryNorm(clevs, cmap.N)
+
+      citems = [ ( 'norm', colors['mnorm'] ), ( 'cmap', colors['mcmap'] ) ]
+      kargs = dict( citems + self.mkargs.items() )
+
+      self.ax.pcolormesh(self.x, self.y, self.mz, **kargs)
     # Optionally, draw the outline of the data. 
     if self.outline and self.x is not None and self.y is not None:
       [ self.ax.plot(self.x[i, :], self.y[i, :], 'k') for i in (0, -1) ]
@@ -1182,29 +1192,28 @@ class plotColors(dict):
     if self.colorbar=='log':
       temp['ticks'], temp['levels'] = self.logTicksLevels(zmax)
       temp['norm'] = LogNorm()
-
-
     elif self.colorbar=='lg':
       temp['ticks'], temp['levels'] = self.lgTicksLevels(zmax)
       temp['norm'] = LogNorm()
-
-
     elif self.colorbar=='sym':
       temp['ticks'], temp['levels'] = self.symTicksLevels(zmax)
       temp['norm'] = Normalize()
     elif self.colorbar=='phase':
       temp['ticks'], temp['levels'] = self.phaseTicksLevels(zmax)
       temp['norm'] = Normalize()
-
     elif self.colorbar=='pos':
       temp['ticks'], temp['levels'] = self.posTicksLevels(zmax)
       temp['norm'] = Normalize()
-
     else:
       temp['ticks'], temp['levels'] = self.linTicksLevels(zmax)
       temp['norm'] = Normalize()
+
     # Rework the color map to match the normalization of our ticks and levels. 
     temp['cmap'] = self.getCmap()
+
+    # Kludge something together so this works for colormesh as well as contour. 
+    temp['mcmap'], temp['mnorm'] = self.getMesh( temp )
+
     # Draw the color bar. 
     self.setColorbar(cax, **temp)
     # Become a dictionary of color parameters to be used by the contour plots. 
@@ -1262,8 +1271,6 @@ class plotColors(dict):
     levels = np.logspace(logMin, logMax, self.ncolors)
     return ticks, levels
 
-
-
   def lgTicksLevels(self, zmax):
     # Same as log, but with base 2 instead of 10. 
     power = np.ceil(np.log2(zmax) - 0.25)
@@ -1273,9 +1280,6 @@ class plotColors(dict):
     lgMin, lgMax = np.log2(self.zmin), np.log2(self.zmax)
     levels = np.logspace(lgMin, lgMax, self.ncolors, base=2)
     return ticks, levels
-
-
-
 
   def symTicksLevels(self, zmax):
     # Ticks are located at powers of ten. Color levels are centered on ticks. 
@@ -1340,6 +1344,28 @@ class plotColors(dict):
       return 0.5
 
   # ---------------------------------------------------------------------------
+  # --------------------------------------------------- Mesh Norm and Color Map
+  # ---------------------------------------------------------------------------
+
+  # This is SUPER kludgey. Sorry. No time to make it pretty while writing! 
+  def getMesh(self, temp):
+    clevs = np.array( temp['levels'] )
+    if self.colorbar=='log':
+      ulevs = np.array( [ self.logMron(c) for c in clevs ] )
+    elif self.colorbar=='pos':
+      ulevs = ( clevs - clevs[0] )/( clevs[-1] - clevs[0] )
+    elif self.colorbar=='lg':
+      ulevs = np.array( [ self.logMron(c) for c in clevs ] )
+    elif self.colorbar=='lin':
+      ulevs = np.array( [ self.linMron(c) for c in clevs ] )
+    else:
+      print 'WARNING: mesh can\'t handle that. '
+    clist = [ temp['cmap'](u) for u in 0.5*( ulevs[1:] + ulevs[:-1] ) ]
+    cmap = ListedColormap(clist)
+    norm = BoundaryNorm(clevs, cmap.N)
+    return cmap, norm
+
+  # ---------------------------------------------------------------------------
   # ----------------------------------------------------------------- Color Map
   # ---------------------------------------------------------------------------
 
@@ -1350,14 +1376,14 @@ class plotColors(dict):
     # Figure out the unit interval renormalization to use. 
     if self.colorbar=='log' or self.colorbar=='pos' or self.colorbar=='lg':
       # Kinda kludgey. See setColorbar for explanation. 
-      return None
+      return plt.get_cmap(None)
     elif self.colorbar=='sym':
       norm = self.symNorm
     elif self.colorbar=='phase':
       # The physics machines at the U use an old version of Matplotlib. 
       # Cubehelix was added in 1.5. It can also be obtained here: 
       # https://github.com/jradavenport/cubehelix/blob/master/cubehelix.py
-      return None
+      return plt.get_cmap(None)
     else:
       norm = self.linNorm
     # Get a fine sampling of the color map on the unit interval. 
@@ -1419,8 +1445,6 @@ class plotColors(dict):
       cax.set_yticklabels( [ fmtr(t) for t in colorParams['ticks'] ] )
       return
 
-
-
     elif self.colorbar=='pos':
       fmtr = self.linFormatter
       ColorbarBase(cax, boundaries=colorParams['levels'],
@@ -1428,8 +1452,6 @@ class plotColors(dict):
                    cmap=colorParams['cmap'])
       cax.set_yticklabels( [ fmtr(t).replace('+', '') for t in colorParams['ticks'] ] )
       return
-
-
 
     elif self.colorbar=='sym':
       norm, mron, fmtr = self.symNorm, self.symMron, self.symFormatter

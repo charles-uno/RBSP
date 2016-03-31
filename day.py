@@ -317,21 +317,27 @@ class event:
     if not self.isok():
       return None
     # Get the spectrum, fit it, and check for a bad fit. 
-    f, s = self.frq(), np.abs( np.imag( self.sfft(mode) ) )
-    gfit = self.gaussfit(f, s)
+    f, s = self.frq(), self.sfft(mode)
+    gfit = self.gaussfit(f, np.abs( np.imag(s) ) )
     if gfit is None:
-      return None
-    # If the frequency of the fit isn't close to the frequency of the actual
-    # spectral peak, something is wrong. 
-    imax = np.argmax(s)
-    if not np.abs( f[imax] - gfit[1] ) < 5:
-      return None
-    # Optionally, only return a standing wave if it's in the Pc4 band. 
-    if pc4 is True and not 7 < gfit[1] < 25:
       return None
     # Optionally, insist the peak be greater than a threshold. 
     if not gfit[0] > thresh:
       return None
+    # Optionally, only return a standing wave if it's in the Pc4 band. 
+    if pc4 is True and not 7 < gfit[1] < 25:
+      return None
+
+    # If the frequency of the fit isn't close to the frequency of the actual
+    # spectral peak, something is wrong. 
+
+    # What if we insist it be the peak of the spectrum magnitude, not just the imaginary part? That should be a bit stricter. 
+
+    imax = np.argmax( np.abs(s) )
+
+    if not np.abs( f[imax] - gfit[1] ) < 5:
+      return None
+
     # If the coherence is low, then we're just fitting noise. Bail. 
     ifit = np.argmin( np.abs( f - gfit[1] ) )
     coh = self.coh(mode)[ifit]
