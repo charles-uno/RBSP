@@ -42,9 +42,9 @@ def main():
 #    [ trackpos(probe, date, mpc=5) for probe in ('a', 'b') ]
 
   # If we're saving our data, nuke the previous list to avoid double-counting. 
-  if '-i' in argv and os.path.exists('events.txt'):
+  if '-i' in argv and os.path.exists('events_sensitive.txt'):
     print 'Removing old event listing'
-    os.remove('events.txt')
+    os.remove('events_sensitive.txt')
 
   # Search for events. Do the days in random order, for easier debugging. We
   # can just look at the first event we find. 
@@ -98,7 +98,7 @@ def checkdate(probe, date, mpc=30):
 #    print '\t' + timestr(t)[1]
     # Check for poloidal and toroidal events independently. 
     ev = today.getslice(t, duration=60*mpc)
-    evdicts = [ ev.standing(m, pc4=True, thresh=0.01) for m in ('p', 't') ]
+    evdicts = [ ev.standing(m, pc4=True, thresh=0.001) for m in ('p', 't') ]
     # If there's anything to save, do so, then plot it. 
     if keepevent(evdicts):
       plotevent(ev, save='-i' in argv)
@@ -118,7 +118,7 @@ def evline(d):
   lpp = col( d['lpp'] )
   mh = col( d['mode'].upper() + str( d['harm'] ) )
   fdf = col( d['f'] ) + col( 2.355*d['df'] )
-  mag = col( d['s'] )
+  mag = col( d['s'], digs=5 )
   comp = col( d['comp'] )
   return pdt + pos + lpp + mh + fdf + mag + comp
 
@@ -140,7 +140,7 @@ def keepevent(evdicts):
              evline( evds[1-ip] ) + col('SMALL') )
   # If we're storing the data, do so. In either case, print it. 
   if '-i' in argv:
-    print append(text, 'events.txt')
+    print append(text, 'events_sensitive.txt')
   else:
     print text
   # Return an indication of how many events. 
@@ -154,7 +154,7 @@ def evtitle(d):
   mh = d['mode'].upper() + str( d['harm'] )
   frq = 'f\\!=\\!' + fmt(d['f'], digs=2) + tex('mHz')
   fwhm = '\\delta\\!f\\!=\\!' + fmt(2.355*d['df'], digs=2) + tex('mHz')
-  mag = tex('imag') + tex('L3S') + '\\!=\\!' + fmt(d['s'], digs=2) + tex('mW/m^2')
+  mag = tex('imag') + tex('L3S') + '\\!=\\!' + fmt(d['s'], digs=3) + tex('mW/m^2')
   comp = tex('real') + tex( 'BB' + d['mode'] ) + '\\!=\\!' + fmt(d['comp'], digs=2)
   return '\\qquad{}'.join( (mh, frq, fwhm, mag, comp) )
 
@@ -172,7 +172,7 @@ def plotevent(ev, save=False):
   sift = [ np.abs( np.imag( ev.sfft(m) ) ) for m in modes ]
   srft = [ np.abs( np.real( ev.sfft(m) ) ) for m in modes ]
   # Compute poloidal and/or toroidal standing waves. 
-  stand = [ ev.standing(m, pc4=True, thresh=0.01) for m in ('p', 't') ]
+  stand = [ ev.standing(m, pc4=True, thresh=0.001) for m in ('p', 't') ]
   # Scale the Poynting flux by the largest value or the largest fit. 
   standmax = max( st['s'] for st in stand if st is not None )
   snorm = max(np.max(sift), np.max(srft), standmax)
@@ -193,7 +193,7 @@ def plotevent(ev, save=False):
   PW.setParams(collabels=collabels, title=ev.label(), rowlabels=rowlabels)
   # Information about the wave(s) goes in the side label. 
   tlist = [ evtitle(st) for st in stand if st is not None ]
-  PW.setParams( sidelabel='\n'.join(tlist) )
+  PW.setParams( sidelabel='$\n$'.join(tlist) )
   # Show the plot, or save it as an image. 
   if save is True:
     return PW.render(plotdir + ev.name + '.png')
