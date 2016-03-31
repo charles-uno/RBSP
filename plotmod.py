@@ -97,6 +97,7 @@ def tex(x):
              'StFFT':'\\frac{L^3}{\\mu_0}\\widetilde{E}_x\\widetilde{B}^*_y', 
              'BBp':'\\widetilde{B}_z/\\widetilde{B}_x', 
              'BBt':'\\widetilde{B}_z/\\widetilde{B}_y', 
+             'ImS':'|\\mathbb{I}\\mathrm{m}\\widetilde{S}|', 
              # Units. 
              'mHz':notex('mHz'),
              'mV/m':notex('\\frac{mV}{m}'),
@@ -1358,6 +1359,8 @@ class plotColors(dict):
       ulevs = np.array( [ self.logMron(c) for c in clevs ] )
     elif self.colorbar=='lin':
       ulevs = np.array( [ self.linMron(c) for c in clevs ] )
+    elif self.colorbar=='sym':
+      ulevs = np.array( [ self.symMron(c) for c in clevs ] )
     else:
       print 'WARNING: mesh can\'t handle that. '
     clist = [ temp['cmap'](u) for u in 0.5*( ulevs[1:] + ulevs[:-1] ) ]
