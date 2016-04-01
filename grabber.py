@@ -73,6 +73,9 @@ def getdst():
       print monthdir + f
       # Each line in the file is one day of hourly Dst values. 
       for line in read(monthdir + f):
+        # Ignore footer lines. 
+        if not line.startswith('DST'):
+          continue
         dd = '-' + line[line.find('*') + 1:][:2]
         vals = [ line[i:i+4].strip() for i in range(20, 116, 4) ]
         # Spit out each hourly value on its own line. 

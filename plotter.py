@@ -294,6 +294,43 @@ def llppplot(mode, split=0., save=False):
     return PW.render()
 
 # =============================================================================
+# ========================================== Poloidal or Toroidal Events by Dst
+# =============================================================================
+
+# Let's take a look at a plot of how FWHM depends on mode. 
+def dstplot(mode, split=0., save=False):
+  global pargs, plotdir
+  # Set up the grid and 2D histogram based on probe position. 
+  pos = getpos(**pargs)
+  x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
+  # Set up the window. 
+  PW = plotWindow( ncols=2, nrows=2, **bep() )
+  modename = 'Poloidal' if mode=='p' else 'Toroidal'
+  title = notex(modename + ' Pc4 by Dst: ' + tex('ImS') +
+                 ' \\geq ' + str(thresh) + tex('mW/m^2') )
+  rowlabels = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
+  collabels = ( 'Dst < ' + str(split), 'Dst > ' + str(split) )
+  PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title, unitlabel='\\%')
+  # Iterate over the filters. 
+  for row, mname in enumerate( ('P1', 'P2') if mode=='p' else ('T1', 'T2') ):
+    # Grab a histogram of the events, filtered by spectral width. 
+    calm  = eventhist(hargs, mode=mname, dst_lt=split)
+    storm = eventhist(hargs, mode=mname, dst_ge=split)
+
+    print mname + ' overall calm  rate: ' + format(100*np.sum(calm)/np.sum(z), '.1f') + '%'
+    print mname + ' overall storm rate: ' + format(100*np.sum(storm)/np.sum(z), '.1f') + '%'
+
+    # Normalize by how long each region was sampled. 
+    rates  = 100*zmask(inside)/z, 100*zmask(outside)/z
+    # Add the mesh to the plot. 
+    [ PW[row, i].setMesh(x, y, r) for i, r in enumerate(rates) ]
+  # Show or save the plot. 
+  if save is True:
+    return PW.render(plotdir + 'llpp_rate.pdf')
+  else:
+    return PW.render()
+
+# =============================================================================
 # ===================================================== Parameter Distributions
 # =============================================================================
 

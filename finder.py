@@ -28,6 +28,9 @@ plotdir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
+  # Append Dst information to the list of events. 
+  return adddst()
+
   # What dates do we have data for? 
   dates = sorted( os.listdir('/media/My Passport/rbsp/pkls/') )
 
@@ -54,6 +57,33 @@ def main():
     [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
   return
 
+
+# #############################################################################
+# ################################################## Add Dst Data to Event List
+# #############################################################################
+
+def adddst():
+  dst = read('dst.txt')
+  # Load Dst values into an array. The first column is epoch time. 
+  dstarr = np.zeros( (2*len(dst) - 1, 2), dtype=np.int )
+  for i, d in enumerate(dst):
+    date, time, val = d.split()
+    dstarr[2*i, 0] = timeint(date=date, time=time)
+    dstarr[2*i, 1] = val
+  # Average to get half hours. 
+  dstarr[1::2] = 0.5*( dstarr[:-2:2] + dstarr[2::2] )
+  # Read in the events. 
+  events = read('events.txt')
+  for e in events:
+    date, time = e.split()[1:3]
+    t = timeint(date=date, time=time)
+    # Find the line of Dst that matches this. 
+    i = np.argmin( np.abs( t - dstarr[:, 0] ) )
+    # For a consistent number of columns, non-double events are labeled ONLY. 
+    only = col('ONLY') if 'BIG' not in e and 'SMALL' not in e else ''
+    # Print out a new file which includes Dst along with the event info. 
+    append(e + only + col( dstarr[i, 1] ), 'events_with_dst.txt')
+  return
 
 # #############################################################################
 # ###################################################### Tabulate RBSP Position
