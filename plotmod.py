@@ -1097,33 +1097,14 @@ class plotCell:
     if self.cz is not None:
       # Use the color params we were passed, but allow keyword arguments from
       # the contour call to overwrite them. 
-
-#      kargs = dict( colors.items() + self.ckargs.items() )
-
       citems = [ ( key, colors[key] ) for key in ('ticks', 'levels', 'norm', 'cmap') ]
       kargs = dict( citems + self.ckargs.items() )
-
       self.ax.contourf(self.x, self.y, self.cz, **kargs)
     # Same for a mesh. 
     if self.mz is not None:
-
-#      # The mesh wants arguments formulated a bit differently. 
-#      kargs = dict( colors.items() + self.mkargs.items() )
-#      # Make sure we can call the color map. 
-#      if 'cmap' not in kargs or kargs['cmap'] is None:
-#        kargs['cmap'] = plt.get_cmap(None)
-#      # Get the colors we want for each color level. 
-#      clevs = np.array( kargs['levels'] )
-#      ulevs = ( clevs - clevs[0] )/( clevs[-1] - clevs[0] )
-#      clist = [ kargs['cmap'](u) for u in 0.5*( ulevs[1:] + ulevs[:-1] ) ]
-#      # Create a stepwise color map at those colors. 
-#      cmap = ListedColormap(clist)
-#      # Also create a norm to deliniate the step boundaries. 
-#      norm = BoundaryNorm(clevs, cmap.N)
-
-      citems = [ ( 'norm', colors['mnorm'] ), ( 'cmap', colors['mcmap'] ) ]
+      citems = [ ( 'norm', colors['mnorm'] if 'mnorm' in colors else None ), 
+                 ( 'cmap', colors['mcmap'] if 'mcmap' in colors else None ) ]
       kargs = dict( citems + self.mkargs.items() )
-
       self.ax.pcolormesh(self.x, self.y, self.mz, **kargs)
     # Optionally, draw the outline of the data. 
     if self.outline and self.x is not None and self.y is not None:
@@ -1247,8 +1228,10 @@ class plotColors(dict):
 
   # Seems to work? Don't lean too heavily... it was just thrown together. 
   def posTicksLevels(self, zmax):
-    # Linear scale from 0 to zmax. Tick at every other level, like with log. 
-    self.zmax = zmax
+    # Linear scale from 0 to zmax. Tick at every other level. Put zmax at the
+    # center of the top bin, and 0 at the bottom edge of the bottom bin. 
+    dz = zmax/(self.nticks - 0.5)
+    self.zmax = zmax + dz/2
     levels = np.linspace(0, self.zmax, self.ncolors)
     ticks = 0.5*( levels[1:] + levels[:-1] )[::2]
     return ticks, levels

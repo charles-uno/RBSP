@@ -40,6 +40,9 @@ outdir = '/media/My Passport/rbsp/pkls/'
 
 def main():
 
+  # Just grab the Dst storm index. 
+  return getdst()
+
   # Any files that get dumped should get dumped into the run directory. 
   if not os.path.exists(rundir):
     os.makedirs(rundir)
@@ -50,6 +53,31 @@ def main():
   for d in listdates(onlydai=False)[:200]:
     grabdate(d)
 
+  return
+
+
+# #############################################################################
+# ##################################################################### Get Dst
+# #############################################################################
+
+def getdst():
+  # Grab a list of the Dst data directories. 
+  dstroot = '/export/scratch/users/mceachern/RBSP/geom_indices/dst/'
+  dstdirs = sorted( os.listdir(dstroot) )
+  # Scroll through the directories -- one per month. 
+  for d in dstdirs:
+    monthdir = dstroot + d + '/'
+    yyyymm = d[:4] + '-' + d[4:]
+    # Each directory should contain a single file. 
+    for f in os.listdir(monthdir):
+      print monthdir + f
+      # Each line in the file is one day of hourly Dst values. 
+      for line in read(monthdir + f):
+        dd = '-' + line[line.find('*') + 1:][:2]
+        vals = [ line[i:i+4].strip() for i in range(20, 116, 4) ]
+        # Spit out each hourly value on its own line. 
+        for hour, val in enumerate(vals):
+          append('\t' + yyyymm + dd + '\t' + str(hour).zfill(2) + ':00:00\t' + val, 'dst.txt')
   return
 
 # #############################################################################
