@@ -190,7 +190,7 @@ class day:
 # #############################################################################
 
 # Unlike the past incarnation, the event object can no longer read in data to
-# create itself. Inctead, it must be created using the day.getevent() method. 
+# create itself. Instead, it must be created using the day.getevent() method. 
 # The old convention had us reading in a pickle and throwing away all but ten
 # minutes of it. That's quite inefficient when the intention is to iterate over
 # an entire day! 
@@ -215,6 +215,11 @@ class event:
 
     # Estimate the location of the plasmapause during this event. 
     self.lpp = lpp(date=self.date, time=self.time)
+
+    # Get the storm index for this event. 
+    self.dst = dst(date=self.date, time=self.time)
+
+    return
 
   # ---------------------------------------------------------------------------
   # ----------------------------------------------------------- Data Validation
@@ -312,11 +317,12 @@ class event:
   # Get the absolute value of the imaginary component of the Fourier-domain 
   # Poynting flux. This corresponds to the power in the standing wave. Try to
   # fit a Gaussian to the spectrum. 
-  def standing(self, mode, pc4=False, thresh=None):
+  def standing(self, mode, pc4=False, thresh=None, phase=0.):
     # If the event is bad, bail. 
     if not self.isok():
       return None
-    # Get the spectrum, fit it, and check for a bad fit. 
+    # Fit a Gaussian to the standing wave (imaginary) spectrum. If the fit
+    # fails, bail. 
     f, s = self.frq(), self.sfft(mode)
     gfit = self.gaussfit(f, np.abs( np.imag(s) ) )
     if gfit is None:
@@ -327,19 +333,20 @@ class event:
     # Optionally, only return a standing wave if it's in the Pc4 band. 
     if pc4 is True and not 7 < gfit[1] < 25:
       return None
-
-    # If the frequency of the fit isn't close to the frequency of the actual
-    # spectral peak, something is wrong. 
-
-    # What if we insist it be the peak of the spectrum magnitude, not just the imaginary part? That should be a bit stricter. 
-
+    # Make sure this Gaussian is describing the most interesting thing in the
+    # frame. If the peak of the fit isn't close to the peak of the spectrum --
+    # absolute value, not just the standing wave part -- bail. 
     imax = np.argmax( np.abs(s) )
-
     if not np.abs( f[imax] - gfit[1] ) < 5:
       return None
-
-    # If the coherence is low, then we're just fitting noise. Bail. 
+    # Optionally, impose a phase cutoff. Make sure that this is mostly a
+    # standing wave, not a traveling wave. Test at the point closest to the
+    # Gaussian peak. 
     ifit = np.argmin( np.abs( f - gfit[1] ) )
+    ph = np.angle(s[ifit], deg=True)
+    if not phase < np.abs(ph) < 180 - phase:
+      return None
+    # If the coherence is low, then we're just fitting noise. Bail. 
     coh = self.coh(mode)[ifit]
     if not coh > 0.9:
       return None
@@ -353,11 +360,20 @@ class event:
     # fields have opposite harmonic structures, they should return to
     # equilibrium in phase with one another. 
     comp = np.abs( np.real( self.fft('Bz')/self.fft('B' + mode) ) )[ifit]
+
+    # How much energy is in the field here? How fast is it being lost to the
+    # traveling wave? We could sorta compute this by looking at the ratio of
+    # the traveling wave Poynting flux and the magnetic energy, B^2/2mu0, but
+    # that's not great for fundamental modes which have a magnetic field node
+    # at the equator. To get the energy in the electric field, we would need to
+    # know the local Alfven speed. 
+
     # Assemble information about the wave/fit into a dictionary to return. 
     return {'mode':mode, 's':gfit[0], 'f':gfit[1], 'df':gfit[2], 'i':ifit,
             'coh':coh, 'harm':harm, 'comp':comp, 'date':self.date, 
             'time':self.time, 'probe':self.probe, 'lshell':self.avg('lshell'), 
-            'mlat':self.avg('mlat'), 'mlt':self.avg('mlt'), 'lpp':self.lpp}
+            'mlat':self.avg('mlat'), 'mlt':self.avg('mlt'), 'lpp':self.lpp, 
+            'dst':self.dst, 'phase':ph}
 
   # ---------------------------------------------------------------------------
   # --------------------------------------------------- Frequency-Domain Ratios
@@ -392,13 +408,19 @@ class event:
   # south it should lead. 
   def isodd(self, mode):
     lag, mlat = self.lag(mode), self.avg('mlat')
-    return (np.abs(mlat) > 3)*( np.sign(mlat) != np.sign(lag) )
+    if mode=='p':
+      return (np.abs(mlat) > 3)*( np.sign(mlat) != np.sign(lag) )
+    else:
+      return (np.abs(mlat) > 3)*( np.sign(mlat) == np.sign(lag) )
 
   # Array of booleans indicating which frequencies have a phase lag consistent
   # with an even harmonic. 
   def iseven(self, mode):
     lag, mlat = self.lag(mode), self.avg('mlat')
-    return (np.abs(mlat) > 3)*( np.sign(mlat) == np.sign(lag) )
+    if mode=='p':
+      return (np.abs(mlat) > 3)*( np.sign(mlat) == np.sign(lag) )
+    else:
+      return (np.abs(mlat) > 3)*( np.sign(mlat) != np.sign(lag) )
 
   # Array of booleans indicating if this frequency is in the pc4 band. Doesn't
   # actually depend on the mode. 
@@ -423,12 +445,13 @@ class event:
 
   # Assemble event properties into a label. 
   def label(self):
-    probename = 'RBSP-' + self.probe.upper()
-    lname = 'L\\!=\\!' + self.lbl('lshell')
+    probename = self.probe.upper()
+    lname = 'L\\!\\!=\\!\\!' + self.lbl('lshell')
     mltname = self.lbl('mlt') + 'MLT'
     mlatname = self.lbl('mlat') + 'MLAT'
-    lppname = 'L_{PP}\\!=\\!' + format(self.lpp, '.1f')
-    return notex( '\\quad{}'.join( (probename, self.date, self.time[:5], lname, mltname, mlatname, lppname) ) )
+    lppname = 'L_{PP}\\!\\!=\\!\\!' + format(self.lpp, '.1f')
+    dstname = notex('Dst') + '\\!\\!=\\!\\!' + format(self.dst, '.0f') + notex('nT')
+    return notex( '\\quad{}'.join( (probename, self.date, self.time[:5], lname, mltname, mlatname, lppname, dstname) ) )
 
   # Label describing the best wave in the given mode, selected based on electric
   # field FFT magnitude. 
@@ -445,7 +468,7 @@ class event:
     harmname = notex( {1:'ODD', 2:'EVEN'}[harm] )
     freqname = 'f=' + format(self.frq()[imax], '.0f') + tex('mHz')
     lllsname = tex('L3S') + '=(' + cmt(sfft[imax], digs=2) + ')' + tex('mW/m^2')
-    return '\\qquad{}'.join( (modename, harmname, freqname, lllsname) )
+    return '\\;\\;'.join( (modename, harmname, freqname, lllsname) )
 
   # ---------------------------------------------------------------------------
   # -------------------------------------------- Axis Limits, Ticks, and Labels
@@ -526,6 +549,22 @@ def lpp(date, time):
   wafter = evtime - timeint( *crossings[ibefore][0:2] )
   wbefore = timeint( *crossings[iafter][0:2] ) - evtime
   return (wbefore*lbefore + wafter*lafter)/(wbefore + wafter)
+
+# Get Dst at a given time stamp. 
+def dst(date, time):
+  # Read the Dst value into an array. The first column is epoch time. 
+  dst = read('dst.txt')
+  dstarr = np.zeros( (2*len(dst) - 1, 2), dtype=np.int )
+  for i, d in enumerate(dst):
+    d0, d1, d2 = d.split()
+    dstarr[2*i, 0] = timeint(date=d0, time=d1)
+    dstarr[2*i, 1] = d2
+  # Average to get half hours. 
+  dstarr[1::2] = ( dstarr[:-2:2] + dstarr[2::2] )/2
+  # Find the closest Dst measurement to the requested date and time. 
+  t = timeint(date=date, time=time)
+  i = np.argmin( np.abs( t - dstarr[:, 0] ) )
+  return dstarr[i, 1]
 
 # Read in a file as a list of lines. 
 def read(filename):

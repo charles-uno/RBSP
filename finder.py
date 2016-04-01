@@ -28,8 +28,11 @@ plotdir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 def main():
 
-  # Append Dst information to the list of events. 
-  return adddst()
+#  # Append Dst information to the list of events. 
+#  return adddst_events()
+
+#  # Append Dst to the list of probe locations. 
+#  return adddst_pos()
 
   # What dates do we have data for? 
   dates = sorted( os.listdir('/media/My Passport/rbsp/pkls/') )
@@ -45,9 +48,10 @@ def main():
 #    [ trackpos(probe, date, mpc=5) for probe in ('a', 'b') ]
 
   # If we're saving our data, nuke the previous list to avoid double-counting. 
-  if '-i' in argv and os.path.exists('events_sensitive.txt'):
+  if '-i' in argv and os.path.exists('events_new.txt'):
     print 'Removing old event listing'
-    os.remove('events_sensitive.txt')
+    os.remove('events_new.txt')
+    append(evheader(), 'events_new.txt')
 
   # Search for events. Do the days in random order, for easier debugging. We
   # can just look at the first event we find. 
@@ -59,10 +63,14 @@ def main():
 
 
 # #############################################################################
-# ################################################## Add Dst Data to Event List
+# ######################################################## Add Dst Data to Data
 # #############################################################################
 
-def adddst():
+# =============================================================================
+# ==================================================== Add Dst to Event Listing
+# =============================================================================
+
+def adddst_events():
   dst = read('dst.txt')
   # Load Dst values into an array. The first column is epoch time. 
   dstarr = np.zeros( (2*len(dst) - 1, 2), dtype=np.int )
@@ -71,7 +79,7 @@ def adddst():
     dstarr[2*i, 0] = timeint(date=date, time=time)
     dstarr[2*i, 1] = val
   # Average to get half hours. 
-  dstarr[1::2] = 0.5*( dstarr[:-2:2] + dstarr[2::2] )
+  dstarr[1::2] = ( dstarr[:-2:2] + dstarr[2::2] )/2
   # Read in the events. 
   events = read('events.txt')
   for e in events:
@@ -83,6 +91,31 @@ def adddst():
     only = col('ONLY') if 'BIG' not in e and 'SMALL' not in e else ''
     # Print out a new file which includes Dst along with the event info. 
     append(e + only + col( dstarr[i, 1] ), 'events_with_dst.txt')
+  return
+
+# =============================================================================
+# ================================================= Add Dst to Position Listing
+# =============================================================================
+
+def adddst_pos():
+  dst = sorted( read('dst.txt') )
+  # Load Dst values into an array. The first column is epoch time. 
+  dstarr = np.zeros( (2*len(dst) - 1, 2), dtype=np.int )
+  for i, d in enumerate(dst):
+    date, time, val = d.split()
+    dstarr[2*i, 0] = timeint(date=date, time=time)
+    dstarr[2*i, 1] = val
+  # Average to get half hours. 
+  dstarr[1::2] = ( dstarr[:-2:2] + dstarr[2::2] )/2
+  # Read in the probe positions. 
+  pos = read('pos.txt')
+  for p in pos:
+    date, time = p.split()[1:3]
+    t = timeint(date=date, time=time)
+    # Find the line of Dst that matches this. 
+    i = np.argmin( np.abs( t - dstarr[:, 0] ) )
+    # Print out a new file which includes Dst along with the position info. 
+    append(p + col( dstarr[i, 1] ), 'pos_with_dst.txt')
   return
 
 # #############################################################################
@@ -128,7 +161,7 @@ def checkdate(probe, date, mpc=30):
 #    print '\t' + timestr(t)[1]
     # Check for poloidal and toroidal events independently. 
     ev = today.getslice(t, duration=60*mpc)
-    evdicts = [ ev.standing(m, pc4=True, thresh=0.001) for m in ('p', 't') ]
+    evdicts = [ ev.standing(m, pc4=True, thresh=0.001, phase=45) for m in ('p', 't') ]
     # If there's anything to save, do so, then plot it. 
     if keepevent(evdicts):
       plotevent(ev, save='-i' in argv)
@@ -141,6 +174,18 @@ def checkdate(probe, date, mpc=30):
 # ============================================================== Store an Event
 # =============================================================================
 
+def evheader():
+  pdt = col('probe') + col('date') + col('time')
+  pos = col('lshell') + col('mlt') + col('mlat')
+  lpp = col('lpp')
+  mh = col('mode+harm')
+  fdf = col('freq') + col('FWHM')
+  phase = col('phase')
+  mag = col('L^3EB/mu0')
+  comp = col('Bz/Bx')
+  dst = col('Dst')
+  return pdt + pos + lpp + mh + fdf + phase + mag + comp + dst + col('double?')
+
 # Assemble a dictionary about the event into a one-line summary. 
 def evline(d):
   pdt = col( d['probe'] ) + col( d['date'] ) + col( d['time'] )
@@ -148,9 +193,11 @@ def evline(d):
   lpp = col( d['lpp'] )
   mh = col( d['mode'].upper() + str( d['harm'] ) )
   fdf = col( d['f'] ) + col( 2.355*d['df'] )
+  phase = col( d['phase'] )
   mag = col( d['s'], digs=5 )
   comp = col( d['comp'] )
-  return pdt + pos + lpp + mh + fdf + mag + comp
+  dst = col( d['dst'] )
+  return pdt + pos + lpp + mh + fdf + phase + mag + comp + dst
 
 # Write out the event to file. If there are two simultaneous events, indicate
 # which is larger. 
@@ -162,7 +209,7 @@ def keepevent(evdicts):
     return 0
   # If there's one event, save it. 
   elif len(evds)==1:
-    text = evline( evds[0] )
+    text = evline( evds[0] ) + col('ONLY')
   # If there are two events, indicate which is larger. 
   elif len(evds)==2:
     ip = 0 if evds[0]['s'] > evds[1]['s'] else 1
@@ -170,8 +217,9 @@ def keepevent(evdicts):
              evline( evds[1-ip] ) + col('SMALL') )
   # If we're storing the data, do so. In either case, print it. 
   if '-i' in argv:
-    print append(text, 'events_sensitive.txt')
+    print append(text, 'events_new.txt')
   else:
+    print evheader()
     print text
   # Return an indication of how many events. 
   return len(evds)
@@ -183,10 +231,11 @@ def keepevent(evdicts):
 def evtitle(d):
   mh = d['mode'].upper() + str( d['harm'] )
   frq = 'f\\!=\\!' + fmt(d['f'], digs=2) + tex('mHz')
-  fwhm = '\\delta\\!f\\!=\\!' + fmt(2.355*d['df'], digs=2) + tex('mHz')
-  mag = tex('imag') + tex('L3S') + '\\!=\\!' + fmt(d['s'], digs=3) + tex('mW/m^2')
+  fwhm = notex('FWHM') + '\\!=\\!' + fmt(2.355*d['df'], digs=2) + tex('mHz')
+  phase = fmt(d['phase'], digs=0) + '^{\\circ}'
+  mag = tex('ImS') + '\\!=\\!' + fmt(d['s'], digs=3) + tex('mW/m^2')
   comp = tex('real') + tex( 'BB' + d['mode'] ) + '\\!=\\!' + fmt(d['comp'], digs=2)
-  return '\\qquad{}'.join( (mh, frq, fwhm, mag, comp) )
+  return '\\quad{}'.join( (mh, frq, fwhm, phase, mag, comp) )
 
 def plotevent(ev, save=False):
   global plotdir

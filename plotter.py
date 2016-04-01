@@ -27,37 +27,40 @@ from numpy.ma import masked_where
 plotdir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 # What should the minimum amplitude be? Anything below there is noise. 
-thresh = 0.01 if 'thresh' in argv else 0.001
+thresh = 0.1 if 'THRESH' in argv else 0.01 if 'thresh' in argv else 0.001
 
 # Bin all position plots the same way. 
-pargs = {'dl':0.5, 'dm':1} if 'sharp' in argv else {'dl':3, 'dm':2, 'lmin':4}
+pargs = {'dl':1, 'dm':1} if 'sharp' in argv else {'dl':3, 'dm':2, 'lmin':4}
 
 def main():
 
 #  return dungey()
 
-#  # Location of the usable data. 
-#  return posplot(save='-i' in argv)
+  # Location of the usable data. 
+  posplot(save='-i' in argv)
 
-#  # Location of all events, regardless of mode or harmonic. 
-#  return allplot(save='-i' in argv)
+  # Location of all events, regardless of mode or harmonic. 
+  allplot(save='-i' in argv)
 
   # Location of events inside or outside the plasmapause. 
-  return [ llppplot(mode, save='-i' in argv) for mode in ('p', 't') ]
+  [ llppplot(mode, save='-i' in argv) for mode in ('p', 't') ]
 
-#  # Location of all events, by parity and polarization. 
-#  return modeplot(save='-i' in argv)
+  # Location of events as a function of storm index. 
+  [ dstplot(mode, save='-i' in argv) for mode in ('p', 't') ]
 
-#  # Location of simultaneous poloidal-toroidal events. 
-#  return doubleplot(save='-i' in argv)
+  # Location of all events, by parity and polarization. 
+  modeplot(save='-i' in argv)
 
-#  # Location of poloidal events by compressional coupling. 
-#  return azmplot(save='-i' in argv)
+  # Location of simultaneous poloidal-toroidal events. 
+  doubleplot(save='-i' in argv)
+
+  # Location of poloidal events by compressional coupling. 
+  azmplot(save='-i' in argv)
 
   # Location of poloidal events by spectral width. 
-  return [ fwhmplot(mode, split=1.5, save='-i' in argv) for mode in ('p', 't') ]
+  [ fwhmplot(mode, split=1.5, save='-i' in argv) for mode in ('p', 't') ]
 
-  return paramplot(name='fwhm', save='-i' in argv)
+#  return paramplot(name='fwhm', save='-i' in argv)
 
   return
 
@@ -252,7 +255,7 @@ def fwhmplot(mode, split=1., save=False):
     [ PW[row, i].setMesh(x, y, r) for i, r in enumerate(rates) ]
   # Show or save the plot. 
   if save is True:
-    return PW.render(plotdir + 'fwhm_rate.pdf')
+    return PW.render(plotdir + 'fwhm_rate_' + mode + '.pdf')
   else:
     return PW.render()
 
@@ -289,7 +292,7 @@ def llppplot(mode, split=0., save=False):
     [ PW[row, i].setMesh(x, y, r) for i, r in enumerate(rates) ]
   # Show or save the plot. 
   if save is True:
-    return PW.render(plotdir + 'llpp_rate.pdf')
+    return PW.render(plotdir + 'llpp_rate_' + mode + '.pdf')
   else:
     return PW.render()
 
@@ -298,7 +301,7 @@ def llppplot(mode, split=0., save=False):
 # =============================================================================
 
 # Let's take a look at a plot of how FWHM depends on mode. 
-def dstplot(mode, split=0., save=False):
+def dstplot(mode, split=-30., save=False):
   global pargs, plotdir
   # Set up the grid and 2D histogram based on probe position. 
   pos = getpos(**pargs)
@@ -309,24 +312,25 @@ def dstplot(mode, split=0., save=False):
   title = notex(modename + ' Pc4 by Dst: ' + tex('ImS') +
                  ' \\geq ' + str(thresh) + tex('mW/m^2') )
   rowlabels = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
-  collabels = ( 'Dst < ' + str(split), 'Dst > ' + str(split) )
+  collabels = ( notex('Dst') + ' > ' + znt(split) + notex('nT'), 
+                notex('Dst') + ' < ' + znt(split) + notex('nT') )
   PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title, unitlabel='\\%')
   # Iterate over the filters. 
   for row, mname in enumerate( ('P1', 'P2') if mode=='p' else ('T1', 'T2') ):
     # Grab a histogram of the events, filtered by spectral width. 
-    calm  = eventhist(hargs, mode=mname, dst_lt=split)
-    storm = eventhist(hargs, mode=mname, dst_ge=split)
+    storm  = eventhist(hargs, mode=mname, dst_lt=split)
+    calm = eventhist(hargs, mode=mname, dst_ge=split)
 
     print mname + ' overall calm  rate: ' + format(100*np.sum(calm)/np.sum(z), '.1f') + '%'
     print mname + ' overall storm rate: ' + format(100*np.sum(storm)/np.sum(z), '.1f') + '%'
 
     # Normalize by how long each region was sampled. 
-    rates  = 100*zmask(inside)/z, 100*zmask(outside)/z
+    rates  = 100*zmask(calm)/z, 100*zmask(storm)/z
     # Add the mesh to the plot. 
     [ PW[row, i].setMesh(x, y, r) for i, r in enumerate(rates) ]
   # Show or save the plot. 
   if save is True:
-    return PW.render(plotdir + 'llpp_rate.pdf')
+    return PW.render(plotdir + 'dst_rate_' + mode + '.pdf')
   else:
     return PW.render()
 
@@ -443,16 +447,20 @@ def getpos(dl=0.5, dm=1, lmin=None, lmax=None):
 # =============================================================================
 
 # Returns a filtered list of events. 
-def loadevents(mode=None, fwhm_ge=None, fwhm_lt=None, comp_ge=None, comp_lt=None, double=False, llpp_lt=None, llpp_ge=None):
+def loadevents(mode=None, fwhm_ge=None, fwhm_lt=None, comp_ge=None, comp_lt=None, double=False, llpp_lt=None, llpp_ge=None, dst_lt=None, dst_ge=None):
   global thresh
-  # Grab the contents of the event file as an array of strings. 
-  events = g2a( read('events.txt') )
+  # Grab the events file as an array of strings. Skip the header. 
+  events = g2a( line for line in read('events.txt') if 'probe' not in line )
   # Filter for simultaneous events. 
   if double is True:
     events = g2a( line for line in events if 'BIG' in line or 'SMALL' in line )
   # Filter based on mode. 
   if mode is not None:
     events = g2a( line for line in events if mode in line )
+  # If we're not looking for double events, and we're not filtering based on
+  # mode, make sure not to double-count double events. Only keep the big ones. 
+  if mode is None and double is False:
+    events = g2a( line for line in events if 'SMALL' not in line )
   # Filter on amplitude. 
   if thresh > 0:
     amp = g2a( float( line.split()[10] ) for line in events )
@@ -489,6 +497,16 @@ def loadevents(mode=None, fwhm_ge=None, fwhm_lt=None, comp_ge=None, comp_lt=None
     lpp = g2a( float( line.split()[6] ) for line in events )
     lshell = g2a( float( line.split()[3] ) for line in events )
     inew = np.nonzero(lshell - lpp < llpp_lt)[0]
+    events = events[inew]
+  # Filter on storm index (upper bound). 
+  if dst_ge is not None:
+    dst = g2a( float( line.split()[13] ) for line in events )
+    inew = np.nonzero(dst >= dst_ge)[0]
+    events = events[inew]
+  # Filter on storm index (upper bound). 
+  if dst_lt is not None:
+    dst = g2a( float( line.split()[13] ) for line in events )
+    inew = np.nonzero(dst < dst_lt)[0]
     events = events[inew]
   # Return the remaining events. 
   return events
