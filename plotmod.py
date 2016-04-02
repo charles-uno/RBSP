@@ -1186,6 +1186,11 @@ class plotColors(dict):
     elif self.colorbar=='pos':
       temp['ticks'], temp['levels'] = self.posTicksLevels(zmax)
       temp['norm'] = Normalize()
+
+    elif self.colorbar=='pct':
+      temp['ticks'], temp['levels'] = self.pctTicksLevels(zmax)
+      temp['norm'] = LogNorm()
+
     else:
       temp['ticks'], temp['levels'] = self.linTicksLevels(zmax)
       temp['norm'] = Normalize()
@@ -1254,6 +1259,22 @@ class plotColors(dict):
     logMin, logMax = np.log10(self.zmin), np.log10(self.zmax)
     levels = np.logspace(logMin, logMax, self.ncolors)
     return ticks, levels
+
+
+
+
+  def pctTicksLevels(self, zmax):
+    # Hard-coded to have ticks at 10%, 1%, 0.1%. Several color levels between each tick. 
+    halves = np.logspace(-1, 1, self.ncolors - 1)
+    self.zmin = halves[0]*np.sqrt( halves[0]/halves[1] )
+    self.zmax = halves[-1]*np.sqrt(halves[-1]/halves[-2] )
+    levels = np.logspace(np.log10(self.zmin), np.log10(self.zmax), self.ncolors)
+    ticks = np.array( (0.1, 1, 10) )
+    return ticks, levels
+
+
+
+
 
   def lgTicksLevels(self, zmax):
     # Same as log, but with base 2 instead of 10. 
@@ -1334,12 +1355,10 @@ class plotColors(dict):
   # This is SUPER kludgey. Sorry. No time to make it pretty while writing! 
   def getMesh(self, temp):
     clevs = np.array( temp['levels'] )
-    if self.colorbar=='log':
+    if self.colorbar in ('lg', 'log', 'pct'):
       ulevs = np.array( [ self.logMron(c) for c in clevs ] )
     elif self.colorbar=='pos':
       ulevs = ( clevs - clevs[0] )/( clevs[-1] - clevs[0] )
-    elif self.colorbar=='lg':
-      ulevs = np.array( [ self.logMron(c) for c in clevs ] )
     elif self.colorbar=='lin':
       ulevs = np.array( [ self.linMron(c) for c in clevs ] )
     elif self.colorbar=='sym':
@@ -1360,7 +1379,7 @@ class plotColors(dict):
   # match the normalization of our ticks and color levels. 
   def getCmap(self):
     # Figure out the unit interval renormalization to use. 
-    if self.colorbar=='log' or self.colorbar=='pos' or self.colorbar=='lg':
+    if self.colorbar in ('lg', 'log', 'pos', 'pct'):
       # Kinda kludgey. See setColorbar for explanation. 
       return plt.get_cmap(None)
     elif self.colorbar=='sym':
@@ -1431,6 +1450,14 @@ class plotColors(dict):
       cax.set_yticklabels( [ fmtr(t) for t in colorParams['ticks'] ] )
       return
 
+    elif self.colorbar=='pct':
+      norm, mron, fmtr = self.logNorm, self.logMron, self.pctFormatter
+      ColorbarBase(cax, boundaries=colorParams['levels'],
+                   ticks=colorParams['ticks'], norm=colorParams['norm'],
+                   cmap=colorParams['cmap'])
+      cax.set_yticklabels( [ fmtr(t) for t in colorParams['ticks'] ] )
+      return
+
     elif self.colorbar=='pos':
       fmtr = self.linFormatter
       ColorbarBase(cax, boundaries=colorParams['levels'],
@@ -1473,7 +1500,7 @@ class plotColors(dict):
       return '$0' + self.unit + '$'
     # If our numbers are around order unity, the top tick should show two
     # significant figures, and the rest should match that decimal place. 
-    elif 1e-3<self.zmax<1e3:
+    elif 1e-3<self.zmax<1e4:
       sign = '' if x<0 else '+'
       power = int( format(self.zmax, '.1e').split('e')[-1] )
       if power>1:
@@ -1515,6 +1542,12 @@ class plotColors(dict):
     # Otherwise, just keep the power of ten. 
     return '$ 10^{' + format(np.log10(x), '.0f') + '}' + self.unit + '$'
 
+
+  def pctFormatter(self, x):
+    if x == int(x):
+      return '$' + str( int(x) ) + '\\%$'
+    else:
+      return '$' + str(x) + '\\%$'
 
 
   def lgFormatter(self, x):

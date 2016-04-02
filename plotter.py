@@ -27,64 +27,110 @@ from numpy.ma import masked_where
 plotdir = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
 
 # What should the minimum amplitude be? Anything below there is noise. 
-thresh = 0.1 if 'THRESH' in argv else 0.01 if 'thresh' in argv else 0.001
+thresh = 0.001 if 'nothresh' in argv else 0.05 if 'THRESH' in argv else 0.01
 
 # Bin all position plots the same way. 
 pargs = {'dl':1, 'dm':1} if 'sharp' in argv else {'dl':3, 'dm':2, 'lmin':4}
+
+label = ('_sharp' if 'sharp' in argv else '') + ('_nothresh' if 'nothresh' in argv else '_THRESH' if 'THRESH' in argv else '')
 
 def main():
 
 #  return dungey()
 
+  # Just tell me how many there are of each mode. 
+  count()
+
   # Location of the usable data. 
-  posplot(save='-i' in argv)
+  [ posplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
 
   # Location of all events, regardless of mode or harmonic. 
-  allplot(save='-i' in argv)
+  [ allplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
 
   # Location of events inside or outside the plasmapause. 
-  [ llppplot(mode, save='-i' in argv) for mode in ('p', 't') ]
+#  [ llppplot(mode, save='-i' in argv) for mode in ('p', 't') ]
+  ppplot(save='-i' in argv)
 
   # Location of events as a function of storm index. 
   [ dstplot(mode, save='-i' in argv) for mode in ('p', 't') ]
 
   # Location of all events, by parity and polarization. 
-  modeplot(save='-i' in argv)
+  [ modeplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
 
   # Location of simultaneous poloidal-toroidal events. 
   doubleplot(save='-i' in argv)
 
   # Location of poloidal events by compressional coupling. 
-  azmplot(save='-i' in argv)
+  [ azmplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
 
   # Location of poloidal events by spectral width. 
-  [ fwhmplot(mode, split=1.5, save='-i' in argv) for mode in ('p', 't') ]
+  [ [ fwhmplot(mode, split=1.5, storm=s, save='-i' in argv) for mode in ('p', 't') ] for s in (True, False, None) ]
 
 #  return paramplot(name='fwhm', save='-i' in argv)
 
+  return
+
+# How many events of each mode? 
+def count():
+  pos = getpos(**pargs)
+  for mode in ('P1', 'P2', 'T1', 'T2'):
+    eh = eventhist(pos['hargs'], mode=mode)
+    print mode, np.sum(eh)
   return
 
 # #############################################################################
 # ########################################################## Position Histogram
 # #############################################################################
 
-def posplot(save=False):
-  global plotdir
-  # Grab the position data. 
-  pos = getpos(dl=0.5, dm=1)
+def posplot(storm=None, save=False):
+  global pargs, plotdir
+
+  if storm is None:
+    pos = getpos(**pargs)
+  elif storm is True:
+    pos = getpos(dst_lt=-30, **pargs)
+  elif storm is False:
+    pos = getpos(dst_ge=-30, **pargs)
+  else:
+    print 'Plotting storm and calm together looks real bad! '
+    return
+
   x, y, z = [ pos[key] for key in ('x', 'y', 'z') ]
   date0, date1 = pos['dates']
-  dt = np.sum(z)
+  dt = np.sum(z)/48.
   # Create the plot window using the bullseye params helper function. 
-  PW = plotWindow( **bep() )
-  title = notex('Usable Data ' + date0 + ' to ' + date1 + ' (' + 
-                format(dt, '.0f') + ' days total)')
-  PW.setParams( title=title, unitlabel=notex('days') )
+  PW = plotWindow( **bep(rate=False) )
+
+  status = {True:'Storm Time ', False:'Quiet Time ', None:''}[storm]
+  title = notex(status + 'Data ' + date0 + ' to ' + date1 + ' (' + format(dt, '.0f') + ' days)')
+
+  PW.setParams( title=title, unitlabel=notex('half-hours') )
   # Add the data to the plot. 
-  PW.setMesh(x, y, z)
+  PW.setMesh( x, y, zmask(z) )
+
+  '''
+  # If we're splitting on Dst, do so. 
+  else:
+    split = -30
+    clabs = ( notex('Dst') + ' \\geq ' +  znt(split), 
+              notex('Dst') + ' < ' +  znt(split) )
+    poss = [ getpos(dst_ge=-30, **pargs), getpos(dst_lt=-30, **pargs) ]
+    x, y = [ poss[0][key] for key in ('x', 'y') ]
+    zc, zs = [ pos['z'] for pos in poss ]
+    date0 = min( pos['dates'][0] for pos in poss )
+    date1 = max( pos['dates'][1] for pos in poss )
+    dt = np.sum(zc + zs)
+    title = notex('Usable Data ' + date0 + ' to ' + date1 + ' (' + 
+                  format(dt, '.0f') + ' days total)')
+
+    PW = plotWindow( nrows=1, ncols=2, **bep() )
+    PW.setParams(title=title, unitlabel=notex('days'), collabels=clabs)
+    # Add the data to the plot. 
+    [ PW[i].setMesh( x, y, zmask(z) ) for i, z in enumerate( (zc, zs) ) ]
+    '''
   # Show the plot, or save it as an image. 
   if save is True:
-    return PW.render(plotdir + 'pos.pdf')
+    return PW.render(plotdir + 'pos_' +  {True:'storm', False:'calm', None:'all'}[storm] + label + '.pdf')
   else:
     return PW.render()
 
@@ -93,22 +139,32 @@ def posplot(save=False):
 # #############################################################################
 
 # =============================================================================
-# ========================================================== All Events by Mode
+# ================================================================== All Events
 # =============================================================================
 
-def allplot(save=False):
+def allplot(storm=None, save=False):
   global pargs, plotdir
   # Set up the grid and 2D histogram based on probe position. 
-  pos = getpos(**pargs)
+  if storm is None:
+    pos = getpos(**pargs)
+  elif storm is True:
+    pos = getpos(dst_lt=-30, **pargs)
+  elif storm is False:
+    pos = getpos(dst_ge=-30, **pargs)
+  else:
+    print 'Plotting storm and calm together looks real bad! '
+    return
   x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
   # Create a plot window to show different subsets of the events. 
   PW = plotWindow( **bep() )
   # Title and labels. 
-  title = notex( 'Pc4 Occurrence Rate: ' + tex('ImS') +
+  status = {True:'Storm Time ', False:'Quiet Time ', None:''}[storm]
+  title = notex( status + 'Pc4 Occurrence Rate: ' + tex('ImS') +
                  ' \\geq ' + str(thresh) + tex('mW/m^2') )
-  PW.setParams(title=title, unitlabel='\\%')
+  PW.setParams(title=title)
   # Grab the events histogram. 
-  eh = eventhist(hargs)
+  sargs = { True:{'dst_lt':-30}, False:{'dst_ge':-30}, None:{} }[storm]
+  eh = eventhist(hargs, **sargs)
   # Normalize it by the sampling rate and plot it. 
   PW.setMesh(x, y, 100*zmask(eh)/z)
 
@@ -116,39 +172,7 @@ def allplot(save=False):
 
   # Show or save the plot. 
   if save is True:
-    return PW.render(plotdir + 'rate_all.pdf')
-  else:
-    return PW.render()
-
-# =============================================================================
-# =============================================================== Double Events
-# =============================================================================
-
-def doubleplot(save=False):
-  global pargs, plotdir, thresh
-  # Set up the grid, and get the probe position for normalization. 
-  pos = getpos(**pargs)
-  x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
-  # Create a plot window to show different subsets of the events. 
-  PW = plotWindow( ncols=2, nrows=2, **bep() )
-  # Title and labels. 
-  title = notex( 'Double Pc4 Occurrence Rate by Modes: ' + tex('ImS') +
-                 ' \\geq ' + str(thresh) + tex('mW/m^2') )
-  rlabs = ( notex('Odd\nPoloidal'), notex('Even\nPoloidal') )
-  clabs = ( notex('Odd Toroidal'), notex('Even Toroidal') )
-  PW.setParams(collabels=clabs, rowlabels=rlabs, title=title, unitlabel='\\%')
-  # Flip through the possible poloidal-toroidal comparisons. 
-  rownames, colnames = ('P1', 'P2'), ('T1', 'T2')
-  for row, rn in enumerate(rownames):
-    for col, cn in enumerate(colnames):
-      # Grab a histogram of appropriately-filtered double events. 
-      dh = doublehist(hargs, pmode=rn, tmode=cn)
-      # Build it into a histogram. Normalize based on sampling. 
-      rate = 100*zmask(dh)/z
-      PW[row, col].setMesh(x, y, rate)
-  # Show or save the plot. 
-  if save is True:
-    return PW.render(plotdir + 'double_rate.pdf')
+    return PW.render(plotdir + 'rate_' + {True:'storm', False:'calm', None:'all'}[storm] + label + '.pdf')
   else:
     return PW.render()
 
@@ -156,35 +180,85 @@ def doubleplot(save=False):
 # ========================================================== All Events by Mode
 # =============================================================================
 
-def modeplot(save=False):
+def modeplot(storm=None, save=False):
   global pargs, plotdir
+
   # Set up the grid and 2D histogram based on probe position. 
-  pos = getpos(**pargs)
+  if storm is None:
+    pos = getpos(**pargs)
+  elif storm is True:
+    pos = getpos(dst_lt=-30, **pargs)
+  elif storm is False:
+    pos = getpos(dst_ge=-30, **pargs)
+  else:
+    print 'Plotting storm and calm together looks real bad! '
+    return
+
   x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
+
   # Create a plot window to show different subsets of the events. 
   PW = plotWindow( ncols=2, nrows=2, **bep() )
   # Title and labels. 
-  title = notex( 'Pc4 Occurrence Rate by Mode: ' + tex('ImS') +
+  status = {True:'Storm Time ', False:'Quiet Time ', None:''}[storm]
+  title = notex( status + 'Pc4 Occurrence Rate by Mode: ' + tex('ImS') +
                  ' \\geq ' + str(thresh) + tex('mW/m^2') )
   collabels = ( notex('Poloidal'), notex('Toroidal') )
   rowlabels = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
-  PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title, unitlabel='\\%')
+  PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title)
   # Iterate over the filters. 
   mfilt, hfilt = ('P', 'T'), ('1', '2')
   for row, hf in enumerate(hfilt):
     for col, mf in enumerate(mfilt):
       # Grab a histogram of the events, filtered by mode and harmonic. 
-      eh = eventhist(hargs, mode=mf+hf)
+      sargs = { True:{'dst_lt':-30}, False:{'dst_ge':-30}, None:{} }[storm]
+      eh = eventhist(hargs, mode=mf+hf, **sargs)
       # Normalize by how long each region was sampled. 
       rate = 100*zmask(eh)/z
-
-      print 'overall percent for ' + mf + hf + ' = ' + format(100*np.sum(eh)/np.sum(z), '.1f') + '%'
-
+      print 'overall ' + status + 'percent for ' + mf + hf + ' = ' + format(100*np.sum(eh)/np.sum(z), '.1f') + '%'
       # Add the mesh to the plot. 
       PW[row, col].setMesh(x, y, rate)
   # Show or save the plot. 
   if save is True:
-    return PW.render(plotdir + 'mode_rate.pdf')
+    return PW.render(plotdir + 'mode_' +  {True:'storm', False:'calm', None:'all'}[storm] + label + '.pdf')
+  else:
+    return PW.render()
+
+# =============================================================================
+# =============================================================== Double Events
+# =============================================================================
+
+def doubleplot(save=False, split=-30.):
+  global pargs, plotdir, thresh
+  # Create a plot window to show different subsets of the events. 
+  PW = plotWindow( ncols=2, nrows=2, **bep() )
+  # Title and labels. 
+  title = notex( 'Simultaneous Poloidal + Toroidal Pc4 Occurrence Rate: ' + tex('ImS') +
+                 ' \\geq ' + str(thresh) + tex('mW/m^2') )
+
+  rlabs = ( notex('Odd'), notex('Even') )
+
+  clabs = ( notex('Dst') + ' \\geq ' + znt(split) + notex('nT'), 
+            notex('Dst') + ' < ' + znt(split) + notex('nT') )
+
+  PW.setParams(collabels=clabs, rowlabels=rlabs, title=title)
+
+  for col, key in enumerate( ('dst_ge', 'dst_lt') ):
+    # Set up the grid and 2D histogram based on probe position. 
+    pos = getpos( **dict( pargs.items() + {key:split}.items() ) )
+    x, y, z, hargs = [ pos[k] for k in ('x', 'y', 'z', 'hargs') ]
+
+    # Odd and Even. 
+    for row, harm in enumerate( ('1', '2') ):
+
+      # Grab a histogram of appropriately-filtered double events. 
+      dh = doublehist(hargs, pmode='P' + harm, tmode='T' + harm, **{key:split})
+
+      # Build it into a histogram. Normalize based on sampling. 
+      rate = 100*zmask(dh)/z
+      PW[row, col].setMesh(x, y, rate)
+  # Show or save the plot. 
+  if save is True:
+    return PW.render(plotdir + 'double_rate' + label + '.pdf')
   else:
     return PW.render()
 
@@ -193,23 +267,37 @@ def modeplot(save=False):
 # =============================================================================
 
 # Let's take a look at a plot of how FWHM depends on mode. 
-def azmplot(save=False):
+def azmplot(storm=None, save=False, split=0.2):
   global pargs, plotdir
   # Set up the grid and 2D histogram based on probe position. 
-  pos = getpos(**pargs)
+  if storm is None:
+    pos = getpos(**pargs)
+  elif storm is True:
+    pos = getpos(dst_lt=-30, **pargs)
+  elif storm is False:
+    pos = getpos(dst_ge=-30, **pargs)
+  else:
+    print 'Plotting storm and calm together looks real bad! '
+    return
   x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
   # Set up the window. 
   PW = plotWindow( ncols=2, nrows=2, **bep() )
-  title = notex('Poloidal Pc4 by Compressional Coupling: ' + tex('ImS') +
+  status = {True:'Storm Time ', False:'Quiet Time ', None:''}[storm]
+  title = notex(status + 'Poloidal Pc4 by Compressional Coupling: ' + tex('ImS') +
                  ' \\geq ' + str(thresh) + tex('mW/m^2') )
-  rowlabels = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
-  collabels = ( notex('Small ') + 'm', notex('Large ') + 'm' )
-  PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title)
+  rlabs = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
+
+  clabs = ( tex('BBp') + ' \\geq ' + format(split, '.1f'), tex('BBp') + ' < ' + format(split, '.1f') )
+
+  PW.setParams(collabels=clabs, rowlabels=rlabs, title=title)
   # Iterate over the filters. 
   for row, mode in enumerate( ('P1', 'P2') ):
     # Grab a histogram of the events, filtered by spectral width. 
-    smallm  = eventhist(hargs, mode=mode, comp_ge=0.2)
-    bigm = eventhist(hargs, mode=mode, comp_lt=0.2)
+
+    sargs = { True:{'dst_lt':-30}, False:{'dst_ge':-30}, None:{} }[storm]
+
+    smallm  = eventhist(hargs, mode=mode, comp_ge=split, **sargs)
+    bigm = eventhist(hargs, mode=mode, comp_lt=split, **sargs)
     # Normalize by how long each region was sampled. 
     rates  = 100*zmask(smallm)/z, 100*zmask(bigm)/z
 
@@ -218,7 +306,7 @@ def azmplot(save=False):
 
   # Show or save the plot. 
   if save is True:
-    return PW.render(plotdir + 'azm_rate.pdf')
+    return PW.render(plotdir + 'azm_rate_' + {True:'storm', False:'calm', None:'all'}[storm] + label + '.pdf')
   else:
     return PW.render()
 
@@ -227,24 +315,35 @@ def azmplot(save=False):
 # =============================================================================
 
 # Let's take a look at a plot of how FWHM depends on mode. 
-def fwhmplot(mode, split=1., save=False):
+def fwhmplot(mode, split=1., storm=None, save=False):
   global pargs, plotdir
   # Set up the grid and 2D histogram based on probe position. 
-  pos = getpos(**pargs)
+  if storm is None:
+    pos = getpos(**pargs)
+  elif storm is True:
+    pos = getpos(dst_lt=-30, **pargs)
+  elif storm is False:
+    pos = getpos(dst_ge=-30, **pargs)
+  else:
+    print 'Plotting storm and calm together looks real bad! '
+    return
   x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
   # Set up the window. 
   PW = plotWindow( ncols=2, nrows=2, **bep() )
+  status = {True:'Storm Time ', False:'Quiet Time ', None:''}[storm]
   modename = 'Poloidal' if mode=='p' else 'Toroidal'
-  title = notex(modename + ' Pc4 by Spectral Width: ' + tex('ImS') +
+  title = notex(status + modename + ' Pc4 by Spectral Width: ' + tex('ImS') +
                  ' \\geq ' + str(thresh) + tex('mW/m^2') )
   rowlabels = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
   collabels = ( notex('FWHM') + ' < ' + str(split) + notex('mHz'), notex('FWHM') + ' > ' + str(split) + notex('mHz') )
-  PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title, unitlabel='\\%')
+  PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title)
   # Iterate over the filters. 
   for row, mname in enumerate( ('P1', 'P2') if mode=='p' else ('T1', 'T2') ):
     # Grab a histogram of the events, filtered by spectral width. 
-    broad  = eventhist(hargs, mode=mname, fwhm_lt=split)
-    narrow = eventhist(hargs, mode=mname, fwhm_ge=split)
+    sargs = { True:{'dst_lt':-30}, False:{'dst_ge':-30}, None:{} }[storm]
+
+    broad  = eventhist(hargs, mode=mname, fwhm_lt=split, **sargs)
+    narrow = eventhist(hargs, mode=mname, fwhm_ge=split, **sargs)
 
     print mname + ' overall broad  rate: ' + format(100*np.sum(broad)/np.sum(z), '.1f') + '%'
     print mname + ' overall narrow rate: ' + format(100*np.sum(narrow)/np.sum(z), '.1f') + '%'
@@ -255,7 +354,7 @@ def fwhmplot(mode, split=1., save=False):
     [ PW[row, i].setMesh(x, y, r) for i, r in enumerate(rates) ]
   # Show or save the plot. 
   if save is True:
-    return PW.render(plotdir + 'fwhm_rate_' + mode + '.pdf')
+    return PW.render(plotdir + 'fwhm_rate_' + mode + '_' + {True:'storm', False:'calm', None:'all'}[storm] + '.pdf')
   else:
     return PW.render()
 
@@ -276,7 +375,7 @@ def llppplot(mode, split=0., save=False):
                  ' \\geq ' + str(thresh) + tex('mW/m^2') )
   rowlabels = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
   collabels = ( 'L - L_{PP} < ' + str(split), 'L - L_{PP} > ' + str(split) )
-  PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title, unitlabel='\\%')
+  PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title)
   # Iterate over the filters. 
   for row, mname in enumerate( ('P1', 'P2') if mode=='p' else ('T1', 'T2') ):
     # Grab a histogram of the events, filtered by spectral width. 
@@ -297,40 +396,65 @@ def llppplot(mode, split=0., save=False):
     return PW.render()
 
 # =============================================================================
+# ======================================================= All Events by L - LPP
+# =============================================================================
+
+def ppplot(split=0., save=False):
+  global pargs, plotdir
+  # Set up the grid and 2D histogram based on probe position. 
+  pos = getpos(**pargs)
+  x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
+  # Set up the window. 
+  PW = plotWindow( ncols=2, nrows=1, **bep() )
+  title = notex('Pc4 Rate by Plasmapause Location: ' + tex('ImS') +
+                 ' \\geq ' + str(thresh) + tex('mW/m^2') )
+  collabels = ( 'L - L_{PP} < ' + str(split), 'L - L_{PP} > ' + str(split) )
+  PW.setParams(collabels=collabels, title=title)
+  # Grab a histogram of the events, filtered by L-LPP. 
+  inside  = eventhist(hargs, llpp_lt=split)
+  outside = eventhist(hargs, llpp_ge=split)
+  # Normalize by how long each region was sampled. 
+  rates  = 100*zmask(inside)/z, 100*zmask(outside)/z
+  # Add the mesh to the plot. 
+  [ PW[i].setMesh(x, y, r) for i, r in enumerate(rates) ]
+  # Show or save the plot. 
+  if save is True:
+    return PW.render(plotdir + 'llpp' + label + '.pdf')
+  else:
+    return PW.render()
+
+# =============================================================================
 # ========================================== Poloidal or Toroidal Events by Dst
 # =============================================================================
 
 # Let's take a look at a plot of how FWHM depends on mode. 
 def dstplot(mode, split=-30., save=False):
   global pargs, plotdir
-  # Set up the grid and 2D histogram based on probe position. 
-  pos = getpos(**pargs)
-  x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
   # Set up the window. 
   PW = plotWindow( ncols=2, nrows=2, **bep() )
   modename = 'Poloidal' if mode=='p' else 'Toroidal'
   title = notex(modename + ' Pc4 by Dst: ' + tex('ImS') +
                  ' \\geq ' + str(thresh) + tex('mW/m^2') )
   rowlabels = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
-  collabels = ( notex('Dst') + ' > ' + znt(split) + notex('nT'), 
+  collabels = ( notex('Dst') + ' \\geq ' + znt(split) + notex('nT'), 
                 notex('Dst') + ' < ' + znt(split) + notex('nT') )
-  PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title, unitlabel='\\%')
+  PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title)
   # Iterate over the filters. 
   for row, mname in enumerate( ('P1', 'P2') if mode=='p' else ('T1', 'T2') ):
-    # Grab a histogram of the events, filtered by spectral width. 
-    storm  = eventhist(hargs, mode=mname, dst_lt=split)
-    calm = eventhist(hargs, mode=mname, dst_ge=split)
-
-    print mname + ' overall calm  rate: ' + format(100*np.sum(calm)/np.sum(z), '.1f') + '%'
-    print mname + ' overall storm rate: ' + format(100*np.sum(storm)/np.sum(z), '.1f') + '%'
-
-    # Normalize by how long each region was sampled. 
-    rates  = 100*zmask(calm)/z, 100*zmask(storm)/z
-    # Add the mesh to the plot. 
-    [ PW[row, i].setMesh(x, y, r) for i, r in enumerate(rates) ]
+    # Calm and storm. 
+    for col, key in enumerate( ('dst_ge', 'dst_lt') ):
+      # Set up the grid and 2D histogram based on probe position. 
+      pos = getpos( **dict( pargs.items() + {key:split}.items() ) )
+      x, y, z, hargs = [ pos[k] for k in ('x', 'y', 'z', 'hargs') ]
+      # Get a histogram of events which are the desired mode and storm phase. 
+      eh = eventhist( hargs, mode=mname, **{key:split} )
+      # Normalize the event count based on sample time. 
+      rate  = 100*zmask(eh)/z
+      # Add the mesh to the plot. 
+      PW[row, col].setMesh(x, y, rate)
   # Show or save the plot. 
   if save is True:
-    return PW.render(plotdir + 'dst_rate_' + mode + '.pdf')
+    return PW.render(plotdir + 'dst_rate_' + mode + label + '.pdf')
   else:
     return PW.render()
 
@@ -408,12 +532,22 @@ def paramplot(name, save=False):
 # ==================================================================== Position
 # =============================================================================
 
-def getpos(dl=0.5, dm=1, lmin=None, lmax=None):
-  # The options for units are hours and days. 
-  secondsperday = 86400.
+def getpos(dl=0.5, dm=1, lmin=None, lmax=None, dst_ge=None, dst_lt=None):
+  # Scale from five-minute chunks to half-hour events. 
+  secondsper = 1800.
   # The orbit of both RBSP paths has been broken into five-minute chunks. Grab
   # the position of each chunk which gives good data for E dot B = 0. 
-  poslines = [ line for line in read('pos.txt') if line.endswith('ok') ]
+  poslines = g2a( line for line in read('pos.txt') if 'ok' in line )
+  # If we only want the position when Dst is above a certain threshold. 
+  if dst_ge is not None:
+    dst = g2a( int( line.split()[7] ) for line in poslines )
+    inew = np.nonzero(dst >= dst_ge)[0]
+    poslines = poslines[inew]
+  # If we only want the position when Dst is below a certain threshold.
+  if dst_lt is not None:
+    dst = g2a( int( line.split()[7] ) for line in poslines )
+    inew = np.nonzero(dst < dst_lt)[0]
+    poslines = poslines[inew]
   # Get the date range. 
   dates = ( poslines[0].split()[1], poslines[-1].split()[1] )
   # Arrange the positions as an array of floats. 
@@ -438,7 +572,7 @@ def getpos(dl=0.5, dm=1, lmin=None, lmax=None):
   x, y = -l*np.sin(2*pi*m/24.), -l*np.cos(2*pi*m/24.)
   # Bin the position data into a 2D histogram, then scale it to days. 
   h = np.histogram2d(pos[:, 0], posm, **hargs)[0]
-  z = 300*h/secondsperday
+  z = 300*h/secondsper
   # Return the position data. Total amount of usable time too. 
   return {'dates':dates, 'l':l, 'm':m, 'x':x, 'y':y, 'z':z, 'hargs':hargs}
 
@@ -511,29 +645,26 @@ def loadevents(mode=None, fwhm_ge=None, fwhm_lt=None, comp_ge=None, comp_lt=None
   # Return the remaining events. 
   return events
 
-# Returns a histogram of filtered events. 
+# Returns a histogram of filtered events. Each count is half an hour. 
 def eventhist(hargs, **kargs):
-  # Days per event. Scales to days from a count of half-hour events. 
-  dpe = 1800./86400.
   # Grab the events. 
   events = loadevents(**kargs)
-
   # If there are no events, return an empty histogram. 
   if events.size == 0:
-    return dpe*np.histogram2d([], [], **hargs)[0]
-
+    return np.histogram2d([], [], **hargs)[0]
   # Get the position from each. 
   pos = g2a( [ float(x) for x in line.split()[3:6] ] for line in events )
-  lshell, mlat, mlt = pos[:, 0], pos[:, 1], pos[:, 2]
+  lshell, mlt, mlat = pos[:, 0], pos[:, 1], pos[:, 2]
+  # Shift mlt a bit... we want our first bin centered at midnight. 
+  mltmax = hargs['range'][-1][-1]
+  mlt = np.where(mlt>mltmax, mlt - 24, mlt)
   # Assemble the positions of these events into a histogram, using the bins
-  # defined by hargs. Scale from a count of half-hour events to days. 
-  return dpe*np.histogram2d(lshell, mlt, **hargs)[0]
+  # defined by hargs. 
+  return np.histogram2d(lshell, mlt, **hargs)[0]
 
 # Returns a histogram of double events: those that trigger the poloidal and 
 # toroidal channels simultaneously. 
 def doublehist(hargs, pmode=None, tmode=None, **kargs):
-  # Days per event. Scales to days from a count of half-hour events. 
-  dpe = 1800./86400.
   # Grab the poloidal and toroidal events. 
   pev = loadevents(mode=pmode, double=True, **kargs)
   tev = loadevents(mode=tmode, double=True, **kargs)
@@ -542,20 +673,22 @@ def doublehist(hargs, pmode=None, tmode=None, **kargs):
   doubles = g2a( p + '\n' + t for p in pev for t in tev if p[:26]==t[:26] )
   # If there are no events, return an empty histogram. 
   if doubles.size == 0:
-    return dpe*np.histogram2d([], [], **hargs)[0]
+    return np.histogram2d([], [], **hargs)[0]
 
   dates = g2a( d[3:13] for d in doubles )
 
   # Tally up the days. 
-  print pmode, tmode
+  print pmode, tmode, kargs
   print '\tnumber of events: ', dates.size
   print '\tnumber of dates:  ', g2a( set(dates) ).size
 
   # Get the position for each event, then return a histogram of those events,
   # scaled to units of days. 
   pos = g2a( [ float(x) for x in line.split()[3:6] ] for line in doubles )
-  lshell, mlat, mlt = pos[:, 0], pos[:, 1], pos[:, 2]
-  return dpe*np.histogram2d(lshell, mlt, **hargs)[0]
+
+  lshell, mlt, mlat = pos[:, 0], pos[:, 1], pos[:, 2]
+
+  return np.histogram2d(lshell, mlt, **hargs)[0]
 
 # #############################################################################
 # #################################### Outer Magnetosphere and the Dungey Cycle
@@ -679,14 +812,16 @@ def zmask(x, thr=0):
   return masked_where(np.abs(x) <= thr, x)
 
 # Bullseye params for the plotter. 
-def bep():
+def bep(rate=True):
   tls = ('$-8$', '', '$-4$', '', '$0$', '', '$+4$', '', '$+8$')
+  colorbar = 'pct' if rate is True else 'pos' 
+  ncolors = 10 if rate is True else 12
   return {'earth':'top', 'flipx':True, 'grid':True, 'square':True, 
           'xlabel': 'Y' + notex(' (R_E)'), 'xlims':(-8, 8),
           'xticks':np.mgrid[-8:8:9j], 'xticklabels':tls, 
           'ylabel': 'X' + notex(' (R_E)'), 'ylims':(-8, 8), 
           'yticks':np.mgrid[-8:8:9j], 'yticklabels':tls, 'ylabelpad':-2, 
-          'colorbar':'pos' }
+          'colorbar':colorbar, 'ncolors':ncolors }
 
 # Space out a nice right-justified column. 
 def col(x, width=12, unit='', digs=2):
