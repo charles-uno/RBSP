@@ -53,7 +53,7 @@ def tdf(x):
     return str( float( format(x, '.0e') ) )
 
 
-label = ('_sharp' if 'sharp' in argv else '') + ('_nothresh' if 'nothresh' in argv else '_THRESH' if 'THRESH' in argv else '') + ('_lpp' if 'lpp' in argv else '')
+label = ('_sharp' if 'sharp' in argv else '') + ('_nothresh' if 'nothresh' in argv else '_THRESH' if 'THRESH' in argv else '') + ('_lpp' if 'lpp' in argv else '') + ('_phase' if 'phase' in argv else '')
 
 def main():
 
@@ -65,23 +65,23 @@ def main():
 #  # Location of the usable data. 
 #  [ posplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
 
-  # Location of all events, regardless of mode or harmonic. 
-  [ allplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
+#  # Location of all events, regardless of mode or harmonic. 
+#  [ allplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
 
-  # Location of events as a function of storm index. 
-  [ dstplot(mode, save='-i' in argv) for mode in ('p', 't') ]
+#  # Location of events as a function of storm index. 
+#  [ dstplot(mode, save='-i' in argv) for mode in ('p', 't') ]
 
-  # Location of all events, by parity and polarization. 
-  [ modeplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
+#  # Location of all events, by parity and polarization. 
+#  [ modeplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
 
-  # Location of simultaneous poloidal-toroidal events. 
-  doubleplot(save='-i' in argv)
+#  # Location of simultaneous poloidal-toroidal events. 
+#  doubleplot(save='-i' in argv)
 
-  # Location of poloidal events by compressional coupling. 
-  [ azmplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
+#  # Location of poloidal events by compressional coupling. 
+#  [ azmplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
 
   # Location of poloidal events by spectral width. 
-  [ [ fwhmplot(mode, split=1.5, storm=s, save='-i' in argv) for mode in ('p', 't') ] for s in (True, False, None) ]
+  [ [ fwhmplot(mode, split=1.3, storm=s, save='-i' in argv) for mode in ('p', 't') ] for s in (True, False, None) ]
 
 #  return paramplot(name='fwhm', save='-i' in argv)
 
@@ -498,27 +498,31 @@ def peek(arr, name=''):
   print '\t' + name + ' stdev  = ', np.std(arr)
   return
 
-def getparam(name, filt=''):
+def getparam(name, mode=''):
   global thresh
-  # Grab lines that are the correct mode. 
-  evlines = np.array( [ line for line in read('events.txt') if filt in line ] )
-  # Filter out anything below an amplitude threshold. 
-  amp = np.array( [ float( l.split()[10] ) for l in evlines ] )
-  bigenough = np.nonzero(amp - thresh >= 0)[0]
-  evlines = evlines[bigenough]
+#  # Grab lines that are the correct mode. 
+#  evlines = np.array( [ line for line in read('events.txt') if filt in line ] )
+#  # Filter out anything below an amplitude threshold. 
+#  amp = np.array( [ float( l.split()[10] ) for l in evlines ] )
+#  bigenough = np.nonzero(amp - thresh >= 0)[0]
+#  evlines = evlines[bigenough]
+
+  events = loadevents(mode=mode)
+
+
   # Match name to column. 
-  col = {'f':8, 'fwhm':9, 'amp':10, 'comp':11}[name]
+  col = {'lpp':6, 'f':8, 'fwhm':9, 'phase':10, 'amp':11, 'comp':12, 'dst':13}[name]
   # Figure out an appropriate range for the histogram. 
-  rng = {'f':(7, 25), 'fwhm':(0, 5), 'amp':(0, 1), 'comp':(0, 1)}[name]
-  bins = {'f':18, 'fwhm':20, 'amp':10, 'comp':10}[name]
+  rng = {'lpp':None, 'f':(7, 25), 'fwhm':(0, 5), 'phase':(45, 135), 'amp':(0, 1), 'comp':(0, 1), 'dst':(-100, 100)}[name]
+  bins = {'lpp':None, 'f':19, 'fwhm':20, 'phase':20, 'amp':10, 'comp':10, 'dst':20}[name]
   # Grab the list of values. 
-  arr = np.array( [ float( l.split()[col] ) for l in evlines ] )
+  arr = np.array( [ np.abs( float( l.split()[col] ) ) for l in events ] )
 
   peek(arr)
 
   # Compute the histogram. 
   vals, edges = np.histogram(arr, range=rng, bins=bins)
-  # Put points at bin centers. Normalize to the sum for rate. 
+  # Put points at bin centers. 
   return 0.5*( edges[1:] + edges[:-1] ), vals
 
 # =============================================================================
@@ -530,19 +534,29 @@ def paramplot(name, save=False):
   global plotdir
   # Set up the window. 
   PW = plotWindow(ncols=2, nrows=2, colorbar=None)
-  ttl = {'f':'Frequency', 'fwhm':'FWHM', 'amp':'Amplitude', 'comp':'Compressional Coupling'}[name]
+
+  ttl = {'lpp':'L_{PP}', 'f':'Frequency', 'fwhm':'FWHM', 'phase':'Phase', 'amp':'Amplitude', 'comp':'Compressional Coupling', 'dst':'Dst'}[name]
+
   title = notex('Pc4 ' + ttl)
-  rowlabels = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
+  rowlabels = ( notex('Odd'), notex('Even') )
   collabels = ( notex('Poloidal'), notex('Toroidal') )
   PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title)
-  xlims = { 'f':(7, 25), 'fwhm':(0, 10), 'amp':(0, 1), 'comp':(0, 1) }[name]
-  PW.setParams( xlims=xlims, yticklabels=(), ylabel=notex('Rate') )
+
+  if name=='phase':
+    PW.setParams( ylims=(0, 60), xlims=(45, 135), xticks=(45, 60, 75, 90, 105, 120, 135), xticklabels=('$45^\\circ$', '', '', '$90^\\circ$', '', '', '$135^\\circ$'), xlabel=notex('Phase'), ylabel=notex('Count') )
+  else:
+    PW.setParams( ylabel=notex('Rate') )
+
+
+#  xlims = { 'f':(7, 25), 'fwhm':(0, 10), 'amp':(0, 1), 'comp':(0, 1) }[name]
+#  bins = {'lpp':None, 'f':19, 'fwhm':20, 'phase':20, 'amp':10, 'comp':10, 'dst':20}[name]
+
   # Create a plot window to show different subsets of the events. 
   mfilt, hfilt = ('P', 'T'), ('1', '2')
   # Iterate over the filters. 
   for row, hf in enumerate(hfilt):
     for col, mf in enumerate(mfilt):
-      x, y = getparam(name, filt=mf+hf)
+      x, y = getparam(name, mode=mf+hf)
       dx = x[1] - x[0]
       ax = PW.cells[row, col].ax
       ax.bar( x - dx/2, y, width=dx )
@@ -634,6 +648,15 @@ def loadevents(mode=None, fwhm_ge=None, fwhm_lt=None, comp_ge=None, comp_lt=None
     amp = g2a( float( line.split()[11] ) for line in events )
     inew = np.nonzero(amp >= thresh)[0]
     events = events[inew]
+
+
+  # If we want to be picky about the phase, do that here. The events file includes phases as bad as 45 degrees. 
+  if 'phase' in argv:
+    phase = g2a( float( line.split()[10] ) for line in events )
+    inew = np.nonzero( np.abs(phase - 90) < 30. )
+    events = events[inew]
+
+
   # Filter on compressional coupling (lower bound). 
   if comp_ge is not None:
     comp = g2a( float( line.split()[12] ) for line in events )
