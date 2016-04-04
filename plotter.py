@@ -62,8 +62,8 @@ def main():
   # Just tell me how many there are of each mode. 
   count()
 
-#  # Location of the usable data. 
-#  [ posplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
+  # Location of the usable data. 
+  [ posplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
 
 #  # Location of all events, regardless of mode or harmonic. 
 #  [ allplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
@@ -80,8 +80,8 @@ def main():
 #  # Location of poloidal events by compressional coupling. 
 #  [ azmplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
 
-  # Location of poloidal events by spectral width. 
-  [ [ fwhmplot(mode, split=1.3, storm=s, save='-i' in argv) for mode in ('p', 't') ] for s in (True, False, None) ]
+#  # Location of poloidal events by spectral width. 
+#  [ [ fwhmplot(mode, split=1.3, storm=s, save='-i' in argv) for mode in ('p', 't') ] for s in (True, False, None) ]
 
 #  return paramplot(name='fwhm', save='-i' in argv)
 
@@ -170,7 +170,7 @@ def allplot(storm=None, save=False):
   PW.setMesh(x, y, 100*zmask(eh)/z)
 
   eventcount = np.sum(eh)
-  pct = notex('Rate: ') + tdf( 100.*eventcount/np.sum(z) ) + '\\%'
+  pct = notex('Rate: ') + tdf( 100.*np.mean(eh/z) ) + '\\%'
   count = notex('Count: ') + znt(eventcount)
   PW.setParams(lcorner=count, rcorner=pct)
 
@@ -217,7 +217,7 @@ def modeplot(storm=None, save=False):
       eh = eventhist(hargs, mode=mf+hf, **sargs)
 
       eventcount = np.sum(eh)
-      pct = tdf( 100.*eventcount/np.sum(z) ) + '\\%'
+      pct = tdf( 100.*np.mean(eh/z) ) + '\\%'
       count = znt(eventcount)
       PW[row, col].setParams(lcorner=count, rcorner=pct)
 
@@ -259,7 +259,7 @@ def doubleplot(save=False, split=-30.):
       dh = doublehist(hargs, pmode='P' + harm, tmode='T' + harm, **{key:split})
 
       eventcount = np.sum(dh)
-      pct = tdf( 100.*eventcount/np.sum(z) ) + '\\%'
+      pct = tdf( 100.*np.mean(dh/z) ) + '\\%'
       count = znt(eventcount)
       PW[row, col].setParams(lcorner=count, rcorner=pct)
 
@@ -311,12 +311,12 @@ def azmplot(storm=None, save=False, split=0.2):
     rates  = 100*zmask(smallm)/z, 100*zmask(bigm)/z
 
     smallmcount = np.sum(smallm)
-    pct = tdf( 100.*smallmcount/np.sum(z) ) + '\\%'
+    pct = tdf( 100.*np.mean(smallm/z) ) + '\\%'
     count = znt(smallmcount)
     PW[row, 0].setParams(lcorner=count, rcorner=pct)
 
     bigmcount = np.sum(bigm)
-    pct = tdf( 100.*bigmcount/np.sum(z) ) + '\\%'
+    pct = tdf( 100.*np.mean(bigm/z) ) + '\\%'
     count = znt(bigmcount)
     PW[row, 1].setParams(lcorner=count, rcorner=pct)
 
@@ -364,12 +364,12 @@ def fwhmplot(mode, split=1., storm=None, save=False):
     narrow  = eventhist(hargs, mode=mname, fwhm_lt=split, **sargs)
 
     broadcount = np.sum(broad)
-    pct = tdf( 100.*broadcount/np.sum(z) ) + '\\%'
+    pct = tdf( 100.*np.mean(broad/z) ) + '\\%'
     count = znt(broadcount)
     PW[row, 0].setParams(lcorner=count, rcorner=pct)
 
     narrowcount = np.sum(narrow)
-    pct = tdf( 100.*narrowcount/np.sum(z) ) + '\\%'
+    pct = tdf( 100.*np.mean(narrow/z) ) + '\\%'
     count = znt(narrowcount)
     PW[row, 1].setParams(lcorner=count, rcorner=pct)
 
@@ -409,7 +409,7 @@ def dstplot(mode, split=-30., save=False):
       eh = eventhist( hargs, mode=mname, **{key:split} )
 
       eventcount = np.sum(eh)
-      pct = tdf( 100.*eventcount/np.sum(z) ) + '\\%'
+      pct = tdf( 100.*np.mean(eh/z) ) + '\\%'
       count = znt(eventcount)
       PW[row, col].setParams(lcorner=count, rcorner=pct)
 
