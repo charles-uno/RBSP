@@ -107,6 +107,8 @@ def tex(x):
              'real':'\\mathbb{R}\\mathrm{e}',
              # Axis labels. 
              'alt':notex('Altitude (km)'), 
+             'B':notex('Magnetic Field (nT)'), 
+             'comp':'B_z / B_x', 
              'f':notex('Frequency (mHz)'), 
              'L':notex('L'), 
              'L0':notex('L'), 
@@ -300,6 +302,12 @@ class tunaPlotter:
       cosq = np.cos( self.getArray(path, 'q') )
       cosq0 = cosq[:, 0]
       return cosq/cosq0[:, None]
+
+    if name=='comp':
+      return None
+
+
+
     # Driving electric field in mV/m. 
     elif name=='EyDrive':
       return self.getArray(path, 'JyDrive')/self.getArray(path, 'epsPerp')
@@ -367,6 +375,11 @@ class tunaPlotter:
     # Alfven bounce frequency. The axis will be set by the lines we draw. 
     elif name=='f':
       return None
+
+    elif name=='B':
+      return None
+
+
     # Toroidal Poynting flux. 
     elif name=='Stor':
       return self.getArray(path, 'Ex', real=real)*np.conj( self.getArray(path, 'By', real=real) )/phys.mu0
@@ -392,6 +405,13 @@ class tunaPlotter:
     # Toroidal magnetic field contribution to the energy density. 
     elif name=='uBy':
       return 0.5*self.getArray(path, 'By')**2 / phys.mu0
+
+    # Energy in the compressional magnetic field... kinda. This is ignoring the
+    # zeroth-order magnetic field. Really, this is just for computing the RMS
+    # magnetic field. 
+    elif name=='uBz':
+      return 0.5*self.getArray(path, 'Bz')**2 / phys.mu0
+
     # Magnetic field contribution to the energy density. 
     elif name=='uB':
       return self.getArray(path, 'uBx') + self.getArray(path, 'uBy')
@@ -435,6 +455,20 @@ class tunaPlotter:
       ux, uy = self.getArray(path, 'uEx'), self.getArray(path, 'uBy')
       dV = self.getArray(path, 'dV')
       return np.sum( np.sum( (ux + uy)*dV[:, :, None], 1), 0)
+
+    # Integrated energy in each field component. This isn't really physical for
+    # the compressional magnetic field -- it's a tool for computing the RMS. 
+    elif name=='UBx':
+      u, dV = self.getArray(path, 'uBx'), self.getArray(path, 'dV')
+      return np.sum( np.sum( u*dV[:, :, None], 1), 0)
+    elif name=='UBz':
+      u, dV = self.getArray(path, 'uBz'), self.getArray(path, 'dV')
+      return np.sum( np.sum( u*dV[:, :, None], 1), 0)
+
+    # Interated volume. 
+    elif name=='V':
+      return np.sum( self.getArray(path, 'dV') )
+
     # Alfven speed. 
     elif name=='vA' or name=='va':
       return 1/np.sqrt( self.getArray(path, 'epsp')*phys.mu0 )
@@ -930,6 +964,15 @@ class plotCell:
         targs = {'x':0.5, 'y':0.5, 'horizontalalignment':'center', 
                  'verticalalignment':'center', 'transform':self.ax.transAxes}
         self.ax.text(s='$' + val + '$', **targs)
+
+
+      elif key=='toptext':
+        targs = {'x':0.5, 'y':0.90, 'horizontalalignment':'center', 
+                 'verticalalignment':'top', 'transform':self.ax.transAxes}
+        self.ax.text(s='$' + val + '$', **targs)
+
+
+
       # Horizontal axis coordinate. 
       elif key=='x':
         self.x = val
@@ -1620,6 +1663,15 @@ def num(x):
 # Turns the number 3 into '003'. If given a float, truncate it. 
 def znt(x, width=0):
   return str( int(x) ).zfill(width)
+
+# Two decimal places. If it's a number bigger than one, that's two sig figs. Less than one, only one sig fig, to save space. 
+def tdp(x):
+  if x < 1:
+    return str( float( format(x, '.0e') ) )
+  elif x < 10:
+    return str( float( format(x, '.1e') ) )
+  else:
+    return str( int( float( format(x, '.1e') ) ) )
 
 # #############################################################################
 # ################################################################ Array Reader
