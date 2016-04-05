@@ -46,6 +46,9 @@ from random import choice
 from sys import argv, stdout
 from time import localtime as lt, time
 
+from numpy.ma import masked_where
+
+
 # #############################################################################
 # ####################################################### Constants of Interest
 # #############################################################################
@@ -90,6 +93,7 @@ def tex(x):
              'Ey':'E_y', 
              'Ez':'E_z', 
              'L3S':'L^3\\widetilde{S}', 
+             'S':'\\widetilde{S}', 
              'EB':'\\widetilde{E}\\widetilde{B}^*', 
              'EBp':'-\\widetilde{E}_y\\widetilde{B}^*_x', 
              'EBt':'\\widetilde{E}_x\\widetilde{B}^*_y', 
@@ -116,6 +120,7 @@ def tex(x):
              'lat0':notex('Latitude'), 
              't':notex('Time (s)'), 
              'logU':notex('Log') + 'U' + notex(' (\\frac{GJ}{rad})'), 
+             'logS':notex('Log') + '\\widetilde{S}' + notex(' (\\frac{mW}{m^2})'), 
              'X':notex('X (R_E)'), 
              'Z':notex('Z (R_E)')
             }
@@ -579,6 +584,9 @@ class plotWindow:
   shax = None
   tax = None
   uax = None
+
+  fax = None
+
   # The Plot Window also holds an array of Plot Cells, one for each data axis. 
   cells = None
   # Keep track of the style of color bar, if any, we'll be using. Use 'log' for
@@ -596,7 +604,7 @@ class plotWindow:
   # --------------------------------- Initialize Plot Window and Space Out Axes
   # ---------------------------------------------------------------------------
 
-  def __init__(self, ncols=1, nrows=1, cells=None, square=False, joinlabel=None, **kargs):
+  def __init__(self, ncols=1, nrows=1, cells=None, square=False, joinlabel=None, footlabel=False, **kargs):
     # If initialized with an array of cells, this isn't a real Plot Window... 
     # it's a temporary object that allows the access of a slice of cells. 
     if cells is not None:
@@ -624,7 +632,7 @@ class plotWindow:
     titleMargin = 15
     headMargin = 1 if ncols<2 and joinlabel is None else 10
     unitMargin = 10
-    footMargin = 20
+    footMargin = 30 if footlabel is True else 20
     # The size of each subplot depends on how many columns there are. The total
     # width of the subplot area (including padding) will always be the same.
     # No more than four columns are allowed. 
@@ -694,6 +702,11 @@ class plotWindow:
     top, bot = titleMargin + headMargin - unitMargin, titleMargin + headMargin
     left, right = -sideMargin + cellPadding, -sideMargin + 3*cellPadding
     self.uax = plt.subplot( tiles[top:bot, left:right] )
+
+    # Make room for a label at the bottom. If footlabel isn't True, this will
+    # probably overlap with x axis labels. 
+    self.fax = plt.subplot( tiles[-15:-5, sideMargin:-sideMargin] )
+
     # The title, header, and side axes are for spacing text, not showing data.
     # The axes themselves need to be hidden. The colorbar axis is hidden by
     # default as well, though it may be un-hidden later. 
@@ -701,6 +714,7 @@ class plotWindow:
     self.shax.axis('off')
     self.cax.axis('off')
     self.uax.axis('off')
+    self.fax.axis('off')
     [ x.axis('off') for x in self.sax ]
     [ x.axis('off') for x in self.hax ]
     # We're done setting up the axes. If we were given any other arguments, 
@@ -728,6 +742,11 @@ class plotWindow:
         self.colorbar = val
         if self.colorbar:
           self.cax.axis('on')
+
+      # Write something in the foot label. 
+      elif key=='footer':
+          self.fax.text(s='$' + val + '$', **targs)
+
       # Overwrite the default number of colors. 
       elif key=='ncolors':
         self.ncolors = val
@@ -1688,6 +1707,18 @@ def tdp(x):
     return str( float( format(x, '.1e') ) )
   else:
     return str( int( float( format(x, '.1e') ) ) )
+
+
+
+# Make sure we don't throw anything infinite on the plot. 
+def fmask(x):
+  return masked_where(np.logical_not( np.isfinite(x) ), x)
+
+# Also leave out any zeros. 
+def zmask(x, thr=0):
+  return masked_where(np.abs(x) <= thr, x)
+
+
 
 # #############################################################################
 # ################################################################ Array Reader

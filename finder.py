@@ -34,8 +34,8 @@ def main():
 #  # Append Dst to the list of probe locations. 
 #  return adddst_pos()
 
-  # Append LPP to the list of probe locations. 
-  return addlpp_pos()
+#  # Append LPP to the list of probe locations. 
+#  return addlpp_pos()
 
   # What dates do we have data for? 
   dates = sorted( os.listdir('/media/My Passport/rbsp/pkls/') )
@@ -59,6 +59,7 @@ def main():
   # Search for events. Do the days in random order, for easier debugging. We
   # can just look at the first event we find. 
   for date in np.random.permutation(dates):
+
     print date
     # Check both probes. Thirty minute chunks. 
     [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
@@ -193,7 +194,7 @@ def checkdate(probe, date, mpc=30):
 #    print '\t' + timestr(t)[1]
     # Check for poloidal and toroidal events independently. 
     ev = today.getslice(t, duration=60*mpc)
-    evdicts = [ ev.standing(m, pc4=True, thresh=0.001, phase=45) for m in ('p', 't') ]
+    evdicts = [ ev.wave(m, pc4=True) for m in ('p', 't') ]
     # If there's anything to save, do so, then plot it. 
     if keepevent(evdicts):
       plotevent(ev, save='-i' in argv)
@@ -213,7 +214,7 @@ def evheader():
   mh = col('mode+harm')
   fdf = col('freq') + col('FWHM')
   phase = col('phase')
-  mag = col('L^3EB/mu0')
+  mag = col('amplitude')
   comp = col('Bz/Bx')
   dst = col('Dst')
   return pdt + pos + lpp + mh + fdf + phase + mag + comp + dst + col('double?')
@@ -241,7 +242,7 @@ def keepevent(evdicts):
     return 0
   # If there's one event, save it. 
   elif len(evds)==1:
-    text = evline( evds[0] ) + col('ONLY')
+    text = evline( evds[0] ) + col('---')
   # If there are two events, indicate which is larger. 
   elif len(evds)==2:
     ip = 0 if evds[0]['s'] > evds[1]['s'] else 1
@@ -261,50 +262,74 @@ def keepevent(evdicts):
 # #############################################################################
 
 def evtitle(d):
-  mh = d['mode'].upper() + str( d['harm'] )
-  frq = 'f\\!=\\!' + fmt(d['f'], digs=2) + tex('mHz')
-  fwhm = notex('FWHM') + '\\!=\\!' + fmt(2.355*d['df'], digs=2) + tex('mHz')
-  phase = fmt(d['phase'], digs=0) + '^{\\circ}'
-  mag = tex('ImS') + '\\!=\\!' + fmt(d['s'], digs=3) + tex('mW/m^2')
-  comp = tex('real') + tex( 'BB' + d['mode'] ) + '\\!=\\!' + fmt(d['comp'], digs=2)
-  return '\\quad{}'.join( (mh, frq, fwhm, phase, mag, comp) )
+  if 45 < np.abs( d['phase'] ) < 135:
+    harm = 'Even' if d['harm']%2 else 'Odd'
+  else:
+    harm = 'Traveling'
+  mode = 'Poloidal' if d['mode'].upper()=='P' else 'Toroidal'
+  return notex(harm + ' ' + mode + ' Wave')
+
+#  harm = 'Even' if d['harm']%2 else 'Odd'
+#  mode = 'Poloidal' if d['mode'].upper()=='P' else 'Toroidal'
+#  name = notex(harm + ' ' + mode + ' Event:  ')
+#  # For FWHM, use 2.355*df. This is standard deviation. 
+#  freq = fmt(d['f'], digs=1) + tex('mHz') + '\\pm' + fmt(d['df'], digs=1) + tex('mHz')
+#  ampl = fmt(d['s'], digs=3) + tex('mW/m^2')
+#  phas = fmt(d['phase'], digs=0) + '^{\\circ}'
+#  return name + ampl + notex(',  ') + freq + notex(',  ') + phas
+
+def evtop(d):
+  if d is None:
+    return ''
+  freq = fmt(d['f'], digs=1) + tex('mHz')
+  ampl = fmt(d['s'], digs=3) + tex('mW/m^2')
+  phas = fmt(d['phase'], digs=0) + '^{\\circ}'
+  return '\\;\\;\\;\\;'.join( (ampl, freq, phas) )
+
+# Wrapper around np.log10 to avoid complaints about zero. 
+def log10(x):
+  return np.log10( np.maximum(x, 1e-20) )
 
 def plotevent(ev, save=False):
   global plotdir
   # Create plot window to hold waveforms and spectra. 
-  PW = plotWindow(nrows=3, ncols=2)
+  PW = plotWindow(nrows=3, ncols=2, footlabel=True)
   # Index the poloidal, toroidal, and field-aligned modes. 
   modes = ('p', 't', 'z')
   # Plot waveforms as a function of time. 
   PW[:, 0].setParams( **ev.coords('waveform', cramped=True) )
   [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
   [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
-  # Grab real and imaginary Fourier-domain Poynting flux, scaled by L^3. 
-  sift = [ np.abs( np.imag( ev.sfft(m) ) ) for m in modes ]
-  srft = [ np.abs( np.real( ev.sfft(m) ) ) for m in modes ]
-  # Compute poloidal and/or toroidal standing waves. 
-  stand = [ ev.standing(m, pc4=True, thresh=0.001) for m in ('p', 't') ]
-  # Scale the Poynting flux by the largest value or the largest fit. 
-  standmax = max( st['s'] for st in stand if st is not None )
-  snorm = max(np.max(sift), np.max(srft), standmax)
-  # Plot the real and imaginary spectral components. 
+  # Grab the Fourier-domain Poynting flux. It's scaled by L^3 to give values at
+  # the ionosphere. 
+  scomplex = [ ev.sfft(m) for m in modes ]
+  sreal = [ np.abs( np.real(s) ) for s in scomplex ]
+  simag = [ np.abs( np.imag(s) ) for s in scomplex ]
+  stotal = [ np.abs(s) for s in scomplex ]
+  # Find the waves in this event. 
+  waves = [ ev.wave(m, pc4=True) for m in modes ]
+  [ PW[i, 1].setParams( toptext=evtop(w) ) for i, w in enumerate(waves) ]
+
+  # Plot the spectra. 
   PW[:, 1].setParams( **ev.coords('spectra', cramped=True) )
-  [ PW[i, 1].setLine(s/snorm, 'm') for i, s in enumerate(sift) ]
-  [ PW[i, 1].setLine(s/snorm, 'g') for i, s in enumerate(srft) ]
-  # Plot the Gaussian fit of the imaginary spectral component. 
+  [ PW[i, 1].setLine(log10(s), 'm') for i, s in enumerate(simag) ]
+  [ PW[i, 1].setLine(log10(s), 'g') for i, s in enumerate(sreal) ]
+  # Plot the Gaussian fit of the total Poynting flux. 
   f = np.linspace(0, 50, 1000)
-  for i, st in enumerate(stand):
-    args = (0, 0, 1) if st is None else ( st['s'], st['f'], st['df'] )
-    PW[i, 1].setLine(f, ev.gauss(f, *args)/snorm, 'k--')
+  for i, w in enumerate(waves):
+    args = (0, 0, 1) if w is None else ( w['s'], w['f'], w['df'] )
+    PW[i, 1].setLine(f, log10( ev.gauss(f, *args) ), 'k--')
+
   # Plot title and labels. 
   rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
   collabels = ( notex('B (Red) ; E (Blue)'), 
-                tex('imag') + tex('L3S') + notex(' (Magenta) ; ') + 
-                tex('real') + tex('L3S') + notex(' (Green)') )
-  PW.setParams(collabels=collabels, title=ev.label(), rowlabels=rowlabels)
+                tex('imag') + tex('S') + notex(' (Magenta) ; ') + 
+                tex('real') + tex('S') + notex(' (Green)') )
+  PW.setParams(collabels=collabels, footer=ev.label(), rowlabels=rowlabels)
   # Information about the wave(s) goes in the side label. 
-  tlist = [ evtitle(st) for st in stand if st is not None ]
-  PW.setParams( sidelabel='$\n$'.join(tlist) )
+  tlist = [ evtitle(w) for w in waves if w is not None ]
+  PW.setParams( title=notex('Waveforms and Spectra: ') + notex(' and ').join(tlist) )
+
   # Show the plot, or save it as an image. 
   if save is True:
     return PW.render(plotdir + ev.name + '.png')

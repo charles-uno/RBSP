@@ -17,8 +17,6 @@
 from day import *
 from plotmod import *
 
-from numpy.ma import masked_where
-
 from socket import gethostname
 
 # #############################################################################
@@ -865,14 +863,6 @@ def dungey():
 # into an array. 
 def g2a(expr):
   return np.array( list(expr) )
-
-# Make sure we don't throw anything infinite on the plot. 
-def fmask(x):
-  return masked_where(np.logical_not( np.isfinite(x) ), x)
-
-# Also leave out any zeros. 
-def zmask(x, thr=0):
-  return masked_where(np.abs(x) <= thr, x)
 
 # Bullseye params for the plotter. 
 def bep(rate=True):

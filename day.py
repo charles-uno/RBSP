@@ -294,7 +294,7 @@ class event:
                       noverlap=t.size/2 - 1)[1]
 
   # ---------------------------------------------------------------------------
-  # -------------------------------------------------- Look for a Standing Wave
+  # ----------------------------------------------------------- Look for a Wave
   # ---------------------------------------------------------------------------
 
   # Define Gaussian function. 
@@ -314,66 +314,54 @@ class event:
     except:
       return None
 
-  # Get the absolute value of the imaginary component of the Fourier-domain 
-  # Poynting flux. This corresponds to the power in the standing wave. Try to
-  # fit a Gaussian to the spectrum. 
-  def standing(self, mode, pc4=False, thresh=None, phase=0.):
+  # Find the best wave we can in this event. 
+  def wave(self, mode, pc4=False, thresh=0.001):
+    # Bz doesn't give Poynting flux in the z direction. 
+    if mode=='z':
+      return None
     # If the event is bad, bail. 
     if not self.isok():
       return None
-    # Fit a Gaussian to the standing wave (imaginary) spectrum. If the fit
-    # fails, bail. 
+    # Fit a Gaussian to the magnitude of the Poynting flux. 
     f, s = self.frq(), self.sfft(mode)
-    gfit = self.gaussfit(f, np.abs( np.imag(s) ) )
+    gfit = self.gaussfit(f, np.abs(s) )
+    # If the fit fails, bail. 
     if gfit is None:
       return None
-    # Optionally, insist the peak be greater than a threshold. 
+    # Threshold the size of the peak to respect instrument sensitivity. 
     if not gfit[0] > thresh:
       return None
-    # Optionally, only return a standing wave if it's in the Pc4 band. 
+    # Optionally, discard any event that's not in the Pc4 frequency band. 
     if pc4 is True and not 7 < gfit[1] < 25:
       return None
-    # Make sure this Gaussian is describing the most interesting thing in the
-    # frame. If the peak of the fit isn't close to the peak of the spectrum --
-    # absolute value, not just the standing wave part -- bail. 
+    # If the Gaussian peak is offset from the peak of the discrete Fourier
+    # transform by more than 5mHz, bail. 
     imax = np.argmax( np.abs(s) )
     if not np.abs( f[imax] - gfit[1] ) < 5:
       return None
-    # Optionally, impose a phase cutoff. Make sure that this is mostly a
-    # standing wave, not a traveling wave. Test at the point closest to the
-    # Gaussian peak. 
+    # Impose a coherence cutoff, to make sure that the phase can be computed
+    # reliably. Otherwise, we're just fitting noise. 
     ifit = np.argmin( np.abs( f - gfit[1] ) )
-    ph = np.angle(s[ifit], deg=True)
-    if not phase < np.abs(ph) < 180 - phase:
-      return None
-    # If the coherence is low, then we're just fitting noise. Bail. 
-    coh = self.coh(mode)[ifit]
-    if not coh > 0.9:
+    if not self.coh(mode)[ifit] > 0.9:
       return None
     # If the harmonic structure of this wave is ambiguous (because we're very
     # close to the magnetic equator), also bail. 
     harm = self.harm(mode)[ifit]
     if not harm:
       return None
+    # Compute the phase offset between the electric and magnetic fields. 
+    phase = np.angle(s[ifit], deg=True)
     # Grab the strength of the compressional coupling, too. Note that we want
     # the real component -- even though the parallel and perpendicular magnetic
     # fields have opposite harmonic structures, they should return to
     # equilibrium in phase with one another. 
     comp = np.abs( np.real( self.fft('Bz')/self.fft('B' + mode) ) )[ifit]
-
-    # How much energy is in the field here? How fast is it being lost to the
-    # traveling wave? We could sorta compute this by looking at the ratio of
-    # the traveling wave Poynting flux and the magnetic energy, B^2/2mu0, but
-    # that's not great for fundamental modes which have a magnetic field node
-    # at the equator. To get the energy in the electric field, we would need to
-    # know the local Alfven speed. 
-
     # Assemble information about the wave/fit into a dictionary to return. 
     return {'mode':mode, 's':gfit[0], 'f':gfit[1], 'df':gfit[2], 'i':ifit,
-            'coh':coh, 'harm':harm, 'comp':comp, 'date':self.date, 
+            'harm':harm, 'comp':comp, 'date':self.date, 'phase':phase,
             'time':self.time, 'probe':self.probe, 'lshell':self.avg('lshell'), 
             'mlat':self.avg('mlat'), 'mlt':self.avg('mlt'), 'lpp':self.lpp, 
-            'dst':self.dst, 'phase':ph}
+            'dst':self.dst}
 
   # ---------------------------------------------------------------------------
   # --------------------------------------------------- Frequency-Domain Ratios
@@ -445,13 +433,15 @@ class event:
 
   # Assemble event properties into a label. 
   def label(self):
-    probename = self.probe.upper()
-    lname = 'L\\!\\!=\\!\\!' + self.lbl('lshell')
-    mltname = self.lbl('mlt') + 'MLT'
-    mlatname = self.lbl('mlat') + 'MLAT'
-    lppname = 'L_{PP}\\!\\!=\\!\\!' + format(self.lpp, '.1f')
-    dstname = notex('Dst') + '\\!\\!=\\!\\!' + format(self.dst, '.0f') + notex('nT')
-    return notex( '\\quad{}'.join( (probename, self.date, self.time[:5], lname, mltname, mlatname, lppname, dstname) ) )
+    probename = notex( 'RBSP-' + self.probe.upper() )
+    lname = 'L\\!=\\!' + self.lbl('lshell')
+    mltname = self.lbl('mlt') + notex('MLT')
+    mlatname = self.lbl('mlat') + notex('MLAT')
+    lppname = 'L_{PP}\\!=\\!' + format(self.lpp, '.1f')
+    dstname = notex('Dst') + '\\!=\\!' + format(self.dst, '.0f') + notex('nT')
+    t0name = timestr(self.t0)[1][:5]
+    t1name = timestr(self.t1)[1][:5]
+    return '\\quad{}'.join( (probename, notex(self.date), lname, mltname, mlatname, lppname, dstname) )
 
   # Label describing the best wave in the given mode, selected based on electric
   # field FFT magnitude. 
@@ -488,7 +478,8 @@ class event:
       kargs['xticklabels'] = [ '$' + notex( timestr(t)[1][:5] ) + '$' for t in kargs['xticks'] ]
       kargs['xticklabels'][1::2] = ['']*len( kargs['xticklabels'][1::2] )
       # Vertical axis. 
-      kargs['ylabel'] = notex('\\cdots (nT ; \\frac{mV}{m})')
+#      kargs['ylabel'] = notex('\\cdots (nT ; \\frac{mV}{m})')
+      kargs['ylabel'] = notex('E  (\\frac{mV}{m})  ;  B  (nT)')
       kargs['ylabelpad'] = -2
       kargs['ylims'] = (-4, 4)
       kargs['yticks'] = range(-4, 5)
@@ -504,10 +495,12 @@ class event:
       kargs['xticklabels'] = [ '$' + znt(t) + '$' for t in kargs['xticks'] ]
       kargs['xticklabels'][1::2] = ['']*len( kargs['xticklabels'][1::2] )
       # Vertical axis. 
-      kargs['ylabel'] = notex('Coherence')
-      kargs['ylims'] = (0, 1)
-      kargs['yticks'] = (0, 0.25, 0.5, 0.75, 1)
-      kargs['yticklabels'] = ('$0$', '', '', '', '$1$')
+      kargs['ylabel'] = tex('S') + notex(' (\\frac{mW}{m^2})')
+      kargs['ylims'] = (-3, 0)
+      kargs['yticks'] = (-3., -2.5, -2., -1.5, -1., -0.5, 0.)
+      kargs['yticklabels'] = ('$0.001$', '', '$0.01$', '', '$0.1$', '', '$1$')
+      kargs['axright'] = True
+      ylabelpad = -50
     return kargs
 
 # #############################################################################
