@@ -944,6 +944,22 @@ class plotCell:
       elif key=='flipx' and bool(val):
         self.flipx = True
 
+      # Put some text in the corner. 
+      elif key=='lcorner':
+        targs = {'x':0.03, 'y':0.03, 'horizontalalignment':'left', 
+                 'verticalalignment':'bottom', 'transform':self.ax.transAxes,
+                 'fontsize':16}
+        self.ax.text(s='$' + val + '$', **targs)
+
+      # Put some text in the corner. 
+      elif key=='rcorner':
+        targs = {'x':0.97, 'y':0.03, 'horizontalalignment':'right', 
+                 'verticalalignment':'bottom', 'transform':self.ax.transAxes,
+                 'fontsize':16}
+        self.ax.text(s='$' + val + '$', **targs)
+
+
+
 
 
       # Draw the grid. 
