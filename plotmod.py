@@ -815,6 +815,10 @@ class plotWindow:
   def setMesh(self, *args, **kargs):
     return [ cell.setMesh(*args, **kargs) for cell in self.cells.flatten() ]
 
+  # If the window gets passed a bar plot, just send it along to each cell. 
+  def setBars(self, *args, **kargs):
+    return [ cell.setBars(*args, **kargs) for cell in self.cells.flatten() ]
+
   # ---------------------------------------------------------------------------
   # ---------------------------------------------------------- Get Cell Extrema
   # ---------------------------------------------------------------------------
@@ -912,6 +916,10 @@ class plotCell:
   x, y, cz, mz, ckargs, mkargs = None, None, None, None, None, None
   # A plot can have any number of lines drawn on it. Those will be stored here. 
   lines = None
+
+  bars = None
+
+
   # If we manually set the axis limits, we want to ignore the automatically-set
   # limits that come down the line later. 
   xlims, ylims = (None, None), (None, None)
@@ -977,10 +985,6 @@ class plotCell:
                  'fontsize':16}
         self.ax.text(s='$' + val + '$', **targs)
 
-
-
-
-
       # Draw the grid. 
       elif key=='grid':
         self.grid = val
@@ -1000,13 +1004,10 @@ class plotCell:
                  'verticalalignment':'center', 'transform':self.ax.transAxes}
         self.ax.text(s='$' + val + '$', **targs)
 
-
       elif key=='toptext':
         targs = {'x':0.5, 'y':0.90, 'horizontalalignment':'center', 
                  'verticalalignment':'top', 'transform':self.ax.transAxes}
         self.ax.text(s='$' + val + '$', **targs)
-
-
 
       # Horizontal axis coordinate. 
       elif key=='x':
@@ -1121,6 +1122,21 @@ class plotCell:
       exit()
     return
 
+  def setBars(self, *args, **kargs):
+    # Initialize line list. 
+    if self.bars is None:
+      self.bars = []
+    # If we're given two numpy arrays, the first is the horizontal coordinate. 
+    if len(args)>1 and isinstance(args[1], np.ndarray):
+      self.bars.append( (args, kargs) )
+      # If we don't yet have a horizontal coordinate, keep this one. 
+      if self.x is None:
+        self.x = args[0]
+    # If only given one array, use self.x. 
+    else:
+      self.bars.append( ( (self.x,) + args, kargs ) )
+    return
+
   # ---------------------------------------------------------------------------
   # ------------------------------------------------------- Report Cell Extrema
   # ---------------------------------------------------------------------------
@@ -1133,10 +1149,9 @@ class plotCell:
 
   def ymax(self):
     amax = None if self.y is None else np.max(self.y)
-    if self.lines is None:
-      return amax
-    else:
-      return max( amax, max( max( args[1] ) for args, kargs in self.lines ) )
+    bmax = None if self.bars is None else max( max( args[1] ) for args, kargs in self.bars )
+    lmax = None if self.lines is None else max( max( args[1] ) for args, kargs in self.lines )
+    return max(amax, bmax, lmax)
 
   def zmax(self):
     cmax = None if self.cz is None else np.max(self.cz)
@@ -1150,21 +1165,16 @@ class plotCell:
 
   def ymin(self):
     amin = None if self.y is None else np.min(self.y)
-    if self.lines is None:
-      return amin
-    else:
-      lmin = min( min( args[1] ) for args, kargs in self.lines )
-      return lmin if amin is None else min(amin, lmin)
+    bmin = None if self.bars is None else min( min( args[1] ) for args, kargs in self.bars )
+    lmin = None if self.lines is None else min( min( args[1] ) for args, kargs in self.lines )
+    nums = [ m for m in (amin, bmin, lmin) if m is not None ]
+    return None if len(nums)==0 else min(nums)
 
   def zmin(self):
     cmin = None if self.cz is None else np.min(self.cz)
     mmin = None if self.mz is None else np.min(self.mz)
-    if cmin is None:
-      return mmin
-    elif mmin is None:
-      return cmin
-    else:
-      min(cmin, mmin)
+    nums = [ m for m in (cmin, mmin) if m is not None ]
+    return None if len(nums)==0 else min(nums)
 
   # ---------------------------------------------------------------------------
   # ---------------------------------------------------------- Render Plot Cell
@@ -1184,6 +1194,11 @@ class plotCell:
                  ( 'cmap', colors['mcmap'] if 'mcmap' in colors else None ) ]
       kargs = dict( citems + self.mkargs.items() )
       self.ax.pcolormesh(self.x, self.y, self.mz, **kargs)
+
+    # Draw the bars. 
+    if self.bars is not None:
+      [ self.ax.bar(*args, **kargs) for args, kargs in self.bars ]
+
     # Optionally, draw the outline of the data. 
     if self.outline and self.x is not None and self.y is not None:
       [ self.ax.plot(self.x[i, :], self.y[i, :], 'k') for i in (0, -1) ]
@@ -1701,7 +1716,9 @@ def znt(x, width=0):
 
 # Two decimal places. If it's a number bigger than one, that's two sig figs. Less than one, only one sig fig, to save space. 
 def tdp(x):
-  if x < 1:
+  if x == 0:
+    return '0'
+  elif x < 1:
     return str( float( format(x, '.0e') ) )
   elif x < 10:
     return str( float( format(x, '.1e') ) )
