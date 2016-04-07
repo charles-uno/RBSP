@@ -51,13 +51,23 @@ def main():
   count()
 
 
-
-  return paramplot(name='phase', save='-i' in argv)
-
+  # Here are the plots we actually use. 
 
 
-  # Location of the usable data. 
-  [ posplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
+#  posplot(storm=None, save='-i' in argv)
+#  allplot(storm=None, save='-i' in argv)
+#  modeplot(storm=None, save='-i' in argv)
+#  paramplot(name='amp', save='-i' in argv)
+#  paramplot(name='f', save='-i' in argv)
+#  paramplot(name='phase', save='-i' in argv)
+#  paramplot(name='fwhm', save='-i' in argv)
+#  modesbyparam(name='amp', save='-i' in argv)
+#  modesbyparam(name='f', save='-i' in argv)
+#  modesbyparam(name='phase', save='-i' in argv)
+  modesbyparam(name='fwhm', save='-i' in argv)
+
+#  # Location of the usable data. 
+#  [ posplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
 
 #  # Location of all events, regardless of mode or harmonic. 
 #  [ allplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
@@ -116,11 +126,15 @@ def posplot(storm=None, save=False):
   PW = plotWindow( **bep(rate=False) )
 
   status = {True:'Storm ', False:'Quiet ', None:''}[storm]
-  title = notex(status + 'Data ' + date0 + ' to ' + date1 + ' (' + format(dt, '.0f') + ' days)')
+  title = notex('Distribution of Usable ' + status + 'Data: ' + date0 + ' to ' + date1)
 
-  PW.setParams( title=title, unitlabel=notex('half-hours') )
+  PW.setParams( title=title, unitlabel=notex('days'), zmax=26, lcorner=notex('Total: ') + format(dt, '.0f') + notex(' days') )
   # Add the data to the plot. 
-  PW.setMesh( x, y, zmask(z) )
+  PW.setMesh( x, y, zmask(z/48.) )
+
+  print 'Days in each L bin:'
+  for zrow in z/48.:
+    print np.sum(zrow)
 
   # Show the plot, or save it as an image. 
   if save is True:
@@ -136,13 +150,9 @@ def posplot(storm=None, save=False):
 # ======================================================== Get Parameter Values
 # =============================================================================
 
-def peek(arr, name=''):
-  print '\t' + name + ' min    = ', np.min(arr)
-  print '\t' + name + ' max    = ', np.max(arr)
-  print '\t' + name + ' median = ', np.median(arr)
-  print '\t' + name + ' mean   = ', np.mean(arr)
-  print '\t' + name + ' stdev  = ', np.std(arr)
-  return
+def getstats(arr):
+  return { 'mean':np.mean(arr), 'median':np.median(arr), 'min':np.min(arr),
+           'max':np.max(arr), 'std':np.std(arr) }
 
 def getparam(name, **kargs):
   global thresh
@@ -157,23 +167,23 @@ def getparam(name, **kargs):
   # Figure out the appropriate range for the histogram. 
   rang = {'probe':None, 'date':None, 'time':None, 'lshell':(1, 7),
           'mlt':(0, 24), 'mlat':(-20, 20), 'lpp':(3, 7), 'mode':None, 
-          'f':(7, 25), 'fwhm':(0, 3), 'phase':(0, 180), 'amp':(-3, 0), 
-          'comp':(0, 1), 'dst':(-150, 50)}[name]
+          'f':(7, 25), 'fwhm':(0, 5), 'phase':(0, 180), 'amp':(-2, 1), 
+          'comp':(0, 1), 'dst':(-150, 150)}[name]
   # Figure out an appropriate number of bins. 
   bins = {'probe':None, 'date':None, 'time':None, 'lshell':6, 'mlt':12,
-          'mlat':10, 'lpp':4, 'mode':None, 'f':18, 'fwhm':6, 'phase':18, 
-          'amp':10, 'comp':10, 'dst':10}[name]
-  # Should we be applying any filter to this data? Maybe taking a log or an
-  # absolute value? The array constructor is the identity transform. 
-  filt = {'probe':np.array, 'date':np.array, 'time':np.array, 
-          'lshell':np.array, 'mlt':np.array, 'mlat':np.array, 'lpp':np.array,
-          'mode':np.array, 'f':np.array, 'fwhm':np.array, 'phase':np.abs, 
-          'amp':np.log10, 'comp':np.array, 'dst':np.array}[name]
-  arr = filt(arr)
+          'mlat':10, 'lpp':4, 'mode':None, 'f':18, 'fwhm':20, 'phase':18, 
+          'amp':12, 'comp':10, 'dst':30}[name]
+  # We want the absolute value of the phase, and we want to plot amplitude on
+  # a log scale. Make sure we do this in the right order. 
+  if name=='phase':
+    arr = np.abs(arr)
+  stats = getstats(arr)
+  if name=='amp':
+    arr = np.log10(arr)
   # Compute the histogram. 
   vals, edges = np.histogram(arr, range=rang, bins=bins)
   # Put points at bin centers. 
-  return 0.5*( edges[1:] + edges[:-1] ), vals
+  return 0.5*( edges[1:] + edges[:-1] ), vals, stats
 
 # =============================================================================
 # ============================================= Look at Parameter Distributions
@@ -200,29 +210,33 @@ def gaussfit(x, y, guess=None):
   except:
     return None
 
-
-
-
-def paramcoords(name):
-  if name not in ('phase', 'f'):
+# Coordinate keyword dictionary to be passed to the plot window to make a
+# histogram by parameter value look nice. 
+def pcoords(name):
+  if name not in ('phase', 'f', 'amp', 'dst', 'fwhm'):
     return {}
-  xlabel = {'lshell':'', 'mlt':'', 'mlat':'', 'lpp':'', 'f':notex('Frequency (mHz)'), 'fwhm':'', 'phase':notex('Phase'), 'amp':'', 'comp':'', 'dst':'DST (nT)'}[name]
-  xlims = {'lshell':(1, 7), 'mlt':(0, 24), 'mlat':(-20, 20), 'lpp':(3, 7), 'f':(7, 25), 'fwhm':(0, 3), 'phase':(0, 180), 'amp':(-3, 0), 'comp':(0, 1), 'dst':(-150, 50)}[name]
-  xticks = {'lshell':np.mgrid[1:7:4j], 'mlt':np.mgrid[0:24:9j], 'mlat':np.mgrid[-20:20:5j], 'lpp':np.mgrid[3:7:5j], 'f':np.mgrid[7:25:7j], 'fwhm':np.mgrid[0:3:7j], 'phase':np.mgrid[0:180:5j], 'amp':np.mgrid[-3:0:7j], 'comp':np.mgrid[0:180:5j], 'dst':np.mgrid[-150:50:5j]}[name]
+  xlabel = { 'f':notex('Frequency (mHz)'), 'fwhm':notex('FWHM (mHz)'), 'phase':notex('|Phase|'), 
+             'amp':tex('S') + notex(' (\\frac{mW}{m^2})'), 
+             'dst':notex('DST (nT)') }[name]
+  xlims = { 'f':(7, 25), 'fwhm':(0, 5), 'phase':(0, 180), 'amp':(-2, 1), 
+            'dst':(-150, 150) }[name]
+  xticks = { 'f':np.mgrid[7:25:7j], 'fwhm':np.mgrid[0:5:11j], 'phase':np.mgrid[0:180:5j], 
+             'amp':np.mgrid[-2:1:7j], 'dst':np.mgrid[-150:150:7j] }[name]
   xticklabels = g2a( '$' + str( int(t) ) + '$' for t in xticks )
+  if name=='amp':
+    xticklabels = g2a( '$' + tdp(10**t) + '$' for t in xticks )
+  if name=='phase':
+    xticklabels = g2a( '$' + str( int(t) ) + '^\\circ$' for t in xticks )
+
   xticklabels[1::2] = ''
   ylabel = notex('Events')
   ylims = (0, 160)
   yticks = np.mgrid[0:160:5j]
   yticklabels = g2a( '$' + str( int(t) ) + '$' for t in yticks )
   yticklabels[1::2] = ''
-  return {'xlabel':xlabel, 'xlims':xlims, 'xticks':xticks, 'xticklabels':xticklabels, 'ylabel':ylabel, 'ylims':ylims, 'yticks':yticks, 'yticklabels':yticklabels, 'ylabelpad':-2}
-
-
-
-
-
-
+  return {'xlabel':xlabel, 'xlims':xlims, 'xticks':xticks, 
+          'xticklabels':xticklabels, 'ylabel':ylabel, 'ylims':ylims, 
+          'yticks':yticks, 'yticklabels':yticklabels, 'ylabelpad':-2}
 
 # Let's take a look at a plot of how FWHM depends on mode. 
 def paramplot(name, save=False):
@@ -241,48 +255,101 @@ def paramplot(name, save=False):
          'mlat':'^\\circ', 'lpp':'', 'mode':'', 'f':notex('mHz'), 
          'fwhm':notex('mHz'), 'phase':'^\\circ', 
          'amp':notex('\\frac{mW}{m^2}'), 'comp':'', 'dst':notex('nT')}[name]
-
-  title = ttl + notex('Distribution of Pc4 Events by Mode')
+  # Title and labels. 
+  title = ttl + notex(' Distribution of Pc4 Events by Mode')
   rlabs = ( notex('Odd'), notex('Even') )
   clabs = ( notex('Poloidal'), notex('Toroidal') )
-  PW.setParams(collabels=clabs, rowlabels=rlabs, title=title, **paramcoords(name) )
-
-  xy = [ getparam(name, mode=mode) for mode in ('P1', 'P2', 'T1', 'T2') ]
-
+  PW.setParams(collabels=clabs, rowlabels=rlabs, title=title, **pcoords(name) )
+  # For each mode, grab the parameter histogram and plot it. 
+  modes = ('P1', 'T1', 'P2', 'T2')
+  xy = [ getparam(name, mode=mode, phase=60) for mode in modes ]
+  # The bin width is needed because bins are listed at their center but plotted
+  # from the left edge. 
   dx = xy[0][0][1] - xy[0][0][0]
-
-  ymax = max( max(y) for x, y in xy )
-
-  for i, mode in enumerate( ('P1', 'T1', 'P2', 'T2') ):
-    print mode + ' SUM: ', np.sum( xy[i][1] )
-
-#  [ PW[i].setParams( text=str(i) + notex(': ') + str( np.sum(y) ) ) for i, (x, y) in enumerate(xy) ]
-
-  PW.setParams( ylims=(0, ymax*1.2) )
-
-  [ PW[i].setBars(x - dx/2, y, width=dx) for i, (x, y) in enumerate(xy) ]
-
-  gfit = [ gaussfit(x, y) for x, y in xy ]
-
-  xg = np.linspace(np.min(x), np.max(x), 1000)
-
-  yg = [ gauss(xg, *gf) if gf is not None else None for gf in gfit ]
-
-  [ PW[i].setLine(xg, y, 'r') for i, y in enumerate(yg) if y is not None ]
-
-  # How many decimal places should we be showing? 
-  dp = 2 if ymax < 1 else 1 if ymax < 10 else 0
-
-  def label(gf):
-    return format(gf[1], '.' + str(dp) + 'f') + unit + '\\pm' + format(gf[2], '.' + str(dp) + 'f') + unit
-
-  [ PW[i].setParams( toptext=label(gf) ) for i, gf in enumerate(gfit) if gf is not None ]
-
+  [ PW[i].setBars(x - dx/2, y, width=dx) for i, (x, y, s) in enumerate(xy) ]
+  # For the phase, do a Gaussian fit. 
+  if name in ('phase', 'fwhm'):
+    gfit = [ gaussfit(x, y) for x, y, stats in xy ]
+    xg = np.linspace(np.min(x), np.max(x), 1000)
+    yg = [ gauss(xg, *gf) if gf is not None else None for gf in gfit ]
+    [ PW[i].setLine(xg, y, 'r') for i, y in enumerate(yg) if y is not None ]
+    # Add a label indicating the mean and spread. 
+    ymax = max( np.median(y) for x, y, stats in xy )
+    dp = 2 if ymax < 1 else 1 if ymax < 10 else 0
+    def label(gf):
+      return ( format(gf[1], '.' + str(dp) + 'f') + unit + '\\pm' +
+               format(gf[2], '.' + str(dp) + 'f') + unit )
+    [ PW[i].setParams( toptext=label(gf) ) for i, gf in enumerate(gfit) if gf is not None ]
+  # Otherwise, just indicate mean and median. 
+  else:
+    def label(stats, meandigs=2, meddigs=3):
+      return ( notex('Mean: ') + fmt( stats['mean'], digs=meandigs ) + unit +
+               notex('  Med: ') + fmt( stats['median'], digs=meddigs ) + unit )
+    meandigs, meddigs = (2, 3) if name=='amp' else (0, 0)
+    [ PW[i].setParams( toptext=label(s, meandigs, meddigs) ) for i, (x, y, s) in enumerate(xy) ]
   # Show or save the plot. 
   if save is True:
     return PW.render(plotdir + name + '.pdf')
   else:
     return PW.render()
+
+# =============================================================================
+# ============================================ Events Sliced by Parameter Value
+# =============================================================================
+
+def modesbyparam(name, save=False):
+  global pargs, plotdir
+  # Grab the position histogram for normalization. Ignore DST. 
+  pos = getpos(**pargs)
+  x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
+  # Create a plot window to show different subsets of the events. 
+  PW = plotWindow( ncols=3, nrows=4, **bep() )
+  # Set title and labels. 
+  rlabs = ( notex('Odd\nPoloidal'), 
+            notex('Even\nPoloidal'), 
+            notex('Odd\nToroidal'), 
+            notex('Even\nToroidal') )
+  funit, aunit, to = notex('mHz'), notex('\\frac{mW}{m^2}'), notex('---')
+  # How are we splitting the columns? 
+  amps, fs, fwhms, phases = (0.01, 0.03, 0.1), (7, 13, 19, 25), (1.7, 1.4, 1.1), (60, 70, 80)
+  # Column labels. 
+  clabs = {'amp':[ '\\geq ' + str(a) + aunit for a in amps ], 
+           'f':[ str(f0) + funit + to + str(f1) + funit for f0, f1 in zip( fs[:-1], fs[1:] ) ],
+           'fwhm':[ '<' + str(f) + funit for f in fwhms ],
+           'phase':[ str(p) + '^\\circ' + to + str(180 - p) + '^\\circ' for p in phases ]}[name]
+  title = notex( 'Distribution of Pc4 Events by Mode and ' + {'amp':'Amplitude', 'f':'Frequency', 'fwhm':'Spectral Width', 'phase':'Phase'}[name] )
+
+  PW.setParams(collabels=clabs, rowlabels=rlabs, title=title)
+  # Setting up filters to grab the events for each column. 
+  filters = { 'phase':[ {'phase': p} for p in phases ], 
+              'f':[ {'f_ge': f0, 'f_lt':f1} for f0, f1 in zip( fs[:-1], fs[1:] ) ],
+              'fwhm':[ {'fwhm_lt': f} for f in fwhms ], 
+              'amp':[ {'amp_ge': a} for a in amps ] }[name]
+  # Modes, for iterating over the rows. 
+  modes = ('P1', 'P2', 'T1', 'T2')
+  for row, mode in enumerate(modes):
+    for col, filt in enumerate(filters):
+      # Grab the event histogram, filtered appropriately. 
+      eh = eventhist(hargs, mode=mode, **filt)
+      # Indicate event count and overall rate in the corners. 
+      eventcount = np.sum(eh)
+      pct = tdp( 100.*np.mean(eh/z) ) + '\\%'
+      count = znt(eventcount)
+      PW[row, col].setParams(lcorner=count, rcorner=pct)
+      # Add the mesh to the plot. 
+      PW[row, col].setMesh(x, y, 100*zmask(eh)/z)
+  # Show or save the plot. 
+  if save is True:
+    return PW.render(plotdir + 'mode_' +  name + '.pdf')
+  else:
+    return PW.render()
+
+
+
+
+
+
+
 
 # #############################################################################
 # ############################################################ Event Histograms
@@ -309,7 +376,8 @@ def allplot(storm=None, save=False):
   PW = plotWindow( **bep() )
   # Title and labels. 
   status = {True:'Storm ', False:'Quiet ', None:''}[storm]
-  title = notex( status + 'Pc4 Occurrence Rate: ' + titlehelper )
+#  title = notex( status + 'Pc4 Observation Rate: All Modes, All Phases, 0.01\\frac{mW}{m^2} and Larger')
+  title = notex( status + 'Pc4 Observation Rate')
   PW.setParams(title=title)
   # Grab the events histogram. 
   sargs = { True:{'dst_lt':-30}, False:{'dst_ge':-30}, None:{} }[storm]
@@ -317,8 +385,12 @@ def allplot(storm=None, save=False):
   # Normalize it by the sampling rate and plot it. 
   PW.setMesh(x, y, 100*zmask(eh)/z)
 
+  print 'Events in each L bin:'
+  for erow in eh:
+    print np.sum(erow)
+
   eventcount = np.sum(eh)
-  pct = notex('Rate: ') + tdf( 100.*np.mean(eh/z) ) + '\\%'
+  pct = notex('Rate: ') + tdp( 100.*np.mean(eh/z) ) + '\\%'
   count = notex('Count: ') + znt(eventcount)
   PW.setParams(lcorner=count, rcorner=pct)
 
@@ -352,7 +424,8 @@ def modeplot(storm=None, save=False):
   PW = plotWindow( ncols=2, nrows=2, **bep() )
   # Title and labels. 
   status = {True:'Storm ', False:'Quiet ', None:''}[storm]
-  title = notex( status + 'Pc4 Occurrence Rate by Mode: ' + titlehelper )
+#  title = notex(status + 'Pc4 Observation Rate by Mode: All Phases, 0.01\\frac{mW}{m^2} and Larger')
+  title = notex(status + 'Pc4 Observation Rate by Mode')
   collabels = ( notex('Poloidal'), notex('Toroidal') )
   rowlabels = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
   PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title)
@@ -365,7 +438,7 @@ def modeplot(storm=None, save=False):
       eh = eventhist(hargs, mode=mf+hf, **sargs)
 
       eventcount = np.sum(eh)
-      pct = tdf( 100.*np.mean(eh/z) ) + '\\%'
+      pct = tdp( 100.*np.mean(eh/z) ) + '\\%'
       count = znt(eventcount)
       PW[row, col].setParams(lcorner=count, rcorner=pct)
 
@@ -374,49 +447,6 @@ def modeplot(storm=None, save=False):
   # Show or save the plot. 
   if save is True:
     return PW.render(plotdir + 'mode_' +  {True:'storm', False:'calm', None:'all'}[storm] + label + '.pdf')
-  else:
-    return PW.render()
-
-# =============================================================================
-# =============================================================== Double Events
-# =============================================================================
-
-def doubleplot(save=False, split=-30.):
-  global pargs, plotdir, thresh
-  # Create a plot window to show different subsets of the events. 
-  PW = plotWindow( ncols=2, nrows=2, **bep() )
-  # Title and labels. 
-  title = notex( 'Simultaneous Poloidal + Toroidal Pc4 Occurrence Rate: ' + titlehelper )
-
-  rlabs = ( notex('Odd'), notex('Even') )
-
-  clabs = ( notex('Dst') + ' \\geq ' + znt(split) + notex('nT'), 
-            notex('Dst') + ' < ' + znt(split) + notex('nT') )
-
-  PW.setParams(collabels=clabs, rowlabels=rlabs, title=title)
-
-  for col, key in enumerate( ('dst_ge', 'dst_lt') ):
-    # Set up the grid and 2D histogram based on probe position. 
-    pos = getpos( **dict( pargs.items() + {key:split}.items() ) )
-    x, y, z, hargs = [ pos[k] for k in ('x', 'y', 'z', 'hargs') ]
-
-    # Odd and Even. 
-    for row, harm in enumerate( ('1', '2') ):
-
-      # Grab a histogram of appropriately-filtered double events. 
-      dh = doublehist(hargs, pmode='P' + harm, tmode='T' + harm, **{key:split})
-
-      eventcount = np.sum(dh)
-      pct = tdf( 100.*np.mean(dh/z) ) + '\\%'
-      count = znt(eventcount)
-      PW[row, col].setParams(lcorner=count, rcorner=pct)
-
-      # Build it into a histogram. Normalize based on sampling. 
-      rate = 100*zmask(dh)/z
-      PW[row, col].setMesh(x, y, rate)
-  # Show or save the plot. 
-  if save is True:
-    return PW.render(plotdir + 'double_rate' + label + '.pdf')
   else:
     return PW.render()
 
@@ -474,6 +504,64 @@ def azmplot(storm=None, save=False, split=0.2):
   # Show or save the plot. 
   if save is True:
     return PW.render(plotdir + 'azm_rate_' + {True:'storm', False:'calm', None:'all'}[storm] + label + '.pdf')
+  else:
+    return PW.render()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# =============================================================================
+# =============================================================== Double Events
+# =============================================================================
+
+def doubleplot(save=False, split=-30.):
+  global pargs, plotdir, thresh
+  # Create a plot window to show different subsets of the events. 
+  PW = plotWindow( ncols=2, nrows=2, **bep() )
+  # Title and labels. 
+  title = notex( 'Simultaneous Poloidal + Toroidal Pc4 Occurrence Rate: ' + titlehelper )
+
+  rlabs = ( notex('Odd'), notex('Even') )
+
+  clabs = ( notex('Dst') + ' \\geq ' + znt(split) + notex('nT'), 
+            notex('Dst') + ' < ' + znt(split) + notex('nT') )
+
+  PW.setParams(collabels=clabs, rowlabels=rlabs, title=title)
+
+  for col, key in enumerate( ('dst_ge', 'dst_lt') ):
+    # Set up the grid and 2D histogram based on probe position. 
+    pos = getpos( **dict( pargs.items() + {key:split}.items() ) )
+    x, y, z, hargs = [ pos[k] for k in ('x', 'y', 'z', 'hargs') ]
+
+    # Odd and Even. 
+    for row, harm in enumerate( ('1', '2') ):
+
+      # Grab a histogram of appropriately-filtered double events. 
+      dh = doublehist(hargs, pmode='P' + harm, tmode='T' + harm, **{key:split})
+
+      eventcount = np.sum(dh)
+      pct = tdf( 100.*np.mean(dh/z) ) + '\\%'
+      count = znt(eventcount)
+      PW[row, col].setParams(lcorner=count, rcorner=pct)
+
+      # Build it into a histogram. Normalize based on sampling. 
+      rate = 100*zmask(dh)/z
+      PW[row, col].setMesh(x, y, rate)
+  # Show or save the plot. 
+  if save is True:
+    return PW.render(plotdir + 'double_rate' + label + '.pdf')
   else:
     return PW.render()
 
@@ -697,7 +785,7 @@ def getpos(dl=0.5, dm=1, lmin=None, lmax=None, dst_ge=None, dst_lt=None):
 # =============================================================================
 
 # Returns a filtered list of events. 
-def loadevents(mode=None, fwhm_ge=None, fwhm_lt=None, comp_ge=None, comp_lt=None, double=False, llpp_lt=None, llpp_ge=None, dst_lt=None, dst_ge=None):
+def loadevents(mode=None, fwhm_ge=None, fwhm_lt=None, amp_ge=None, amp_lt=None, f_ge=None, f_lt=None, comp_ge=None, comp_lt=None, double=False, llpp_lt=None, llpp_ge=None, dst_lt=None, dst_ge=None, phase=None):
   global thresh
   # Grab the events file as an array of strings. Skip the header. 
   events = g2a( line for line in read('events.txt') if 'probe' not in line )
@@ -718,10 +806,32 @@ def loadevents(mode=None, fwhm_ge=None, fwhm_lt=None, comp_ge=None, comp_lt=None
     events = events[inew]
 
 
-  # If we want to be picky about the phase, do that here. The events file includes phases as bad as 45 degrees. 
-  if 'phase' in argv:
-    phase = g2a( float( line.split()[10] ) for line in events )
-    inew = np.nonzero( np.abs(phase - 90) < 30. )
+  # For phase, we look at how close the absolute value is to 90 degrees. A cutoff of 45 means anything with an absolute value between 45 degrees and 135 degrees is fair game. 
+  if phase is not None:
+    ph = g2a( float( line.split()[10] ) for line in events )
+    inew = np.nonzero( np.logical_and(np.abs(ph) > phase, np.abs(ph) < 180 - phase) )
+    events = events[inew]
+
+
+  # Filter on frequency. 
+  if f_ge is not None:
+    f = g2a( float( line.split()[8] ) for line in events )
+    inew = np.nonzero(f >= f_ge)[0]
+    events = events[inew]
+  if f_lt is not None:
+    f = g2a( float( line.split()[8] ) for line in events )
+    inew = np.nonzero(f < f_lt)[0]
+    events = events[inew]
+
+
+  # Filter on amplitude. 
+  if amp_ge is not None:
+    amp = g2a( float( line.split()[11] ) for line in events )
+    inew = np.nonzero(amp >= amp_ge)[0]
+    events = events[inew]
+  if amp_lt is not None:
+    amp = g2a( float( line.split()[11] ) for line in events )
+    inew = np.nonzero(amp < amp_lt)[0]
     events = events[inew]
 
 
@@ -938,7 +1048,9 @@ def g2a(expr):
 def bep(rate=True):
   tls = ('$-8$', '', '$-4$', '', '$0$', '', '$+4$', '', '$+8$')
   colorbar = 'pct' if rate is True else 'pos' 
-  ncolors = 10 if rate is True else 12
+
+  ncolors = 11 if rate is True else 12
+
   return {'earth':'top', 'flipx':True, 'grid':True, 'square':True, 
           'xlabel': 'Y' + notex(' (R_E)'), 'xlims':(-8, 8),
           'xticks':np.mgrid[-8:8:9j], 'xticklabels':tls, 

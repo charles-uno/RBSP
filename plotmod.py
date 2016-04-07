@@ -975,14 +975,14 @@ class plotCell:
       elif key=='lcorner':
         targs = {'x':0.03, 'y':0.03, 'horizontalalignment':'left', 
                  'verticalalignment':'bottom', 'transform':self.ax.transAxes,
-                 'fontsize':16}
+                 'fontsize':10}
         self.ax.text(s='$' + val + '$', **targs)
 
       # Put some text in the corner. 
       elif key=='rcorner':
         targs = {'x':0.97, 'y':0.03, 'horizontalalignment':'right', 
                  'verticalalignment':'bottom', 'transform':self.ax.transAxes,
-                 'fontsize':16}
+                 'fontsize':10}
         self.ax.text(s='$' + val + '$', **targs)
 
       # Draw the grid. 
@@ -1358,11 +1358,11 @@ class plotColors(dict):
 
   def pctTicksLevels(self, zmax):
     # Hard-coded to have ticks at 10%, 1%, 0.1%. Several color levels between each tick. 
-    halves = np.logspace(-1, 1, self.ncolors - 1)
+    halves = np.logspace(-2, 1, self.ncolors - 1)
     self.zmin = halves[0]*np.sqrt( halves[0]/halves[1] )
     self.zmax = halves[-1]*np.sqrt(halves[-1]/halves[-2] )
     levels = np.logspace(np.log10(self.zmin), np.log10(self.zmax), self.ncolors)
-    ticks = np.array( (0.1, 1, 10) )
+    ticks = np.array( (0.01, 0.1, 1, 10) )
     return ticks, levels
 
 
@@ -1716,6 +1716,13 @@ def znt(x, width=0):
 
 # Two decimal places. If it's a number bigger than one, that's two sig figs. Less than one, only one sig fig, to save space. 
 def tdp(x):
+
+#  if not isinstance(x, np.float) or not isinstance(x, np.int) or not np.isfinite(x):
+#    return '?'
+
+  if x.size > 1 or not np.isfinite(x):
+    return '?'
+
   if x == 0:
     return '0'
   elif x < 1:
