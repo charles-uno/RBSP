@@ -19,6 +19,7 @@ from plotmod import *
 
 from socket import gethostname
 
+
 # #############################################################################
 # ######################################################################## Main
 # #############################################################################
@@ -45,6 +46,9 @@ label = ('_sharp' if 'sharp' in argv else '') + ('_nothresh' if 'nothresh' in ar
 
 def main():
 
+  # Find an event from the list and plot it. 
+  return showevent(amp_ge=1)
+
 #  return dungey()
 
   # Just tell me how many there are of each mode. 
@@ -53,18 +57,16 @@ def main():
 
   # Here are the plots we actually use. 
 
-
 #  posplot(storm=None, save='-i' in argv)
-#  allplot(storm=None, save='-i' in argv)
+  allplot(storm=None, save='-i' in argv)
 #  modeplot(storm=None, save='-i' in argv)
 #  paramplot(name='amp', save='-i' in argv)
 #  paramplot(name='f', save='-i' in argv)
 #  paramplot(name='phase', save='-i' in argv)
-#  paramplot(name='fwhm', save='-i' in argv)
 #  modesbyparam(name='amp', save='-i' in argv)
 #  modesbyparam(name='f', save='-i' in argv)
 #  modesbyparam(name='phase', save='-i' in argv)
-  modesbyparam(name='fwhm', save='-i' in argv)
+#  modesbyparam(name='fwhm', save='-i' in argv)
 
 #  # Location of the usable data. 
 #  [ posplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
@@ -96,11 +98,131 @@ def main():
 
 # How many events of each mode? 
 def count():
+  global pargs
   pos = getpos(**pargs)
+  # Count modes individually. 
   for mode in ('P1', 'P2', 'T1', 'T2'):
     eh = eventhist(pos['hargs'], mode=mode)
     print mode, np.sum(eh)
+  # Count double events. Actually, these get counted in the loader. 
+  for pmode in ( ('P1', 'P2') ):
+    for tmode in ( ('T1', 'T2') ):
+      dh = doublehist(pos['hargs'], pmode=pmode, tmode=tmode)
+
   return
+
+# #############################################################################
+# ######################################################### Show a Single Event
+# #############################################################################
+
+# =============================================================================
+# ================================================= Loop Over (Filtered) Events
+# =============================================================================
+
+# This is like the routine in finder.py, but not identical. It's meant to be
+# prettier. 
+def showevent(date=None, time=None, probe=None, **kargs):
+  # Grab the list of events, filtered by event properties.  
+  events = loadevents(**kargs)
+  # Filter by date, time, probe. 
+  if date is not None:
+    dates = g2a( e[3:13] for e in events )
+    inew = np.nonzero( g2a( d == date for d in dates ) )
+    events = events[inew]
+  if time is not None:
+    times = g2a( e[17:25] for e in events )
+    inew = np.nonzero( g2a( t == time for t in times ) )
+    events = events[inew]
+  if probe is not None:
+    probes = g2a( e[0] for e in events )
+    inew = np.nonzero( g2a( p.upper() == probe.upper() for p in probes ) )
+    events = events[inew]
+  # If we're looking, grab one event at random from those that have passed the
+  # filters. If we're making images, increment over them all. 
+  events = np.random.permutation(events)
+  events = events if '-i' in argv else events[:1]
+  for e in events:
+    prb, dat, tim = e[0], e[3:13], e[17:25]
+    plotevent( day(probe=prb, date=dat).getslice(tim, duration=1800) )
+  return 
+
+# =============================================================================
+# ============================================================== Plot One Event
+# =============================================================================
+
+
+def evtitle(d):
+  if 45 < np.abs( d['phase'] ) < 135:
+    harm = 'Even' if d['harm']%2 else 'Odd'
+  else:
+    harm = 'Traveling'
+  mode = 'Poloidal' if d['mode'].upper()=='P' else 'Toroidal'
+  return notex(harm + ' ' + mode + ' Wave')
+
+def evtop(d):
+  if d is None:
+    return ''
+  freq = fmt(d['f'], digs=1) + tex('mHz')
+  ampl = fmt(d['s'], digs=3) + tex('mW/m^2')
+  phas = fmt(d['phase'], digs=0) + '^{\\circ}'
+  return '\\;\\;\\;\\;'.join( (ampl, freq, phas) )
+
+# Wrapper around np.log10 to avoid complaints about zero. 
+def log10(x):
+  return np.log10( np.maximum(x, 1e-20) )
+
+# Basically like the function of the same name in finder.py, but prettier. 
+def plotevent(ev):
+  global plotdir
+  # Create plot window to hold waveforms and spectra. 
+  PW = plotWindow(nrows=3, ncols=2, footlabel=True)
+  # Index the poloidal, toroidal, and field-aligned modes. 
+  modes = ('p', 't', 'z')
+  # Plot waveforms as a function of time. 
+  PW[:, 0].setParams( **ev.coords('waveform', cramped=True) )
+  [ PW[i, 0].setLine(ev.get('B' + m), 'r') for i, m in enumerate(modes) ]
+  [ PW[i, 0].setLine(ev.get('E' + m), 'b') for i, m in enumerate(modes) ]
+  # Grab the Fourier-domain Poynting flux. It's scaled by L^3 to give values at
+  # the ionosphere. 
+  scomplex = [ ev.sfft(m) for m in modes ]
+  sreal = [ np.abs( np.real(s) ) for s in scomplex ]
+  simag = [ np.abs( np.imag(s) ) for s in scomplex ]
+  stotal = [ np.abs(s) for s in scomplex ]
+  # Find the waves in this event. 
+  waves = [ ev.wave(m, pc4=True) for m in modes ]
+  [ PW[i, 1].setParams( toptext=evtop(w) ) for i, w in enumerate(waves) ]
+  # Plot the spectra. 
+  PW[:, 1].setParams( **ev.coords('spectra', cramped=True) )
+  [ PW[i, 1].setLine(log10(s), 'm') for i, s in enumerate(simag) ]
+  [ PW[i, 1].setLine(log10(s), 'g') for i, s in enumerate(sreal) ]
+  # Plot the Gaussian fit of the total Poynting flux. 
+  f = np.linspace(0, 50, 1000)
+  for i, w in enumerate(waves):
+    args = (0, 0, 1) if w is None else ( w['s'], w['f'], w['df'] )
+    PW[i, 1].setLine(f, log10( ev.gauss(f, *args) ), 'k--')
+  # Plot title and labels. 
+  rowlabels = ( notex('Poloidal'), notex('Toroidal'), notex('Parallel') )
+  collabels = ( notex('B (Red)   E (Blue)'), 
+                tex('imag') + tex('S') + notex(' (Magenta)   ') + 
+                tex('real') + tex('S') + notex(' (Green)') )
+  PW.setParams(collabels=collabels, footer=ev.label(), rowlabels=rowlabels)
+  # Information about the wave(s) goes in the title. 
+  tlist = [ evtitle(w) for w in waves if w is not None ]
+  PW.setParams( title=notex('Waveforms and Spectra: ') + notex(' and ').join(tlist) )
+  # Show the plot, or save it as an image. 
+  if '-i' in argv:
+    return PW.render(plotdir + ev.name + '.pdf')
+  else:
+    return PW.render()
+
+
+
+
+
+
+
+
+
 
 # #############################################################################
 # ########################################################## Position Histogram
@@ -274,9 +396,15 @@ def paramplot(name, save=False):
     yg = [ gauss(xg, *gf) if gf is not None else None for gf in gfit ]
     [ PW[i].setLine(xg, y, 'r') for i, y in enumerate(yg) if y is not None ]
     # Add a label indicating the mean and spread. 
-    ymax = max( np.median(y) for x, y, stats in xy )
+    ymax = max( stats['median'] for x, y, stats in xy )
+
+    print 'YMAX = ', ymax
+
     dp = 2 if ymax < 1 else 1 if ymax < 10 else 0
     def label(gf):
+
+      print 'LABEL WITH DECIMAL PLACES = ', dp
+
       return ( format(gf[1], '.' + str(dp) + 'f') + unit + '\\pm' +
                format(gf[2], '.' + str(dp) + 'f') + unit )
     [ PW[i].setParams( toptext=label(gf) ) for i, gf in enumerate(gfit) if gf is not None ]
@@ -531,12 +659,12 @@ def doubleplot(save=False, split=-30.):
   # Create a plot window to show different subsets of the events. 
   PW = plotWindow( ncols=2, nrows=2, **bep() )
   # Title and labels. 
-  title = notex( 'Simultaneous Poloidal + Toroidal Pc4 Occurrence Rate: ' + titlehelper )
+  title = notex( 'Rate of Double Events by Parity and Storm Index' )
 
   rlabs = ( notex('Odd'), notex('Even') )
 
-  clabs = ( notex('Dst') + ' \\geq ' + znt(split) + notex('nT'), 
-            notex('Dst') + ' < ' + znt(split) + notex('nT') )
+  clabs = ( notex('DST') + ' \\geq ' + znt(split) + notex('nT'), 
+            notex('DST') + ' < ' + znt(split) + notex('nT') )
 
   PW.setParams(collabels=clabs, rowlabels=rlabs, title=title)
 
@@ -552,7 +680,7 @@ def doubleplot(save=False, split=-30.):
       dh = doublehist(hargs, pmode='P' + harm, tmode='T' + harm, **{key:split})
 
       eventcount = np.sum(dh)
-      pct = tdf( 100.*np.mean(dh/z) ) + '\\%'
+      pct = tdp( 100.*np.mean(dh/z) ) + '\\%'
       count = znt(eventcount)
       PW[row, col].setParams(lcorner=count, rcorner=pct)
 
@@ -785,7 +913,7 @@ def getpos(dl=0.5, dm=1, lmin=None, lmax=None, dst_ge=None, dst_lt=None):
 # =============================================================================
 
 # Returns a filtered list of events. 
-def loadevents(mode=None, fwhm_ge=None, fwhm_lt=None, amp_ge=None, amp_lt=None, f_ge=None, f_lt=None, comp_ge=None, comp_lt=None, double=False, llpp_lt=None, llpp_ge=None, dst_lt=None, dst_ge=None, phase=None):
+def loadevents(mode=None, fwhm_ge=None, fwhm_lt=3., amp_ge=None, amp_lt=None, f_ge=None, f_lt=None, comp_ge=None, comp_lt=None, double=False, llpp_lt=None, llpp_ge=None, dst_lt=None, dst_ge=None, phase=None):
   global thresh
   # Grab the events file as an array of strings. Skip the header. 
   events = g2a( line for line in read('events.txt') if 'probe' not in line )
@@ -795,16 +923,11 @@ def loadevents(mode=None, fwhm_ge=None, fwhm_lt=None, amp_ge=None, amp_lt=None, 
   # Filter based on mode. 
   if mode is not None:
     events = g2a( line for line in events if mode in line )
-  # If we're not looking for double events, and we're not filtering based on
-  # mode, make sure not to double-count double events. Only keep the big ones. 
-  if mode is None and double is False:
-    events = g2a( line for line in events if 'SMALL' not in line )
   # Filter on amplitude. 
   if thresh > 0:
     amp = g2a( float( line.split()[11] ) for line in events )
     inew = np.nonzero(amp >= thresh)[0]
     events = events[inew]
-
 
   # For phase, we look at how close the absolute value is to 90 degrees. A cutoff of 45 means anything with an absolute value between 45 degrees and 135 degrees is fair game. 
   if phase is not None:
@@ -877,6 +1000,13 @@ def loadevents(mode=None, fwhm_ge=None, fwhm_lt=None, amp_ge=None, amp_lt=None, 
     dst = g2a( float( line.split()[13] ) for line in events )
     inew = np.nonzero(dst < dst_lt)[0]
     events = events[inew]
+  # If we're not looking for double events, and we're not filtering based on
+  # mode, make sure not to double-count double events. For each big event, make
+  # sure there's no small event at that same timestamp. 
+  if mode is None and double is False:
+    bigstamps = g2a( e[:26] for e in events if 'BIG' in e )
+    inew = np.nonzero( g2a( 'SMALL' not in e or e[:26] not in bigstamps for e in events ) )[0]
+    events = events[inew]
   # Return the remaining events. 
   return events
 
@@ -918,6 +1048,10 @@ def doublehist(hargs, pmode=None, tmode=None, **kargs):
 
   dates = g2a( d[3:13] for d in doubles )
 
+#  for d in sorted( set(dates) ):
+#    print '\t' + d + '\t', len( list(p for p in doubles if d in p ) )
+
+
   # Tally up the days. 
   print pmode, tmode, kargs
   print '\tnumber of events: ', dates.size
@@ -928,6 +1062,14 @@ def doublehist(hargs, pmode=None, tmode=None, **kargs):
   pos = g2a( [ float(x) for x in line.split()[3:6] ] for line in doubles )
 
   lshell, mlt, mlat = pos[:, 0], pos[:, 1], pos[:, 2]
+  mltmax = hargs['range'][-1][-1]
+  mlt = np.where(mlt>mltmax, mlt - 24, mlt)
+
+  hist = np.histogram2d(lshell, mlt, **hargs)[0]
+
+  print '\tnumber of points in histogram: ', np.sum(hist)
+
+
 
   return np.histogram2d(lshell, mlt, **hargs)[0]
 

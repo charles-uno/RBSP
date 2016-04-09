@@ -438,7 +438,7 @@ class event:
     mltname = self.lbl('mlt') + notex('MLT')
     mlatname = self.lbl('mlat') + notex('MLAT')
     lppname = 'L_{PP}\\!=\\!' + format(self.lpp, '.1f')
-    dstname = notex('Dst') + '\\!=\\!' + format(self.dst, '.0f') + notex('nT')
+    dstname = notex('DST') + '\\!=\\!' + format(self.dst, '.0f') + notex('nT')
     t0name = timestr(self.t0)[1][:5]
     t1name = timestr(self.t1)[1][:5]
     return '\\quad{}'.join( (probename, notex(self.date), lname, mltname, mlatname, lppname, dstname) )
@@ -479,7 +479,7 @@ class event:
       kargs['xticklabels'][1::2] = ['']*len( kargs['xticklabels'][1::2] )
       # Vertical axis. 
 #      kargs['ylabel'] = notex('\\cdots (nT ; \\frac{mV}{m})')
-      kargs['ylabel'] = notex('E  (\\frac{mV}{m})  ;  B  (nT)')
+      kargs['ylabel'] = notex('E  (\\frac{mV}{m})   B  (nT)')
       kargs['ylabelpad'] = -2
       kargs['ylims'] = (-4, 4)
       kargs['yticks'] = range(-4, 5)
