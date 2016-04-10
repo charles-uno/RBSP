@@ -46,8 +46,8 @@ label = ('_sharp' if 'sharp' in argv else '') + ('_nothresh' if 'nothresh' in ar
 
 def main():
 
-  # Find an event from the list and plot it. 
-  return showevent(amp_ge=1)
+#  # Find an event from the list and plot it. 
+#  return showevent(amp_ge=1)
 
 #  return dungey()
 
@@ -58,13 +58,13 @@ def main():
   # Here are the plots we actually use. 
 
 #  posplot(storm=None, save='-i' in argv)
-  allplot(storm=None, save='-i' in argv)
+#  allplot(storm=None, save='-i' in argv)
 #  modeplot(storm=None, save='-i' in argv)
 #  paramplot(name='amp', save='-i' in argv)
 #  paramplot(name='f', save='-i' in argv)
 #  paramplot(name='phase', save='-i' in argv)
 #  modesbyparam(name='amp', save='-i' in argv)
-#  modesbyparam(name='f', save='-i' in argv)
+  modesbyparam(name='f', save='-i' in argv)
 #  modesbyparam(name='phase', save='-i' in argv)
 #  modesbyparam(name='fwhm', save='-i' in argv)
 
@@ -439,7 +439,7 @@ def modesbyparam(name, save=False):
             notex('Even\nToroidal') )
   funit, aunit, to = notex('mHz'), notex('\\frac{mW}{m^2}'), notex('---')
   # How are we splitting the columns? 
-  amps, fs, fwhms, phases = (0.01, 0.03, 0.1), (7, 13, 19, 25), (1.7, 1.4, 1.1), (60, 70, 80)
+  amps, fs, fwhms, phases = (0.01, 0.03, 0.1), (7, 11, 17, 25), (1.7, 1.4, 1.1), (60, 70, 80)
   # Column labels. 
   clabs = {'amp':[ '\\geq ' + str(a) + aunit for a in amps ], 
            'f':[ str(f0) + funit + to + str(f1) + funit for f0, f1 in zip( fs[:-1], fs[1:] ) ],
