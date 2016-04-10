@@ -64,8 +64,8 @@ def main():
 #  paramplot(name='f', save='-i' in argv)
 #  paramplot(name='phase', save='-i' in argv)
 #  modesbyparam(name='amp', save='-i' in argv)
-  modesbyparam(name='f', save='-i' in argv)
-#  modesbyparam(name='phase', save='-i' in argv)
+#  modesbyparam(name='f', save='-i' in argv)
+  modesbyparam(name='phase', save='-i' in argv)
 #  modesbyparam(name='fwhm', save='-i' in argv)
 
 #  # Location of the usable data. 
@@ -439,17 +439,24 @@ def modesbyparam(name, save=False):
             notex('Even\nToroidal') )
   funit, aunit, to = notex('mHz'), notex('\\frac{mW}{m^2}'), notex('---')
   # How are we splitting the columns? 
-  amps, fs, fwhms, phases = (0.01, 0.03, 0.1), (7, 11, 17, 25), (1.7, 1.4, 1.1), (60, 70, 80)
+  amps, fs, fwhms, phases = (0.01, 0.03, 0.1), (7, 11, 17, 25), (1.7, 1.4, 1.1), (60, 75, 85, None)
   # Column labels. 
+
+  deg = '^\\circ'
+
   clabs = {'amp':[ '\\geq ' + str(a) + aunit for a in amps ], 
            'f':[ str(f0) + funit + to + str(f1) + funit for f0, f1 in zip( fs[:-1], fs[1:] ) ],
            'fwhm':[ '<' + str(f) + funit for f in fwhms ],
-           'phase':[ str(p) + '^\\circ' + to + str(180 - p) + '^\\circ' for p in phases ]}[name]
+#           'phase':[ str(p) + '^\\circ' + to + str(180 - p) + '^\\circ' for p in phases ]}[name]
+           'phase':[ str(phases[0]) + deg + to + str(phases[1]) + deg + notex(', ') + str(180 - phases[1]) + deg + to + str(180 - phases[0]) + deg,
+    str(phases[1]) + deg + to + str(phases[2]) + deg + notex(', ') + str(180 - phases[2]) + deg + to + str(180 - phases[1]) + deg,
+    str(phases[2]) + deg + to + str(180 - phases[2]) + deg ]}[name]
+
   title = notex( 'Distribution of Pc4 Events by Mode and ' + {'amp':'Amplitude', 'f':'Frequency', 'fwhm':'Spectral Width', 'phase':'Phase'}[name] )
 
   PW.setParams(collabels=clabs, rowlabels=rlabs, title=title)
   # Setting up filters to grab the events for each column. 
-  filters = { 'phase':[ {'phase': p} for p in phases ], 
+  filters = { 'phase':[ {'phase': p0, 'antiphase':p1} for p0, p1 in zip( phases[:3], phases[1:] ) ], 
               'f':[ {'f_ge': f0, 'f_lt':f1} for f0, f1 in zip( fs[:-1], fs[1:] ) ],
               'fwhm':[ {'fwhm_lt': f} for f in fwhms ], 
               'amp':[ {'amp_ge': a} for a in amps ] }[name]
@@ -913,7 +920,7 @@ def getpos(dl=0.5, dm=1, lmin=None, lmax=None, dst_ge=None, dst_lt=None):
 # =============================================================================
 
 # Returns a filtered list of events. 
-def loadevents(mode=None, fwhm_ge=None, fwhm_lt=3., amp_ge=None, amp_lt=None, f_ge=None, f_lt=None, comp_ge=None, comp_lt=None, double=False, llpp_lt=None, llpp_ge=None, dst_lt=None, dst_ge=None, phase=None):
+def loadevents(mode=None, fwhm_ge=None, fwhm_lt=3., amp_ge=None, amp_lt=None, f_ge=None, f_lt=None, comp_ge=None, comp_lt=None, double=False, llpp_lt=None, llpp_ge=None, dst_lt=None, dst_ge=None, phase=None, antiphase=None):
   global thresh
   # Grab the events file as an array of strings. Skip the header. 
   events = g2a( line for line in read('events.txt') if 'probe' not in line )
@@ -934,7 +941,10 @@ def loadevents(mode=None, fwhm_ge=None, fwhm_lt=3., amp_ge=None, amp_lt=None, f_
     ph = g2a( float( line.split()[10] ) for line in events )
     inew = np.nonzero( np.logical_and(np.abs(ph) > phase, np.abs(ph) < 180 - phase) )
     events = events[inew]
-
+  if antiphase is not None:
+    ph = g2a( float( line.split()[10] ) for line in events )
+    inew = np.nonzero( np.logical_or(np.abs(ph) < antiphase, np.abs(ph) > 180 - antiphase) )
+    events = events[inew]
 
   # Filter on frequency. 
   if f_ge is not None:
