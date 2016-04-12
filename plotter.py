@@ -49,7 +49,8 @@ def main():
 #  # Find an event from the list and plot it. 
 #  return showevent(amp_ge=1)
 
-#  return dungey()
+  # Sketch of the Dungey Cycle. 
+  dungey(save='-i' in argv)
 
 #  # Just tell me how many there are of each mode. 
 #  count()
@@ -66,10 +67,7 @@ def main():
 #  modesbyparam(name='f', save='-i' in argv)
 #  modesbyparam(name='phase', save='-i' in argv)
 #  azmplot(storm=None, save='-i' in argv)
-
   doubleplot(save='-i' in argv)
-
-
 
 #  # Location of the usable data. 
 #  [ posplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
@@ -1097,70 +1095,212 @@ def doublehist(hargs, pmode=None, tmode=None, **kargs):
 # #################################### Outer Magnetosphere and the Dungey Cycle
 # #############################################################################
 
-'''
-def gauss(x, amp=0, avg=np.pi/2, std=1):
-  return amp*np.exp( -(x - avg)**2/(2.*std**2) )
-
-def lshell(L, stretch=1., qstretch=0., *args, **kargs):
-  q0 = np.arcsin( np.sqrt( 1./np.abs(L) ) )
-  q = np.linspace(q0, np.pi - q0, 100)
-  r = L*np.sin(q)**2 + gauss(q, *args, **kargs)
-  x, z = r*np.sin(q), r*np.cos(q)
-  dx = x - x[0]
-  xnew = x[0] + stretch*dx + qstretch*dx**2
-  return xnew, z
-
-def straighten(x, y):
-  n = x.size
-  xp, yp = x, y  
-  x0, y0 = x[n/2-1], y[n/2-1]
-  xp[n/2:] = np.linspace(x0, 30*np.sign(x0), n/2)
-  yp[n/2:] = y0
-  return xp, yp
-
-def q(L):
-  q0 = np.arcsin( np.sqrt( 1./np.abs(L) ) )
-  return np.linspace(q0, np.pi - q0, 100)
-'''
-
 # L-shell, with a quadratic stretch. 
 def lshell(L, qs=0.):
-  x = np.linspace(-20, 20, 1000)
+  q = np.linspace(0, np.pi, 1000)
+  r = L*np.sin(q)**2
+  x, z = r*np.sin(q), np.abs(r)*np.cos(q)
   x0 = np.sqrt( np.abs(1./L) ) if L!=0 else 0
-  if L>0:
-    xp = np.where( x<x0, x, x + qs*(x - x0)**2  )
+  if L > 0:
+    xp = np.where( x < x0, x, x + qs*(x - x0)**2  )
   else:
     xp = np.where( x>x0, x, x - qs*(x - x0)**2  )
-  zz = np.where( np.sign(L)==np.sign(xp), np.abs(L*xp**2)**(2./3) - xp**2, 0)
-  z = np.sqrt( np.maximum(zz, 0 ) )
-  return x, np.where( x**2 + z**2 > 1, z, 0)
+  return xp, np.where( x**2 + z**2 > 1, z, 0)
 
-def openline(x0):
-  x = np.linspace(-20, 20, 1000)
-  c = 0.1*(20 - x0)**2 / np.sqrt(20 - x0)
-  if x0 < 0: 
-    z = 100*c*np.sqrt( np.maximum(0, x0 - x) )
-  else: 
-    z = c*np.sqrt( np.maximum(x - x0, 0) )
-  return x, z
+# Closed field line. 
+def cline(L, stretch=1.2e-3):
+  x, z = lshell(L, qs=stretch*L)
+  ind = np.nonzero(z)[0]
+  print 'L = ', L, ' max = ', np.max( np.abs( x[ind] ) )
+  # Fold over to the southern hemisphere. 
+  return x[ind], z[ind]
+
+# Open field line. 
+def oline(L, zmid, xtop, rad=1):
+  global xlims, ylims
+  xl0, zl0 = [ arr[:500] for arr in lshell(L, qs=1.2e-3*L) ]
+  # Find the edge of Earth, and the point at which we hit zmid. 
+  i0 = np.argmax( xl0**2 + zl0**2 > 1. )
+  if zmid > 0:
+    i1 = np.argmax( zl0 > zmid )
+  else:
+    i1 = zl0.size - np.argmax( zl0[::-1] > -zmid ) - 1
+  xl, zl = xl0[i0:i1], zl0[i0:i1]
+  # Use a circle to round the transition from closed to open. Space it out in
+  # terms of a line drawn equidistant to the two last points on the L shell, to
+  # ensure it's tangent. 
+  xz0 = np.array( (xl[-1], zl[-1], 0) )
+  xz1 = np.array( (xl[-2], zl[-2], 0) )
+  xzh = 0.5*(xz0 + xz1)
+  dxz = xz1 - xz0
+  yhat = np.sign( xz0[0] )*np.array( (0, 0, -1) )
+  norm = unit( cross(yhat, dxz) )
+  diag = np.sqrt( rad**2 - 0.5*dot(dxz, dxz) )
+  # Location of the circle's center. 
+  circpos = xzh + diag*norm
+  # Circle is oppositely directed on the dayside and nightside. 
+  if L < 0:
+    q0 = np.arctan( ( circpos[1] - xz0[1] )/( circpos[0] - xz0[0] ) )
+    print 'dayside q0 = ', q0*180/np.pi, ' -> ',
+    q0 = 2*np.pi + q0 if q0 < 0 else q0 + np.pi
+    print q0*180/np.pi
+    q = np.linspace(q0, np.pi, 1000)
+  else:
+    q0 = np.arctan( ( circpos[1] - xz0[1] )/( circpos[0] - xz0[0] ) )
+    print 'nightside q0 = ', q0*180/np.pi
+    q0 = q0 if q0 < 0 else q0 - np.pi
+    q = np.linspace(q0, 0., 1000)
+  xc, zc = circpos[0] + rad*np.cos(q), circpos[1] + rad*np.sin(q)
+
+  # If we wanted to put an arrow at the halfway point...
+  print 'L = ', L, ' xc, zc = ', xc[500], zc[500], ' vector = ', xc[500]/np.sqrt(xc[500]**2 + zc[500]**2), zc[500]/np.sqrt(xc[500]**2 + zc[500]**2)
+
+  # From the end of the circle, draw a parabola to the top. 
+  zp = np.linspace(zc[-1], ylims[1], 1000)
+  xp = xc[-1] + ( xtop - xc[-1] )*( ( zp - zc[-1] )/( ylims[1] - zc[-1] ) )**2
+  # Send the edges to infinity so we can connect them. 
+  xf, zf = np.array( (100,) ), np.array( (100,) )
+  # Concatenate the arrays together to define a line. 
+  x = np.concatenate( (xl, xc, xp, xf) )
+  z = np.concatenate( (zl, zc, zp, zf) )
+  # Fold them over to get northern and southern hemispheres. 
+  return np.concatenate( ( x, x[::-1] ) ), np.concatenate( ( z, -z[::-1] ) )
+
+# Solar wind field line. 
+def sline(xmid, xtop):
+  global xlims, ylims
+  z = np.linspace(0, ylims[1], 1000)
+  x = xmid + (xtop - xmid)*( z/ylims[1] )**2
+  return np.concatenate( (x[::-1], x) ), np.concatenate( (z[::-1], -z) )
 
 
-def dungey():
+
+
+def unit(v):
+  return v/np.sqrt( dot(v, v) )
+
+def dot(v, w, axis=0):
+  return np.sum(v*w, axis=axis)
+
+def cross(v, w, axis=0):
+  return np.cross(v, w, axis=axis)
+
+def zmask(x, thr=0):
+  return masked_where(np.abs(x) <= thr, x)
+
+
+
+xlims = (-20, 20)
+ylims = (-8, 8)
+
+
+
+
+
+
+def dungey(save=False):
+  global xlims, ylims
+
   PW = plotWindow(ncols=-2, colorbar=None)
-  PW.setParams( xlims=(-20, 20), ylims=(-8, 8) )
+  PW.setParams(xlims=xlims, ylims=ylims, title=notex('Magnetospheric Reconnection'))
   PW.setParams(earth='left')
+
+  PW.setLine( *sline(-18, -18), color='r' )
+  PW.setLine( *sline(-14, -12), color='r' )
+
+  ax = PW.cells[0, 0].ax
+
+  ax.arrow(-14, 0, 1, 0, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+  ax.arrow(-8.208, 0, -1, 0, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+
+  ax.arrow(-10.27, 0.676, 0, 1, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+  ax.arrow(-2., 6, 1, 0, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+  ax.arrow(6, 6, 1, 0, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+  ax.arrow(15.5, 2.8, 0, -1, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+
+  ax.arrow(-10.27, -0.676, 0, -1, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+  ax.arrow(-2., -6, 1, 0, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+  ax.arrow(6, -6, 1, 0, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+  ax.arrow(15.5, -2.8, 0, 1, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+
+  ax.arrow(11.8, 0, -1, 0, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+  ax.arrow(17, 0, 1, 0, fc='k', ec='k', head_width=0.5, head_length=0.5 )
+
+
+  PW.setLine( *oline(L=-12, zmid=-1, xtop=-6, rad=0.5), color='m' )
+  PW.setLine( *oline(L=-30, zmid=5, xtop=3, rad=1), color='m' )
+
+  [ PW.setLine( *cline(L), color='b' ) for L in (-9, -6, -3, 3.5, 7, 10.5) ]
+
+#  y = np.linspace(1, 10, 1000)
+#  x = 15*( (y - 1)/(ylims[1] - 1) )**2
+#  PW.setLine(x, y, 'g')
+#  x = 15*( (y - 1)/(ylims[1] - 1) )**3
+#  PW.setLine(x, y, 'g')
+#  x = 15*( (y - 1)/(ylims[1] - 1) )**4
+#  PW.setLine(x, y, 'g')
+
+  PW.setLine( *cline(L=22, stretch=5e-3), color='m' )
+
+  PW.setLine( *oline(L=13, zmid=-3, xtop=30, rad=2), color='m' )
+
+  PW.setLine( *sline(17, 45), color='r' )
+  PW.setLine( *sline(19, 55), color='r' )
+
+#  PW.setLine( *sline(-10.3, 5), color='k', linestyle='--' )
+
+## P.arrow( x, y, dx, dy, **kwargs )
+#P.arrow( 0.5, 0.8, 0.0, -0.2, fc="k", ec="k",
+#head_width=0.05, head_length=0.1 )
+#P.show()
+
+
+
+
+  PW.setParams( xticks=xlims, xticklabels=( '$' + notex('Sunward') + '$', '$' + notex('Tailward') + '$' ), yticks=ylims, ylabel=notex('Z'), xlabel=notex('X'), yticklabels=( '$' + notex('South') + '$', '$' + notex('North') + '$' ) )
+
+
+  # Show or save the plot. 
+  if save is True:
+    return PW.render(plotdir + 'dungey.pdf')
+  else:
+    return PW.render()
+
+
+  '''
   dstretch = 1.2e-3
   nstretch = 1.2e-3
-  [ PW.setLine( *lshell(L, qs=-nstretch*L), color='b' ) for L in range(2, 12, 4) ]
-  [ PW.setLine( *lshell(L, qs=-dstretch*L), color='b' ) for L in range(-10, 0, 4) ]
-  [ PW.setLine( *openline(x0), color='r' ) for x0 in (-18, -14, 16, 18) ]
-  for L, x0 in ( (-12, -10), (-20, -6), (-32, -1.5), (12, 14), (18, 10), (32, 2) ):
-    x, zc = lshell(L, qs=-dstretch*L)
-    x, zo = openline(x0)
-    p = 3.
-    PW.setLine(x, (zo**p + zc**p)**(1/p), 'm')
-  return PW.render()
-
+  x, z = lshell(-11, qs=dstretch*11)
+  i = np.argmax( z > 1 )
+  xz0 = np.array( (x[i], z[i], 0) )
+  xz1 = np.array( (x[i+1], z[i+1], 0) )
+  xzh = 0.5*(xz0 + xz1)
+  dxz = xz1 - xz0
+  yhat = np.sign( xz0[0] )*np.array( (0, 0, -1) )
+  norm = unit( cross(yhat, dxz) )
+  r = 1.
+  ds = 0.5*np.sqrt( dot(dxz, dxz) )
+  diag = np.sqrt( r**2 - ds**2 )
+  circpos = xzh + diag*norm
+  q0 = 2*np.pi + np.arctan( ( circpos[1] - xz0[1] )/( circpos[0] - xz0[0] ) )
+  print 'q0 = ', q0*180/np.pi
+  q = np.linspace(q0, np.pi, 1000)
+  xc, zc = circpos[0] + r*np.cos(q), circpos[1] + r*np.sin(q)
+  xtop = -5.
+  zp = np.linspace(zc[-1], ylims[1], 1000)
+  xp = xc[-1] + ( ( zp - zc[-1] )/( ylims[1] - zc[-1] ) )**2
+  PW.setLine(x[i:], z[i:], color='g' )
+  PW.setLine(xc, zc, color='g' )
+  PW.setLine(xp, zp, color='g' )
+  '''
+#  [ PW.setLine( *lshell(L, qs=-nstretch*L), color='b' ) for L in range(2, 12, 4) ]
+#  [ PW.setLine( *lshell(L, qs=-dstretch*L), color='b' ) for L in range(-10, 0, 4) ]
+#  [ PW.setLine( *openline(x0), color='r' ) for x0 in (-18, -14, 16, 18) ]
+#  for L, x0 in ( (-12, -10), (-20, -6), (-32, -2), (40, 2), (32, 6), (18, 10), (12, 14),  ):
+#    x, zc = lshell(L, qs=-dstretch*L)
+#    x, zo = openline(x0)
+#    p = 3.
+#    PW.setLine(x, (zo**p + zc**p)**(1/p), 'm')
   '''
   for i, L in enumerate( (2, 4, 6, 8, 10) ):
     PW.setLine( *lshell(-L), color='b' )
@@ -1194,8 +1334,47 @@ def dungey():
 #    y = (i+1)*np.sqrt( np.maximum(x - x0, 0)/(20. - x0) )
 #    PW.setLine(x, y, 'r')
   PW.render()
+
+
+
+
+
+def openline(x0):
+  x = np.linspace(-20, 20, 1000)
+  c = 0.1*(20 - x0)**2 / np.sqrt(20 - x0)
+  if x0 < 0: 
+    z = 100*c*np.sqrt( np.maximum(0, x0 - x) )
+  else: 
+    z = c*np.sqrt( np.maximum(x - x0, 0) )
+  return x, z
+
   '''
-  return
+
+'''
+def gauss(x, amp=0, avg=np.pi/2, std=1):
+  return amp*np.exp( -(x - avg)**2/(2.*std**2) )
+
+def lshell(L, stretch=1., qstretch=0., *args, **kargs):
+  q0 = np.arcsin( np.sqrt( 1./np.abs(L) ) )
+  q = np.linspace(q0, np.pi - q0, 100)
+  r = L*np.sin(q)**2 + gauss(q, *args, **kargs)
+  x, z = r*np.sin(q), r*np.cos(q)
+  dx = x - x[0]
+  xnew = x[0] + stretch*dx + qstretch*dx**2
+  return xnew, z
+
+def straighten(x, y):
+  n = x.size
+  xp, yp = x, y  
+  x0, y0 = x[n/2-1], y[n/2-1]
+  xp[n/2:] = np.linspace(x0, 30*np.sign(x0), n/2)
+  yp[n/2:] = y0
+  return xp, yp
+
+def q(L):
+  q0 = np.arcsin( np.sqrt( 1./np.abs(L) ) )
+  return np.linspace(q0, np.pi - q0, 100)
+'''
 
 # #############################################################################
 # ############################################################ Helper Functions
