@@ -51,9 +51,8 @@ def main():
 
 #  return dungey()
 
-  # Just tell me how many there are of each mode. 
-  count()
-
+#  # Just tell me how many there are of each mode. 
+#  count()
 
   # Here are the plots we actually use. 
 
@@ -65,8 +64,12 @@ def main():
 #  paramplot(name='phase', save='-i' in argv)
 #  modesbyparam(name='amp', save='-i' in argv)
 #  modesbyparam(name='f', save='-i' in argv)
-  modesbyparam(name='phase', save='-i' in argv)
-#  modesbyparam(name='fwhm', save='-i' in argv)
+#  modesbyparam(name='phase', save='-i' in argv)
+#  azmplot(storm=None, save='-i' in argv)
+
+  doubleplot(save='-i' in argv)
+
+
 
 #  # Location of the usable data. 
 #  [ posplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
@@ -110,6 +113,22 @@ def count():
       dh = doublehist(pos['hargs'], pmode=pmode, tmode=tmode)
 
   return
+
+
+# Given a histogram of event rates, return an average event rate, weighing each
+# bin by its size. 
+def meanrate(arr):
+  # If there are only two bins in the radial direction, they are centered at
+  # L=4 and L=6. 
+  if arr.shape[0]==2:
+    warr = arr*np.array( [4, 6] )[:, None]/5.
+  # If there are six bins in the radial direction, they are spaced from 1 to 7.
+  elif arr.shape[0]==6:
+    warr = arr*np.array( [1.5, 2.5, 3.5, 4.5, 5.5, 6.5] )[:, None]/4.
+  else:
+    print 'UNRECOGNIZED ARRAY SIZE'
+    exit()
+  return tdp( 100.*np.mean(warr) ) + '\\%'
 
 # #############################################################################
 # ######################################################### Show a Single Event
@@ -468,7 +487,7 @@ def modesbyparam(name, save=False):
       eh = eventhist(hargs, mode=mode, **filt)
       # Indicate event count and overall rate in the corners. 
       eventcount = np.sum(eh)
-      pct = tdp( 100.*np.mean(eh/z) ) + '\\%'
+      pct = meanrate(eh/z)
       count = znt(eventcount)
       PW[row, col].setParams(lcorner=count, rcorner=pct)
       # Add the mesh to the plot. 
@@ -525,7 +544,7 @@ def allplot(storm=None, save=False):
     print np.sum(erow)
 
   eventcount = np.sum(eh)
-  pct = notex('Rate: ') + tdp( 100.*np.mean(eh/z) ) + '\\%'
+  pct = notex('Rate: ') + meanrate(eh/z)
   count = notex('Count: ') + znt(eventcount)
   PW.setParams(lcorner=count, rcorner=pct)
 
@@ -573,7 +592,7 @@ def modeplot(storm=None, save=False):
       eh = eventhist(hargs, mode=mf+hf, **sargs)
 
       eventcount = np.sum(eh)
-      pct = tdp( 100.*np.mean(eh/z) ) + '\\%'
+      pct = meanrate(eh/z)
       count = znt(eventcount)
       PW[row, col].setParams(lcorner=count, rcorner=pct)
 
@@ -606,7 +625,7 @@ def azmplot(storm=None, save=False, split=0.2):
   # Set up the window. 
   PW = plotWindow( ncols=2, nrows=2, **bep() )
   status = {True:'Storm ', False:'Quiet ', None:''}[storm]
-  title = notex(status + 'Poloidal Pc4 by Compressional Coupling: ' + titlehelper )
+  title = notex('Distribution of Poloidal Pc4 Events by Mode and Compression')
   rlabs = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
 
   clabs = ( tex('BBp') + ' \\geq ' + format(split, '.1f'), tex('BBp') + ' < ' + format(split, '.1f') )
@@ -614,27 +633,18 @@ def azmplot(storm=None, save=False, split=0.2):
   PW.setParams(collabels=clabs, rowlabels=rlabs, title=title)
   # Iterate over the filters. 
   for row, mode in enumerate( ('P1', 'P2') ):
-    # Grab a histogram of the events, filtered by spectral width. 
+    for col, key in enumerate( ('comp_ge', 'comp_lt') ):
 
-    sargs = { True:{'dst_lt':-30}, False:{'dst_ge':-30}, None:{} }[storm]
+#      # Filter by DST?
+#      sargs = { True:{'dst_lt':-30}, False:{'dst_ge':-30}, None:{} }[storm]
 
-    smallm  = eventhist(hargs, mode=mode, comp_ge=split, **sargs)
-    bigm = eventhist(hargs, mode=mode, comp_lt=split, **sargs)
-    # Normalize by how long each region was sampled. 
-    rates  = 100*zmask(smallm)/z, 100*zmask(bigm)/z
-
-    smallmcount = np.sum(smallm)
-    pct = tdf( 100.*np.mean(smallm/z) ) + '\\%'
-    count = znt(smallmcount)
-    PW[row, 0].setParams(lcorner=count, rcorner=pct)
-
-    bigmcount = np.sum(bigm)
-    pct = tdf( 100.*np.mean(bigm/z) ) + '\\%'
-    count = znt(bigmcount)
-    PW[row, 1].setParams(lcorner=count, rcorner=pct)
-
-    # Add the mesh to the plot. 
-    [ PW[row, i].setMesh(x, y, r) for i, r in enumerate(rates) ]
+      # Grab and plot the data. 
+      eh = eventhist( hargs, mode=mode, **{key:split} )
+      PW[row, col].setMesh(x, y, 100*zmask(eh)/z)
+      # Put count and rate in the corners. 
+      count = znt( np.sum(eh) )
+      pct = meanrate(eh/z)
+      PW[row, col].setParams(lcorner=count, rcorner=pct)
 
   # Show or save the plot. 
   if save is True:
@@ -687,7 +697,7 @@ def doubleplot(save=False, split=-30.):
       dh = doublehist(hargs, pmode='P' + harm, tmode='T' + harm, **{key:split})
 
       eventcount = np.sum(dh)
-      pct = tdp( 100.*np.mean(dh/z) ) + '\\%'
+      pct = meanrate(dh/z)
       count = znt(eventcount)
       PW[row, col].setParams(lcorner=count, rcorner=pct)
 
@@ -735,12 +745,12 @@ def fwhmplot(mode, split=1., storm=None, save=False):
     narrow  = eventhist(hargs, mode=mname, fwhm_lt=split, **sargs)
 
     broadcount = np.sum(broad)
-    pct = tdf( 100.*np.mean(broad/z) ) + '\\%'
+    pct = meanrate(broad/z)
     count = znt(broadcount)
     PW[row, 0].setParams(lcorner=count, rcorner=pct)
 
     narrowcount = np.sum(narrow)
-    pct = tdf( 100.*np.mean(narrow/z) ) + '\\%'
+    pct = meanrate(narrow/z)
     count = znt(narrowcount)
     PW[row, 1].setParams(lcorner=count, rcorner=pct)
 
@@ -780,7 +790,7 @@ def dstplot(mode, split=-30., save=False):
       eh = eventhist( hargs, mode=mname, **{key:split} )
 
       eventcount = np.sum(eh)
-      pct = tdf( 100.*np.mean(eh/z) ) + '\\%'
+      pct = meanrate(eh/z)
       count = znt(eventcount)
       PW[row, col].setParams(lcorner=count, rcorner=pct)
 
