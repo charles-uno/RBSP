@@ -49,8 +49,10 @@ def main():
 #  # Find an event from the list and plot it. 
 #  return showevent(amp_ge=1)
 
-  # Sketch of the Dungey Cycle. 
-  dungey(save='-i' in argv)
+#  # Sketch of the Dungey Cycle. 
+#  dungey(save='-i' in argv)
+
+  return innermag(save='-i' in argv)
 
 #  # Just tell me how many there are of each mode. 
 #  count()
@@ -67,7 +69,7 @@ def main():
 #  modesbyparam(name='f', save='-i' in argv)
 #  modesbyparam(name='phase', save='-i' in argv)
 #  azmplot(storm=None, save='-i' in argv)
-  doubleplot(save='-i' in argv)
+#  doubleplot(save='-i' in argv)
 
 #  # Location of the usable data. 
 #  [ posplot(storm=s, save='-i' in argv) for s in (True, False, None) ]
@@ -1198,7 +1200,7 @@ def dungey(save=False):
   global xlims, ylims
 
   PW = plotWindow(ncols=-2, colorbar=None)
-  PW.setParams(xlims=xlims, ylims=ylims, title=notex('Magnetospheric Reconnection'))
+  PW.setParams(xlims=xlims, ylims=ylims, title=notex('Reconnection in the Outer Magnetosphere'))
   PW.setParams(earth='left')
 
   PW.setLine( *sline(-18, -18), color='r' )
@@ -1240,9 +1242,90 @@ def dungey(save=False):
 
   # Show or save the plot. 
   if save is True:
-    return PW.render(plotdir + 'dungey.pdf')
+    return PW.render(plotdir + 'outer_magnetosphere.pdf')
   else:
     return PW.render()
+
+
+# #############################################################################
+# ######################################################### Inner Magnetosphere
+# #############################################################################
+
+
+def shell(L0, L1):
+  # Compute Z(X) using a common X for the two L shells. 
+  x = np.linspace(0, max(L0, L1), 1000)
+  z0 = np.sqrt( np.maximum(np.abs(L0*x**2)**(2./3) - x**2, 0) )
+  z1 = np.sqrt( np.maximum(np.abs(L1*x**2)**(2./3) - x**2, 0) )
+  # Get the southern hemisphere too. 
+  xns = np.concatenate( ( x, x[::-1] ) )
+  z0ns = np.concatenate( ( z0, -z0[::-1] ) )
+  z1ns = np.concatenate( ( z1, -z1[::-1] ) )
+  return xns, z0ns, z1ns
+
+
+
+def innermag(save=False):
+
+  xlims, ylims = (-6, 6), (-2.4, 2.4)
+
+  PW = plotWindow(ncols=-2, colorbar=None)
+  PW.setParams(xlims=xlims, ylims=ylims, title=notex('Structures in the Inner Magnetosphere'))
+  PW.setParams(earth='left')
+
+  x, z0, z1 = shell(2, 4)
+
+  print x.shape, z0.shape, z1.shape
+ 
+  ax = PW.cells[0, 0].ax
+
+  x, z0, z1 = shell(1, 4)
+  [ ax.fill_between( pm*x, z0, z1, color='r', alpha=0.5, linewidth=0.) for pm in (1, -1) ]
+
+  x, z0, z1 = shell(2, 2.5)
+  [ ax.fill_between( pm*x, z0, z1, color='b', alpha=0.5, linewidth=0.) for pm in (1, -1) ]
+  x, z0, z1 = shell(3.5, 4.5)
+  [ ax.fill_between( pm*x, z0, z1, color='b', alpha=0.5, linewidth=0.) for pm in (1, -1) ]
+
+  x, z0, z1 = shell(3, 5)
+  [ ax.fill_between( pm*x, z0, z1, color='g', alpha=0.5, linewidth=0.) for pm in (1, -1) ]
+
+
+#  ax.fill_between( *shell(1, 4), color='r', alpha=0.5, linewidth=0.)
+#  ax.fill_between( *shell(1.5, 2.5), color='b', alpha=0.5, linewidth=0.)
+#  ax.fill_between( *shell(3.5, 5.5), color='b', alpha=0.5, linewidth=0.)
+#  ax.fill_between( *shell(3, 5), color='g', alpha=0.5, linewidth=0.)
+
+  xticks = np.mgrid[-6:6:13j]
+  xticklabels = np.array( [ '$' + format(t, '+.0f') + '$' for t in xticks ] )
+  xticklabels[1::2] = ''
+  xticklabels[6] = '$0$'
+
+  yticks = np.mgrid[-3:3:7j]
+  yticklabels = np.array( [ '$' + format(t, '+.0f') + '$' for t in yticks ] )
+  yticklabels[::2] = ''
+  yticklabels[3] = '$0$'
+
+
+  PW.setParams( xticks=xticks, xticklabels=xticklabels, yticks=yticks, ylabel=notex('Z (R_E)'), xlabel=notex('X (R_E)'), yticklabels=yticklabels )
+
+
+  # Show or save the plot. 
+  if save is True:
+    return PW.render(plotdir + 'inner_magnetosphere.pdf')
+  else:
+    return PW.render()
+  pass
+
+
+
+
+
+
+
+
+
+
 
 
 # #############################################################################
