@@ -1194,10 +1194,6 @@ xlims = (-20, 20)
 ylims = (-8, 8)
 
 
-
-
-
-
 def dungey(save=False):
   global xlims, ylims
 
@@ -1232,30 +1228,12 @@ def dungey(save=False):
 
   [ PW.setLine( *cline(L), color='b' ) for L in (-9, -6, -3, 3.5, 7, 10.5) ]
 
-#  y = np.linspace(1, 10, 1000)
-#  x = 15*( (y - 1)/(ylims[1] - 1) )**2
-#  PW.setLine(x, y, 'g')
-#  x = 15*( (y - 1)/(ylims[1] - 1) )**3
-#  PW.setLine(x, y, 'g')
-#  x = 15*( (y - 1)/(ylims[1] - 1) )**4
-#  PW.setLine(x, y, 'g')
-
   PW.setLine( *cline(L=22, stretch=5e-3), color='m' )
 
   PW.setLine( *oline(L=13, zmid=-3, xtop=30, rad=2), color='m' )
 
   PW.setLine( *sline(17, 45), color='r' )
   PW.setLine( *sline(19, 55), color='r' )
-
-#  PW.setLine( *sline(-10.3, 5), color='k', linestyle='--' )
-
-## P.arrow( x, y, dx, dy, **kwargs )
-#P.arrow( 0.5, 0.8, 0.0, -0.2, fc="k", ec="k",
-#head_width=0.05, head_length=0.1 )
-#P.show()
-
-
-
 
   PW.setParams( xticks=xlims, xticklabels=( '$' + notex('Sunward') + '$', '$' + notex('Tailward') + '$' ), yticks=ylims, ylabel=notex('Z'), xlabel=notex('X'), yticklabels=( '$' + notex('South') + '$', '$' + notex('North') + '$' ) )
 
@@ -1266,115 +1244,6 @@ def dungey(save=False):
   else:
     return PW.render()
 
-
-  '''
-  dstretch = 1.2e-3
-  nstretch = 1.2e-3
-  x, z = lshell(-11, qs=dstretch*11)
-  i = np.argmax( z > 1 )
-  xz0 = np.array( (x[i], z[i], 0) )
-  xz1 = np.array( (x[i+1], z[i+1], 0) )
-  xzh = 0.5*(xz0 + xz1)
-  dxz = xz1 - xz0
-  yhat = np.sign( xz0[0] )*np.array( (0, 0, -1) )
-  norm = unit( cross(yhat, dxz) )
-  r = 1.
-  ds = 0.5*np.sqrt( dot(dxz, dxz) )
-  diag = np.sqrt( r**2 - ds**2 )
-  circpos = xzh + diag*norm
-  q0 = 2*np.pi + np.arctan( ( circpos[1] - xz0[1] )/( circpos[0] - xz0[0] ) )
-  print 'q0 = ', q0*180/np.pi
-  q = np.linspace(q0, np.pi, 1000)
-  xc, zc = circpos[0] + r*np.cos(q), circpos[1] + r*np.sin(q)
-  xtop = -5.
-  zp = np.linspace(zc[-1], ylims[1], 1000)
-  xp = xc[-1] + ( ( zp - zc[-1] )/( ylims[1] - zc[-1] ) )**2
-  PW.setLine(x[i:], z[i:], color='g' )
-  PW.setLine(xc, zc, color='g' )
-  PW.setLine(xp, zp, color='g' )
-  '''
-#  [ PW.setLine( *lshell(L, qs=-nstretch*L), color='b' ) for L in range(2, 12, 4) ]
-#  [ PW.setLine( *lshell(L, qs=-dstretch*L), color='b' ) for L in range(-10, 0, 4) ]
-#  [ PW.setLine( *openline(x0), color='r' ) for x0 in (-18, -14, 16, 18) ]
-#  for L, x0 in ( (-12, -10), (-20, -6), (-32, -2), (40, 2), (32, 6), (18, 10), (12, 14),  ):
-#    x, zc = lshell(L, qs=-dstretch*L)
-#    x, zo = openline(x0)
-#    p = 3.
-#    PW.setLine(x, (zo**p + zc**p)**(1/p), 'm')
-  '''
-  for i, L in enumerate( (2, 4, 6, 8, 10) ):
-    PW.setLine( *lshell(-L), color='b' )
-    PW.setLine( *lshell(-L, qstretch=i/200.), color='r' )
-    PW.setLine( *lshell(L), color='b' )
-    x, z = straighten( *lshell(L, qstretch=i/100., std=0.1, amp=i/10.) )
-    PW.setLine( x, z, color='r' )
-#  for i, x0 in enumerate( range(0, 20, 2) ):
-#    z = (10 - i)*np.sqrt( np.maximum(x - x0, 0)/(20. - x0) )
-#    PW.setLine(x, z, 'g')
-  z = np.linspace(-8, 8, 100)
-  for x0 in range(-20, 20, 2):
-    x = x0 + 10*(20 - x0)**-2 * z**2
-    PW.setLine(x, z, 'g')
-  return PW.render()
-#  PW.setLine( *lshell(4, amp=0.5, std=1), color='b' )
-#  PW.setLine( *lshell(6, amp=1, std=0.5), color='b' )
-#  PW.setLine( *lshell(8,  amp=1, std=0.1), color='b' )
-#  PW.setLine( *lshell(10,  amp=2, std=0.1), color='b' )
-  x, y0 = straighten( *lshell(12, amp=2, std=0.1) )
-  PW.setLine( x, y0, color='m' )
-#  y1 = np.sqrt( np.maximum(x - 10, 0) )
-#  PW.setLine( x, y1, color='g' )
-#  PW.setLine( x, np.sqrt(y0**2 + y1**2), color='orange' )
-  y1 = 2*np.sqrt( np.maximum(x - 10, 0)/10. )
-  PW.setLine(x, y1, 'r')
-  PW.setLine(x, np.sqrt(y0**2 + y1**2), 'g')
-  y2 = 1*np.sqrt( np.maximum(x - 14, 0)/6. )
-  PW.setLine(x, y2, 'r')
-#  for i, x0 in enumerate( (16, 14, 12, 10, 8) ):
-#    y = (i+1)*np.sqrt( np.maximum(x - x0, 0)/(20. - x0) )
-#    PW.setLine(x, y, 'r')
-  PW.render()
-
-
-
-
-
-def openline(x0):
-  x = np.linspace(-20, 20, 1000)
-  c = 0.1*(20 - x0)**2 / np.sqrt(20 - x0)
-  if x0 < 0: 
-    z = 100*c*np.sqrt( np.maximum(0, x0 - x) )
-  else: 
-    z = c*np.sqrt( np.maximum(x - x0, 0) )
-  return x, z
-
-  '''
-
-'''
-def gauss(x, amp=0, avg=np.pi/2, std=1):
-  return amp*np.exp( -(x - avg)**2/(2.*std**2) )
-
-def lshell(L, stretch=1., qstretch=0., *args, **kargs):
-  q0 = np.arcsin( np.sqrt( 1./np.abs(L) ) )
-  q = np.linspace(q0, np.pi - q0, 100)
-  r = L*np.sin(q)**2 + gauss(q, *args, **kargs)
-  x, z = r*np.sin(q), r*np.cos(q)
-  dx = x - x[0]
-  xnew = x[0] + stretch*dx + qstretch*dx**2
-  return xnew, z
-
-def straighten(x, y):
-  n = x.size
-  xp, yp = x, y  
-  x0, y0 = x[n/2-1], y[n/2-1]
-  xp[n/2:] = np.linspace(x0, 30*np.sign(x0), n/2)
-  yp[n/2:] = y0
-  return xp, yp
-
-def q(L):
-  q0 = np.arcsin( np.sqrt( 1./np.abs(L) ) )
-  return np.linspace(q0, np.pi - q0, 100)
-'''
 
 # #############################################################################
 # ############################################################ Helper Functions
