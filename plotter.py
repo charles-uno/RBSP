@@ -1282,9 +1282,9 @@ def innermag(save=False):
   x, z0, z1 = shell(1, 4)
   [ ax.fill_between( pm*x, z0, z1, color='r', alpha=0.5, linewidth=0.) for pm in (1, -1) ]
 
-  x, z0, z1 = shell(2, 2.5)
+  x, z0, z1 = shell(1, 2)
   [ ax.fill_between( pm*x, z0, z1, color='b', alpha=0.5, linewidth=0.) for pm in (1, -1) ]
-  x, z0, z1 = shell(3.5, 4.5)
+  x, z0, z1 = shell(4, 6)
   [ ax.fill_between( pm*x, z0, z1, color='b', alpha=0.5, linewidth=0.) for pm in (1, -1) ]
 
   x, z0, z1 = shell(3, 5)
