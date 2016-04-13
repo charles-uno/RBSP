@@ -52,7 +52,9 @@ def main():
 #  # Sketch of the Dungey Cycle. 
 #  dungey(save='-i' in argv)
 
-  return innermag(save='-i' in argv)
+#  return innermag(save='-i' in argv)
+
+  return azm(save='-i' in argv)
 
 #  # Just tell me how many there are of each mode. 
 #  count()
@@ -1315,12 +1317,54 @@ def innermag(save=False):
     return PW.render(plotdir + 'inner_magnetosphere.pdf')
   else:
     return PW.render()
-  pass
 
 
 
+# #############################################################################
+# ######################################################## Azimuthal Modenumber
+# #############################################################################
+
+def azm(save=False):
+
+  azms = (1, 4, 16)
 
 
+  PW = plotWindow(ncols=len(azms), colorbar=None, square=True)
+
+  clabs = [ 'm = ' + str(azm) for azm in azms ]
+
+#  clabs = ( notex('Small Azimuthal Modenumber'), notex('Large Azimuthal Modenumber') )
+
+  PW.setParams(title=notex('Azimuthal Modenumbers Viewed from the Pole'), collabels=clabs)
+
+  xlims, ylims = (-6, 6), (-6, 6)
+
+  # Draw Earth. This is a bit kludgey. 
+#  ax = PW.cells.flatten()[0].ax
+#  [ cell.ax.add_artist( Wedge( (0, 0), 1, 0, 360, fc='w' ) ) for cell in PW.cells.flatten() ]
+  PW.setParams(earth='top')
+
+  q = np.linspace(0, 2*np.pi, 1000)
+  r = 4
+  x, y = r*np.sin(q), r*np.cos(q)
+  PW.setLine(x, y, 'k')
+
+  for i, azm in enumerate(azms):
+    dr = 1*np.sin(azm*q)
+    xp, yp = (r + dr)*np.sin(q), (r + dr)*np.cos(q)
+    PW[i].setLine(xp, yp, 'b')
+    xp, yp = (r - dr)*np.sin(q), (r - dr)*np.cos(q)
+    PW[i].setLine(xp, yp, 'r')
+
+
+
+  PW.setParams( xlims=xlims, xticks=xlims, xticklabels=('', ''), xlabel=notex('Y'), ylims=ylims, yticks=ylims, yticklabels=('', ''), ylabel=notex('X') )
+
+  # Show or save the plot. 
+  if save is True:
+    return PW.render(plotdir + 'azm.pdf')
+  else:
+    return PW.render()
 
 
 
