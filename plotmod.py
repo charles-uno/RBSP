@@ -604,7 +604,7 @@ class plotWindow:
   # --------------------------------- Initialize Plot Window and Space Out Axes
   # ---------------------------------------------------------------------------
 
-  def __init__(self, ncols=1, nrows=1, cells=None, square=False, joinlabel=None, footlabel=False, **kargs):
+  def __init__(self, ncols=1, nrows=1, cells=None, square=False, joinlabel=None, footlabel=False, landscape=False, **kargs):
     # If initialized with an array of cells, this isn't a real Plot Window... 
     # it's a temporary object that allows the access of a slice of cells. 
     if cells is not None:
@@ -614,13 +614,19 @@ class plotWindow:
     # from a previous plot. 
     plt.close('all')
     # Set the font to match LaTeX. 
-    rc('font', **{'family':'sans-serif', 'sans-serif':['Helvetica'], 
-                  'size':'9'})
+    if not landscape:
+      self.landscape = False
+      rc('font', **{'family':'sans-serif', 'sans-serif':['Helvetica'], 
+                    'size':'9'})
+    else:
+      self.landscape = True
+      rc('font', **{'family':'sans-serif', 'sans-serif':['Helvetica'], 
+                    'size':'12'})
     rc('text', usetex=True)
     rc('text.latex', preamble='\usepackage{amsmath}, \usepackage{amssymb}, ' + 
                               '\usepackage{color}')
     # The window width in inches is fixed to match the size of the page. 
-    windowWidth = 5.75
+    windowWidth = 5.75 if not self.landscape else 11.
     # A negative number of columns means that there should be just one column,
     # but extra "wide." For example, if asked for -3 columns, row heights are
     # set up to accommodate 3 columns, then only one cell is put on each row. 
@@ -767,7 +773,8 @@ class plotWindow:
         targs['horizontalalignment'] = 'center'
       # Accept a string as the window supertitle. 
       elif key=='title':
-        self.tax.text(s='$' + val + '$', fontsize=12, **targs)
+        fontsize = 12 if not self.landscape else 24
+        self.tax.text(s='$' + val + '$', fontsize=fontsize, **targs)
       # In case we want to put units on the color bar tick labels. 
       elif key=='unit':
         self.unit = val

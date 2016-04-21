@@ -54,7 +54,11 @@ def main():
 
 #  return innermag(save='-i' in argv)
 
-  return azm(save='-i' in argv)
+#  return azm(save='-i' in argv)
+
+
+  return paramplot(name='phase', save='-i' in argv, flat=True)
+
 
 #  # Just tell me how many there are of each mode. 
 #  count()
@@ -381,11 +385,25 @@ def pcoords(name):
           'xticklabels':xticklabels, 'ylabel':ylabel, 'ylims':ylims, 
           'yticks':yticks, 'yticklabels':yticklabels, 'ylabelpad':-2}
 
-# Let's take a look at a plot of how FWHM depends on mode. 
-def paramplot(name, save=False):
+
+
+
+
+# Let's take a look at a plot of how FWHM, etc, depends on mode. 
+def paramplot(name, save=False, flat=False):
   global plotdir
   # Set up the window. 
-  PW = plotWindow(ncols=2, nrows=2, colorbar=None)
+
+  if flat is True:
+    PW = plotWindow(ncols=4, nrows=1, colorbar=None, landscape=True)
+    clabs = ( notex('Odd Poloidal'), notex('Odd Toroidal'), notex('Even Poloidal'), notex('Even Toroidal') )
+    PW.setParams(collabels=clabs)
+  else:
+    PW = plotWindow(ncols=2, nrows=2, colorbar=None)
+    rlabs = ( notex('Odd'), notex('Even') )
+    clabs = ( notex('Poloidal'), notex('Toroidal') )
+    PW.setParams(collabels=clabs, rowlabels=rlabs)
+
   # Figure out what we're looking at, title-wise. 
   ttl = {'probe':notex('Probe'), 'date':notex('Date'), 'time':notex('Time'),
          'lshell':'L' + notex('-Shell'), 'mlt':notex('MLT'),
@@ -400,9 +418,7 @@ def paramplot(name, save=False):
          'amp':notex('\\frac{mW}{m^2}'), 'comp':'', 'dst':notex('nT')}[name]
   # Title and labels. 
   title = ttl + notex(' Distribution of Pc4 Events by Mode')
-  rlabs = ( notex('Odd'), notex('Even') )
-  clabs = ( notex('Poloidal'), notex('Toroidal') )
-  PW.setParams(collabels=clabs, rowlabels=rlabs, title=title, **pcoords(name) )
+  PW.setParams(title=title, **pcoords(name) )
   # For each mode, grab the parameter histogram and plot it. 
   modes = ('P1', 'T1', 'P2', 'T2')
   xy = [ getparam(name, mode=mode, phase=60) for mode in modes ]
@@ -441,6 +457,12 @@ def paramplot(name, save=False):
     return PW.render(plotdir + name + '.pdf')
   else:
     return PW.render()
+
+
+
+
+
+
 
 # =============================================================================
 # ============================================ Events Sliced by Parameter Value
