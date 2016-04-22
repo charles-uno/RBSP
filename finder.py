@@ -65,92 +65,6 @@ def main():
     [ checkdate(probe, date, mpc=30) for probe in ('a', 'b') ]
   return
 
-
-# #############################################################################
-# ################################################# Append a Column to the Data
-# #############################################################################
-
-# =============================================================================
-# ==================================================== Add Dst to Event Listing
-# =============================================================================
-
-def adddst_events():
-  dst = read('dst.txt')
-  # Load Dst values into an array. The first column is epoch time. 
-  dstarr = np.zeros( (2*len(dst) - 1, 2), dtype=np.int )
-  for i, d in enumerate(dst):
-    date, time, val = d.split()
-    dstarr[2*i, 0] = timeint(date=date, time=time)
-    dstarr[2*i, 1] = int(val)
-  # Average to get half hours. 
-  dstarr[1::2] = ( dstarr[:-2:2] + dstarr[2::2] )/2
-  # Read in the events. 
-  events = read('events.txt')
-  for e in events:
-    date, time = e.split()[1:3]
-    t = timeint(date=date, time=time)
-    # Find the line of Dst that matches this. 
-    i = np.argmin( np.abs( t - dstarr[:, 0] ) )
-    # For a consistent number of columns, non-double events are labeled ONLY. 
-    only = col('ONLY') if 'BIG' not in e and 'SMALL' not in e else ''
-    # Print out a new file which includes Dst along with the event info. 
-    append(e + only + col( dstarr[i, 1] ), 'events_with_dst.txt')
-  return
-
-# =============================================================================
-# ================================================= Add Dst to Position Listing
-# =============================================================================
-
-def adddst_pos():
-  dst = sorted( read('dst.txt') )
-  # Load Dst values into an array. The first column is epoch time. 
-  dstarr = np.zeros( (2*len(dst) - 1, 2), dtype=np.int )
-  for i, d in enumerate(dst):
-    date, time, val = d.split()
-    dstarr[2*i, 0] = timeint(date=date, time=time)
-    dstarr[2*i, 1] = int(val)
-  # Average to get half hours. 
-  dstarr[1::2] = ( dstarr[:-2:2] + dstarr[2::2] )/2
-  # Read in the probe positions. 
-  pos = read('pos.txt')
-  for p in pos:
-    date, time = p.split()[1:3]
-    t = timeint(date=date, time=time)
-    # Find the line of Dst that matches this. 
-    i = np.argmin( np.abs( t - dstarr[:, 0] ) )
-    # Print out a new file which includes Dst along with the position info. 
-    append(p + col( dstarr[i, 1] ), 'pos_with_dst.txt')
-  return
-
-# =============================================================================
-# ================================================= Add LPP to Position Listing
-# =============================================================================
-
-def addlpp_pos():
-  # Read the LPP values into an array. The first column is epoch time. 
-  lpp = sorted( read('lpp.txt') )
-  lpparr = np.zeros( (2*len(lpp) - 1, 2), dtype=np.float )
-  for i, l in enumerate(lpp):
-    date, time, val = l.split()[:3]
-    lpparr[2*i, 0] = timeint(date=date, time=time)
-    lpparr[2*i, 1] = np.float(val)
-  # Linearly interpolate to double time resolution. 
-  lpparr[1::2] = ( lpparr[:-2:2] + lpparr[2::2] )/2
-  # Print out a header for the new position file. 
-  append( col('probe') + col('date') + col('time') + col('lshell') +
-          col('mlt') + col('mlat') + col('data?') + col('dst') + col('LPP'),
-         'pos_with_lpp.txt' )
-  # Read in the probe positions. 
-  pos = read('pos.txt')
-  for p in pos:
-    date, time = p.split()[1:3]
-    t = timeint(date=date, time=time)
-    # Find the line of Dst that matches this. 
-    i = np.argmin( np.abs( t - lpparr[:, 0] ) )
-    # Print out a new file which includes LPP along with the position info. 
-    append(p + col( lpparr[i, 1] ), 'pos_with_lpp.txt')
-  return
-
 # #############################################################################
 # ###################################################### Tabulate RBSP Position
 # #############################################################################
@@ -335,6 +249,91 @@ def plotevent(ev, save=False):
     return PW.render(plotdir + ev.name + '.png')
   else:
     return PW.render()
+
+# #############################################################################
+# ################################################# Append a Column to the Data
+# #############################################################################
+
+# =============================================================================
+# ==================================================== Add Dst to Event Listing
+# =============================================================================
+
+def adddst_events():
+  dst = read('dst.txt')
+  # Load Dst values into an array. The first column is epoch time. 
+  dstarr = np.zeros( (2*len(dst) - 1, 2), dtype=np.int )
+  for i, d in enumerate(dst):
+    date, time, val = d.split()
+    dstarr[2*i, 0] = timeint(date=date, time=time)
+    dstarr[2*i, 1] = int(val)
+  # Average to get half hours. 
+  dstarr[1::2] = ( dstarr[:-2:2] + dstarr[2::2] )/2
+  # Read in the events. 
+  events = read('events.txt')
+  for e in events:
+    date, time = e.split()[1:3]
+    t = timeint(date=date, time=time)
+    # Find the line of Dst that matches this. 
+    i = np.argmin( np.abs( t - dstarr[:, 0] ) )
+    # For a consistent number of columns, non-double events are labeled ONLY. 
+    only = col('ONLY') if 'BIG' not in e and 'SMALL' not in e else ''
+    # Print out a new file which includes Dst along with the event info. 
+    append(e + only + col( dstarr[i, 1] ), 'events_with_dst.txt')
+  return
+
+# =============================================================================
+# ================================================= Add Dst to Position Listing
+# =============================================================================
+
+def adddst_pos():
+  dst = sorted( read('dst.txt') )
+  # Load Dst values into an array. The first column is epoch time. 
+  dstarr = np.zeros( (2*len(dst) - 1, 2), dtype=np.int )
+  for i, d in enumerate(dst):
+    date, time, val = d.split()
+    dstarr[2*i, 0] = timeint(date=date, time=time)
+    dstarr[2*i, 1] = int(val)
+  # Average to get half hours. 
+  dstarr[1::2] = ( dstarr[:-2:2] + dstarr[2::2] )/2
+  # Read in the probe positions. 
+  pos = read('pos.txt')
+  for p in pos:
+    date, time = p.split()[1:3]
+    t = timeint(date=date, time=time)
+    # Find the line of Dst that matches this. 
+    i = np.argmin( np.abs( t - dstarr[:, 0] ) )
+    # Print out a new file which includes Dst along with the position info. 
+    append(p + col( dstarr[i, 1] ), 'pos_with_dst.txt')
+  return
+
+# =============================================================================
+# ================================================= Add LPP to Position Listing
+# =============================================================================
+
+def addlpp_pos():
+  # Read the LPP values into an array. The first column is epoch time. 
+  lpp = sorted( read('lpp.txt') )
+  lpparr = np.zeros( (2*len(lpp) - 1, 2), dtype=np.float )
+  for i, l in enumerate(lpp):
+    date, time, val = l.split()[:3]
+    lpparr[2*i, 0] = timeint(date=date, time=time)
+    lpparr[2*i, 1] = np.float(val)
+  # Linearly interpolate to double time resolution. 
+  lpparr[1::2] = ( lpparr[:-2:2] + lpparr[2::2] )/2
+  # Print out a header for the new position file. 
+  append( col('probe') + col('date') + col('time') + col('lshell') +
+          col('mlt') + col('mlat') + col('data?') + col('dst') + col('LPP'),
+         'pos_with_lpp.txt' )
+  # Read in the probe positions. 
+  pos = read('pos.txt')
+  for p in pos:
+    date, time = p.split()[1:3]
+    t = timeint(date=date, time=time)
+    # Find the line of Dst that matches this. 
+    i = np.argmin( np.abs( t - lpparr[:, 0] ) )
+    # Print out a new file which includes LPP along with the position info. 
+    append(p + col( lpparr[i, 1] ), 'pos_with_lpp.txt')
+  return
 
 # #############################################################################
 # ############################################################ Helper Functions

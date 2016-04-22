@@ -268,8 +268,9 @@ class event:
 
   # Poynting flux in Fourier space, scaled to show values at the atmosphere. 
   def sfft(self, mode):
-    lllom = self.avg('lshell')**3 / phys.mu0
-    return self.fft('e' + mode)*np.conj( self.fft('b' + mode) )*lllom
+    # Scale by (r/RE)**3 to get values at the ionosphere. 
+    atmfac = ( self.avg('lshell')*np.cos( self.avg('mlat') )**2 )**3 / phys.mu0
+    return self.fft('e' + mode)*np.conj( self.fft('b' + mode) )*atmfac
 
   # Phase offset -- at each frequency, for each mode, what's the phase lag
   # between of the electric field relative to the magnetic field? 
