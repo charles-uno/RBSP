@@ -57,7 +57,7 @@ def main():
 #  return azm(save='-i' in argv)
 
 
-  return paramplot(name='phase', save='-i' in argv, flat=True)
+  return paramplot(name='phase', save='-i' in argv)
 
 
 #  # Just tell me how many there are of each mode. 
@@ -377,8 +377,8 @@ def pcoords(name):
 
   xticklabels[1::2] = ''
   ylabel = notex('Events')
-  ylims = (0, 160)
-  yticks = np.mgrid[0:160:5j]
+  ylims = (0, 140)
+  yticks = np.mgrid[ylims[0]:ylims[1]:5j]
   yticklabels = g2a( '$' + str( int(t) ) + '$' for t in yticks )
   yticklabels[1::2] = ''
   return {'xlabel':xlabel, 'xlims':xlims, 'xticks':xticks, 
@@ -399,7 +399,7 @@ def paramplot(name, save=False, flat=False):
     clabs = ( notex('Odd Poloidal'), notex('Odd Toroidal'), notex('Even Poloidal'), notex('Even Toroidal') )
     PW.setParams(collabels=clabs)
   else:
-    PW = plotWindow(ncols=2, nrows=2, colorbar=None)
+    PW = plotWindow(ncols=2, nrows=2, colorbar=None, square=True)
     rlabs = ( notex('Odd'), notex('Even') )
     clabs = ( notex('Poloidal'), notex('Toroidal') )
     PW.setParams(collabels=clabs, rowlabels=rlabs)
