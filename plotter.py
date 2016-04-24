@@ -56,9 +56,7 @@ def main():
 
 #  return azm(save='-i' in argv)
 
-
-  return paramplot(name='phase', save='-i' in argv)
-
+#  return paramplot(name='phase', save='-i' in argv)
 
 #  # Just tell me how many there are of each mode. 
 #  count()
@@ -70,7 +68,7 @@ def main():
 #  modeplot(storm=None, save='-i' in argv)
 #  paramplot(name='amp', save='-i' in argv)
 #  paramplot(name='f', save='-i' in argv)
-#  paramplot(name='phase', save='-i' in argv)
+  paramplot(name='phase', save='-i' in argv)
 #  modesbyparam(name='amp', save='-i' in argv)
 #  modesbyparam(name='f', save='-i' in argv)
 #  modesbyparam(name='phase', save='-i' in argv)
@@ -270,12 +268,12 @@ def posplot(storm=None, save=False):
   date0, date1 = pos['dates']
   dt = np.sum(z)/48.
   # Create the plot window using the bullseye params helper function. 
-  PW = plotWindow( **bep(rate=False) )
+  PW = plotWindow( fontfactor=1.5, **bep(rate=False) )
 
   status = {True:'Storm ', False:'Quiet ', None:''}[storm]
   title = notex('Distribution of Usable ' + status + 'Data: ' + date0 + ' to ' + date1)
 
-  PW.setParams( title=title, unitlabel=notex('days'), zmax=26, lcorner=notex('Total: ') + format(dt, '.0f') + notex(' days') )
+  PW.setParams( title=title, unitlabel=notex('days'), zmax=16, lcorner=notex('Total: ') + format(dt, '.0f') + notex(' days') )
   # Add the data to the plot. 
   PW.setMesh( x, y, zmask(z/48.) )
 
@@ -399,8 +397,9 @@ def paramplot(name, save=False, flat=False):
     clabs = ( notex('Odd Poloidal'), notex('Odd Toroidal'), notex('Even Poloidal'), notex('Even Toroidal') )
     PW.setParams(collabels=clabs)
   else:
-    PW = plotWindow(ncols=2, nrows=2, colorbar=None, square=True)
-    rlabs = ( notex('Odd'), notex('Even') )
+    PW = plotWindow(ncols=2, nrows=2, colorbar=None, square=True, fontfactor=1.5)
+#    rlabs = ( notex('Odd'), notex('Even') )
+    rlabs = ( notex('1^{st}'), notex('2^{nd}') )
     clabs = ( notex('Poloidal'), notex('Toroidal') )
     PW.setParams(collabels=clabs, rowlabels=rlabs)
 
@@ -551,7 +550,7 @@ def allplot(storm=None, save=False):
     return
   x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
   # Create a plot window to show different subsets of the events. 
-  PW = plotWindow( **bep() )
+  PW = plotWindow(fontfactor=1.5, **bep() )
   # Title and labels. 
   status = {True:'Storm ', False:'Quiet ', None:''}[storm]
 #  title = notex( status + 'Pc4 Observation Rate: All Modes, All Phases, 0.01\\frac{mW}{m^2} and Larger')
@@ -599,13 +598,14 @@ def modeplot(storm=None, save=False):
   x, y, z, hargs = [ pos[key] for key in ('x', 'y', 'z', 'hargs') ]
 
   # Create a plot window to show different subsets of the events. 
-  PW = plotWindow( ncols=2, nrows=2, **bep() )
+  PW = plotWindow( ncols=2, nrows=2, fontfactor=1.5, **bep() )
   # Title and labels. 
   status = {True:'Storm ', False:'Quiet ', None:''}[storm]
 #  title = notex(status + 'Pc4 Observation Rate by Mode: All Phases, 0.01\\frac{mW}{m^2} and Larger')
   title = notex(status + 'Pc4 Observation Rate by Mode')
   collabels = ( notex('Poloidal'), notex('Toroidal') )
-  rowlabels = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
+#  rowlabels = ( notex('Odd\nHarmonic'), notex('Even\nHarmonic') )
+  rowlabels = ( notex('1^{st}'), notex('2^{nd}') )
   PW.setParams(collabels=collabels, rowlabels=rowlabels, title=title)
   # Iterate over the filters. 
   mfilt, hfilt = ('P', 'T'), ('1', '2')
