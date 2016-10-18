@@ -49,6 +49,48 @@ from time import localtime as lt, time
 from numpy.ma import masked_where
 
 
+
+
+
+
+
+
+
+import cubehelix
+from matplotlib.colors import LinearSegmentedColormap as lsc
+from matplotlib.colors import ListedColormap
+
+import numpy as np
+
+# ######################################################################
+# ########################################################### Color Maps
+# ######################################################################
+
+def div_cmap(ncolors=1024):
+    """Create a diverging colormap using cubehelix."""
+    # Get a high-resolution unit interval. Evaluate two cubehelixes on
+    # it, one for the positive values and one for the negatives.
+    u = np.linspace(0., 1., 1024)
+    bot = cubehelix.cmap(start=0.5, rot=-0.5)(u)
+    top = cubehelix.cmap(start=0.5, rot=0.5, reverse=True)(u)
+    # Slap the two together into a linear segmented colormap.
+    ch = lsc.from_list( 'ch_sym', np.vstack( (bot, top) ) )
+    # From there, get a colormap with the desired number of intervals.
+    return ListedColormap( ch( np.linspace(0.05, 0.95, ncolors) ) )
+
+# ----------------------------------------------------------------------
+
+def seq_cmap(ncolors=1024):
+    """Create a sequential colormap using cubehelix."""
+    ch = cubehelix.cmap(start=1.5, rot=-1, reverse=True)
+    # Limit to a discrete number of color intervals.
+    return ListedColormap( ch( np.linspace(0., 1., ncolors) ) )
+
+
+
+
+
+
 # #############################################################################
 # ####################################################### Constants of Interest
 # #############################################################################
@@ -1488,6 +1530,10 @@ class plotColors(dict):
     # Figure out the unit interval renormalization to use. 
     if self.colorbar in ('lg', 'log', 'pos', 'pct'):
       # Kinda kludgey. See setColorbar for explanation. 
+
+
+      return seq_cmap()
+
       return plt.get_cmap(None)
     elif self.colorbar=='sym':
       norm = self.symNorm
@@ -1495,13 +1541,21 @@ class plotColors(dict):
       # The physics machines at the U use an old version of Matplotlib. 
       # Cubehelix was added in 1.5. It can also be obtained here: 
       # https://github.com/jradavenport/cubehelix/blob/master/cubehelix.py
+
+
+      return seq_cmap()
+
       return plt.get_cmap(None)
+
     else:
       norm = self.linNorm
     # Get a fine sampling of the color map on the unit interval. 
     N = 1000
     unitInterval = [ i/(N - 1.) for i in range(N) ]
     cmap = plt.get_cmap('seismic')
+
+    cmap = div_cmap()
+
     rgb = [ cmap(u) for u in unitInterval ]
     # Renormalize the unit interval. Make sure we get the end points right. 
     newInterval = [ self.linMron( norm(u) ) for u in unitInterval ]

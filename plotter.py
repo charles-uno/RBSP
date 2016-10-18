@@ -63,12 +63,17 @@ def main():
 
   # Here are the plots we actually use. 
 
+  # Only the top 3 for the JGR paper. 
+
 #  posplot(storm=None, save='-i' in argv)
 #  allplot(storm=None, save='-i' in argv)
-#  modeplot(storm=None, save='-i' in argv)
+  modeplot(storm=None, save='-i' in argv)
+
+
+
 #  paramplot(name='amp', save='-i' in argv)
 #  paramplot(name='f', save='-i' in argv)
-  paramplot(name='phase', save='-i' in argv)
+#  paramplot(name='phase', save='-i' in argv)
 #  modesbyparam(name='amp', save='-i' in argv)
 #  modesbyparam(name='f', save='-i' in argv)
 #  modesbyparam(name='phase', save='-i' in argv)
