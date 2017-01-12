@@ -4,31 +4,31 @@
 
 # Spring 2016
 
-# Note: This document wraps at column 80. 
+# Note: This document wraps at column 80.
 
 # #############################################################################
 # #################################################################### Synopsis
 # #############################################################################
 
-# The Plot Window and Plot Cell classes are wrappers around Matplotlib, 
+# The Plot Window and Plot Cell classes are wrappers around Matplotlib,
 # designed to produce nice looking plots to put in a thesis. The width of the
 # plot is fixed to remove the need for rescaling, and to ensure that fonts show
 # up true to size regardless of how many frames/cells are in the figure (up to
 # 4 columns). The Tuna Plotter class exists to provide easy access to Tuna's
 # output; it keeps track of where the data is located, it knows how to read in
-# arrays, etc. 
+# arrays, etc.
 
 # #############################################################################
 # ##################################################### Import Python Libraries
 # #############################################################################
 
 
-# Change matplotlib settings to allow use over SSH without X forwarding. 
+# Change matplotlib settings to allow use over SSH without X forwarding.
 import matplotlib
 import os
 if 'DISPLAY' not in os.environ or os.environ['DISPLAY'] is '':
   matplotlib.use('Agg')
-# The cPickle module is faster, but not always available. 
+# The cPickle module is faster, but not always available.
 try:
   import cPickle as pickle
 except ImportError:
@@ -95,7 +95,7 @@ def seq_cmap(ncolors=1024):
 # ####################################################### Constants of Interest
 # #############################################################################
 
-# Physical constants. 
+# Physical constants.
 class phys():
   mu0 = 1256.63706 # nH/m
   eps0 = 8.854e-9 # mF/m
@@ -115,55 +115,55 @@ def notex(x):
     return '\\operatorname{' + x.replace(' ', '\\;') + '}'
 
 def tex(x):
-  # Format frequencies nicely. 
+  # Format frequencies nicely.
   if isinstance(x, float):
     return notex(format(1e3*x, '.0f') + 'mHz ')
-  # Check the input against our dictionary of LaTeX strings. 
+  # Check the input against our dictionary of LaTeX strings.
   texdict = {
-             # Spell out what each model means. 
+             # Spell out what each model means.
              1:notex('Active Day'),
              2:notex('Quiet Day'),
              3:notex('Active Night'),
              4:notex('Quiet Night'),
-             # Electric and magnetic field components. 
-             'Bf':'B_\\phi', 
-             'Bq':'B_\\theta', 
-             'Bx':'B_x', 
-             'By':'B_y', 
-             'Bz':'B_z', 
-             'Ex':'E_x', 
-             'Ey':'E_y', 
-             'Ez':'E_z', 
-             'L3S':'L^3\\widetilde{S}', 
-             'S':'\\widetilde{S}', 
-             'EB':'\\widetilde{E}\\widetilde{B}^*', 
-             'EBp':'-\\widetilde{E}_y\\widetilde{B}^*_x', 
-             'EBt':'\\widetilde{E}_x\\widetilde{B}^*_y', 
-             'SpFFT':'-\\frac{L^3}{\\mu_0}\\widetilde{E}_y\\widetilde{B}^*_x', 
-             'StFFT':'\\frac{L^3}{\\mu_0}\\widetilde{E}_x\\widetilde{B}^*_y', 
-             'BBp':'\\widetilde{B}_z/\\widetilde{B}_x', 
-             'BBt':'\\widetilde{B}_z/\\widetilde{B}_y', 
-             'ImS':'|\\mathbb{I}\\mathrm{m}\\widetilde{S}|', 
-             # Units. 
+             # Electric and magnetic field components.
+             'Bf':'B_\\phi',
+             'Bq':'B_\\theta',
+             'Bx':'B_x',
+             'By':'B_y',
+             'Bz':'B_z',
+             'Ex':'E_x',
+             'Ey':'E_y',
+             'Ez':'E_z',
+             'L3S':'L^3\\widetilde{S}',
+             'S':'\\widetilde{S}',
+             'EB':'\\widetilde{E}\\widetilde{B}^*',
+             'EBp':'-\\widetilde{E}_y\\widetilde{B}^*_x',
+             'EBt':'\\widetilde{E}_x\\widetilde{B}^*_y',
+             'SpFFT':'-\\frac{L^3}{\\mu_0}\\widetilde{E}_y\\widetilde{B}^*_x',
+             'StFFT':'\\frac{L^3}{\\mu_0}\\widetilde{E}_x\\widetilde{B}^*_y',
+             'BBp':'\\widetilde{B}_z/\\widetilde{B}_x',
+             'BBt':'\\widetilde{B}_z/\\widetilde{B}_y',
+             'ImS':'|\\mathbb{I}\\mathrm{m}\\widetilde{S}|',
+             # Units.
              'mHz':notex('mHz'),
              'mV/m':notex('\\frac{mV}{m}'),
              'mW/m^2':notex('\\frac{mW}{m^2}'),
-             # Field Modifiers. 
+             # Field Modifiers.
              'imag':'\\mathbb{I}\\mathrm{m}',
              'real':'\\mathbb{R}\\mathrm{e}',
-             # Axis labels. 
-             'alt':notex('Altitude (km)'), 
-             'B':notex('Magnetic Field (nT)'), 
-             'comp':'B_z / B_x', 
-             'f':notex('Frequency (mHz)'), 
-             'L':notex('L'), 
-             'L0':notex('L'), 
-             'lat':notex('Latitude'), 
-             'lat0':notex('Latitude'), 
-             't':notex('Time (s)'), 
-             'logU':notex('Log') + 'U' + notex(' (\\frac{GJ}{rad})'), 
-             'logS':notex('Log') + '\\widetilde{S}' + notex(' (\\frac{mW}{m^2})'), 
-             'X':notex('X (R_E)'), 
+             # Axis labels.
+             'alt':notex('Altitude (km)'),
+             'B':notex('Magnetic Field (nT)'),
+             'comp':'B_z / B_x',
+             'f':notex('Frequency (mHz)'),
+             'L':notex('L'),
+             'L0':notex('L'),
+             'lat':notex('Latitude'),
+             'lat0':notex('Latitude'),
+             't':notex('Time (s)'),
+             'logU':notex('Log') + 'U' + notex(' (\\frac{GJ}{rad})'),
+             'logS':notex('Log') + '\\widetilde{S}' + notex(' (\\frac{mW}{m^2})'),
+             'X':notex('X (R_E)'),
              'Z':notex('Z (R_E)')
             }
   return '?' if x not in texdict else texdict[x]
@@ -174,12 +174,12 @@ def tex(x):
 
 class tunaPlotter:
 
-  # Keep track of the paths where our data is coming from. 
+  # Keep track of the paths where our data is coming from.
   paths = None
-  # Remember the last few arrays we've read in to avoid duplicating our work. 
+  # Remember the last few arrays we've read in to avoid duplicating our work.
   arrays = None
   # Some runs have been longer than 300 seconds. All runs are at least 300
-  # seconds, and that turns out to be a pretty good window for looking at Pc4s. 
+  # seconds, and that turns out to be a pretty good window for looking at Pc4s.
   tmax = 300
 
   # ===========================================================================
@@ -187,20 +187,20 @@ class tunaPlotter:
   # ===========================================================================
 
   def __init__(self):
-    # Check if we're supposed to be saving this image or showing it. 
+    # Check if we're supposed to be saving this image or showing it.
     if '-i' in argv:
       self.savepath = '/home/user1/mceachern/Desktop/plots/' + now() + '/'
       os.mkdir(self.savepath)
     else:
       self.savepath = None
-    # Check for any path(s) from the terminal. 
+    # Check for any path(s) from the terminal.
     self.setPaths(*argv)
-    # If no paths were given, use the default. 
+    # If no paths were given, use the default.
     if not self.paths:
       print 'Using default data path. '
-      self.setPaths('/media/My Passport/RUNS/JDRIVE_LPP_4')
+      self.setPaths('/media/charles/My Passport/RUNS/JDRIVE_LPP_4')
     # Sometimes the plotter isn't supposed to make any plots at all. Instead,
-    # its job is to go through and pickle some fresh data. 
+    # its job is to go through and pickle some fresh data.
     if 'pickle' in argv:
       self.pickle()
       exit()
@@ -211,29 +211,29 @@ class tunaPlotter:
   # ===========================================================================
 
   # Given one or more paths, find all data directories, as well as the
-  # parameters used by each run. 
+  # parameters used by each run.
   def setPaths(self, *args):
     # Note that self.paths isn't a list of paths to run directories -- it's a
     # dictionary, keyed by those paths, which lists the parameters used by each
     # run. We can stoll loop over path in self.paths, but this makes it easier
-    # to track down the run we're looking for based on its parameters. 
+    # to track down the run we're looking for based on its parameters.
     self.paths = {}
-    # Increment over everything we're passed. 
+    # Increment over everything we're passed.
     for arg in args:
-      # Ignore non-paths. 
+      # Ignore non-paths.
       if os.path.isdir(arg):
         for root, dirs, files in os.walk(arg):
           if 'params.in' in files:
-            # Always use absolute paths. End directory paths with slashes. 
+            # Always use absolute paths. End directory paths with slashes.
             path = os.path.abspath(root) + '/'
             self.paths[path] = self.getParams(path)
     return
 
-  # Grab all parameters from a parameter input file. 
+  # Grab all parameters from a parameter input file.
   def getParams(self, path):
-    # Parameters are returned as a dictionary. We add some default parameters at the beginning so we don't run into any key errors while filtering runs. 
+    # Parameters are returned as a dictionary. We add some default parameters at the beginning so we don't run into any key errors while filtering runs.
     params = {'bdrive':0, 'jdrive':0, 'inertia':-1, 'fdrive':0.016, 'azm':0, 'n1':150, 'lpp':4, 'ldrive':5}
-    # The input file has one parameter per line, 'key = val'. 
+    # The input file has one parameter per line, 'key = val'.
     with open(path + 'params.in', 'r') as paramsfile:
       paramlines = paramsfile.readlines()
     for line in paramlines:
@@ -242,22 +242,22 @@ class tunaPlotter:
     return params
 
   # Find all values for a given keyword parameter that are present in the runs
-  # we're looking at. 
+  # we're looking at.
   def getValues(self, key):
     values = []
-    # We want to be able to ask about keys that are not present. 
+    # We want to be able to ask about keys that are not present.
     for params in self.paths.values():
       values.append( params[key] if key in params else None )
-    # Make sure we can safely assume the values are in ascending order. 
+    # Make sure we can safely assume the values are in ascending order.
     return sorted( set(values) )
 
-  # Given some keyword arguments, filter self.paths. 
+  # Given some keyword arguments, filter self.paths.
   def getPath(self, **kargs):
-    # Start with all the paths we have, then weed out any that don't match. 
+    # Start with all the paths we have, then weed out any that don't match.
     paths = [ p for p in self.paths ]
     for key, val in kargs.items():
       paths = [ p for p in paths if self.paths[p][key]==val ]
-    # If there's anything other than exactly one match, something is wrong. 
+    # If there's anything other than exactly one match, something is wrong.
     if len(paths)<1:
       print 'WARNING: No matching path found for ', kargs
       return None
@@ -267,11 +267,11 @@ class tunaPlotter:
     else:
       return paths[0]
 
-  # Find the most recent run, including runs still in progress. 
+  # Find the most recent run, including runs still in progress.
   def newPath(self):
     root = '/export/scratch/users/mceachern/'
     runs = [ d for d in os.listdir(root) if os.path.isdir(root + d) ]
-    # Sort by time of last modification, then return the last path. 
+    # Sort by time of last modification, then return the last path.
     return max( (os.path.getmtime(d), d) for d in runs )[1]
 
   # ===========================================================================
@@ -283,10 +283,10 @@ class tunaPlotter:
   # data, takes the time to read the values into Numpy arrays, and saves the
   # arrays as pickles. Pickle files are Python-specific, but they're compressed
   # (usually by about a factor of 3 compared to text) and they load fast (a
-  # factor of 10, sometimes better, compared to text). 
+  # factor of 10, sometimes better, compared to text).
   def pickle(self):
     # The Tuna Plotter object already tracked down all of the data directories,
-    # either from arguments from the terminal or its internal defaults. 
+    # either from arguments from the terminal or its internal defaults.
     for path in self.paths:
       print '\n' + path
       # The readArray function makes a pickle whenever it reads in a dat file.
@@ -298,7 +298,7 @@ class tunaPlotter:
   # ===========================================================================
 
   # This wrapper on readArray remembers the last few files we've read in, in
-  # case we need them again. 
+  # case we need them again.
   def readArray(self, filename):
     if self.arrays is None or len(self.arrays)>20:
       self.arrays = {}
@@ -309,42 +309,42 @@ class tunaPlotter:
   # All arrays come in through here. It knows which fields are predominantly
   # imaginary (well, it knows how to look it up), and it knows how to combine
   # fields to get energy density, Poynting flux, etc. This is how we keep the
-  # individual plot methods clean. 
+  # individual plot methods clean.
   def getArray(self, path, name, real=None):
     # Check if we're looking for something that corresponds to a data file...
-    if name in ('BfE', 'BfI', 'BqE', 'BqI', 'Bx', 'By', 'Bz', 'Ex', 'Ey', 
+    if name in ('BfE', 'BfI', 'BqE', 'BqI', 'Bx', 'By', 'Bz', 'Ex', 'Ey',
                 'Ez', 'JyDrive', 'Jz', 'q', 't'):
       # We can give the real component or the imaginary component of a complex
-      # field. 
+      # field.
       if real is True:
         arr = np.real( self.readArray(path + name + '.dat') )
       elif real is False:
         arr = np.imag( self.readArray(path + name + '.dat') )
-      # If not specified, use real for poloidal components. 
+      # If not specified, use real for poloidal components.
       else:
         if name in ('Ex', 'By', 'Ez', 'Jz', 'BqE', 'BqI'):
           arr = np.imag( self.readArray(path + name + '.dat') )
         else:
           arr = np.real( self.readArray(path + name + '.dat') )
-      # Chop off anything after tmax time steps. 
+      # Chop off anything after tmax time steps.
       return arr[..., :self.tmax] if name=='t' or len(arr.shape)>2 else arr
-    # A few quantities get printed out with scale factors. Un-scale them. 
-    # Radius in Mm (from RE). 
+    # A few quantities get printed out with scale factors. Un-scale them.
+    # Radius in Mm (from RE).
     elif name=='r':
       return phys.RE*self.readArray(path + 'r.dat')
-    # Number density in 1/Mm^3, from 1/cm^3. 
+    # Number density in 1/Mm^3, from 1/cm^3.
     elif name=='n':
       return 1e24*self.readArray(path + 'n.dat')
-    # Perpendicular electric constant, from units of eps0 to mF/m. 
+    # Perpendicular electric constant, from units of eps0 to mF/m.
     elif name=='epsPerp' or name=='epsp':
       return phys.eps0*self.readArray(path + 'epsPerp.dat')
-    # Conductivities. Printed in S/m but we want mS/m. 
+    # Conductivities. Printed in S/m but we want mS/m.
     elif name in ('sigH', 'sigP', 'sig0'):
       return 1e-3*self.readArray(path + name + '.dat')
-    # Altitude in km. Note that we read r in RE and we store RE in Mm. 
+    # Altitude in km. Note that we read r in RE and we store RE in Mm.
     elif name=='alt':
       return 1000*(self.getArray(path, 'r') - phys.RE)
-    # Normalied latitude. 
+    # Normalied latitude.
     elif name=='C':
       cosq = np.cos( self.getArray(path, 'q') )
       cosq0 = cosq[:, 0]
@@ -355,10 +355,10 @@ class tunaPlotter:
 
 
 
-    # Driving electric field in mV/m. 
+    # Driving electric field in mV/m.
     elif name=='EyDrive':
       return self.getArray(path, 'JyDrive')/self.getArray(path, 'epsPerp')
-    # Perpendicular currents, computed from electric fields and conductivity. 
+    # Perpendicular currents, computed from electric fields and conductivity.
     elif name=='Jx':
       Ex, Ey = self.getArray(path, 'Ex', real=real), self.getArray(path, 'Ey', real=real)
       sigP, sigH = self.getArray(path, 'sigP'), self.getArray(path, 'sigH')
@@ -367,59 +367,59 @@ class tunaPlotter:
       Ex, Ey = self.getArray(path, 'Ex', real=real), self.getArray(path, 'Ey', real=real)
       sigP, sigH = self.getArray(path, 'sigP'), self.getArray(path, 'sigH')
       return sigH[:, :, None]*Ex + sigP[:, :, None]*Ey
-    # McIlwain parameter. 
+    # McIlwain parameter.
     elif name=='L':
       r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
       return r / ( phys.RE * np.sin(q)**2 )
-    # McIlwain parameter as a 1D array. 
+    # McIlwain parameter as a 1D array.
     elif name=='L0':
       return self.getArray(path, 'L')[:, 0]
-    # Latitude in degrees, from colatitude in radians. 
+    # Latitude in degrees, from colatitude in radians.
     elif name=='lat':
       return 90 - self.getArray(path, 'q')*180/np.pi
-    # Latitude only along the ionospheric boundary. 
+    # Latitude only along the ionospheric boundary.
     elif name=='lat0':
       return self.getArray(path, 'lat')[:, 0]
     # Differential volume for the grid, based on dipole coordinates and the
-    # Jacobian determinant. 
+    # Jacobian determinant.
     elif name=='dV':
       r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
-      # Invariant colatitude. 
+      # Invariant colatitude.
       cosq0 = np.sqrt( 1 - phys.RI*np.sin(q)**2/r )
-      # Dipole coordinates. 
+      # Dipole coordinates.
       u1 = -phys.RI/(r*phys.RE) * np.sin(q)**2
       u3 = phys.RI**2/(r*phys.RE)**2 * np.cos(q)/cosq0
-      # Dipole differentials. Rolling messes up the edges, so we zero them. 
+      # Dipole differentials. Rolling messes up the edges, so we zero them.
       du1 = ( np.roll(u1, shift=1, axis=0) - np.roll(u1, shift=-1, axis=0) )/2
       du1[0, :], du1[-1, :] = 0, 0
       du3 = ( np.roll(u3, shift=1, axis=1) - np.roll(u3, shift=-1, axis=1) )/2
       du3[:, 0], du3[:, -1] = 0, 0
-      # Jacobian determinant. 
+      # Jacobian determinant.
       jac = (r*phys.RE)**6/phys.RI**3 * cosq0/( 1 + 3*np.cos(q)**2 )
-      # The Jacobian may be negative. Make sure we return a positive volume. 
+      # The Jacobian may be negative. Make sure we return a positive volume.
       return np.abs( du1*du3*jac )
     # Perpendicular grid spacing. This is cheating a little bit, since the
-    # coordinates aren't orthogonal, but should give a decent estimate.  
+    # coordinates aren't orthogonal, but should give a decent estimate.
     elif name=='dx0':
       return phys.RI*self.d( self.getArray(path, 'q')[:, 0] )
     # Azimuthal effective grid spacing for taking derivatives. This assumes an
-    # azimuthal mode number of 1, and scales linearly. 
+    # azimuthal mode number of 1, and scales linearly.
     elif name=='dy0':
       r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
       return r[:, 0]*np.sin( q[:, 0] )
-    # Differential field line length. 
+    # Differential field line length.
     elif name=='dz':
       r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
       dr = self.d(r, axis=1)
       rdq = r*self.d(q, axis=1)
       return np.sqrt( dr**2 + rdq**2 )
-    # Field line length right along the ionospheric boundary. 
+    # Field line length right along the ionospheric boundary.
     elif name=='dz0':
       r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
       dr = r[:, 1] - r[:, 0]
       rdq = 0.5*( r[:, 1] + r[:, 0] )*( q[:, 1] - q[:, 0] )
       return np.sqrt( dr**2 + rdq**2 )
-    # Alfven bounce frequency. The axis will be set by the lines we draw. 
+    # Alfven bounce frequency. The axis will be set by the lines we draw.
     elif name=='f':
       return None
 
@@ -427,84 +427,84 @@ class tunaPlotter:
       return None
 
 
-    # Toroidal Poynting flux. 
+    # Toroidal Poynting flux.
     elif name=='Stor':
       return self.getArray(path, 'Ex', real=real)*np.conj( self.getArray(path, 'By', real=real) )/phys.mu0
-    # Poloidal Poynting flux. 
+    # Poloidal Poynting flux.
     elif name=='Spol':
       return -self.getArray(path, 'Ey', real=real)*np.conj( self.getArray(path, 'Bx', real=real) )/phys.mu0
-    # Crosswise Poynting flux. 
+    # Crosswise Poynting flux.
     elif name=='Sx':
       return self.getArray(path, 'Ey', real=real)*np.conj( self.getArray(path, 'Bz', real=real) )/phys.mu0
-    # Azimuthal Poynting flux. 
+    # Azimuthal Poynting flux.
     elif name=='Sy':
       return -self.getArray(path, 'Ex', real=real)*np.conj( self.getArray(path, 'Bz', real=real) )/phys.mu0
-    # Parallel Poynting flux. 
+    # Parallel Poynting flux.
     elif name=='Sz' or name=='S':
       return self.getArray(path, 'Spol') + self.getArray(path, 'Stor')
     # Sometimes we don't actually need the array, such as when we're grabbing
-    # the y axis for a line plot... so the axis will be set by line values. 
+    # the y axis for a line plot... so the axis will be set by line values.
     elif name in ('logU', 'U'):
       return None
-    # Poloidal magnetic field contribution to the energy density. 
+    # Poloidal magnetic field contribution to the energy density.
     elif name=='uBx':
       return 0.5*self.getArray(path, 'Bx')**2 / phys.mu0
-    # Toroidal magnetic field contribution to the energy density. 
+    # Toroidal magnetic field contribution to the energy density.
     elif name=='uBy':
       return 0.5*self.getArray(path, 'By')**2 / phys.mu0
 
     # Energy in the compressional magnetic field... kinda. This is ignoring the
     # zeroth-order magnetic field. Really, this is just for computing the RMS
-    # magnetic field. 
+    # magnetic field.
     elif name=='uBz':
       return 0.5*self.getArray(path, 'Bz')**2 / phys.mu0
 
-    # Magnetic field contribution to the energy density. 
+    # Magnetic field contribution to the energy density.
     elif name=='uB':
       return self.getArray(path, 'uBx') + self.getArray(path, 'uBy')
-    # Toroidal electric field contribution to the energy density. 
+    # Toroidal electric field contribution to the energy density.
     elif name=='uEx':
       E, epsPerp = self.getArray(path, 'Ex'), self.getArray(path, 'epsPerp')
       return 0.5*epsPerp[:, :, None]*E[:, :, :]**2
-    # Poloidal electric field contribution to the energy density. 
+    # Poloidal electric field contribution to the energy density.
     elif name=='uEy':
       E, epsPerp = self.getArray(path, 'Ey'), self.getArray(path, 'epsPerp')
       return 0.5*epsPerp[:, :, None]*E[:, :, :]**2
-    # Magnetic field contribution to the energy density. 
+    # Magnetic field contribution to the energy density.
     elif name=='uE':
       return self.getArray(path, 'uEx') + self.getArray(path, 'uEy')
-    # Poloidal energy density. 
+    # Poloidal energy density.
     elif name=='upol':
       return self.getArray(path, 'uEy') + self.getArray(path, 'uBx')
-    # Toroidal energy density. 
+    # Toroidal energy density.
     elif name=='utor':
       return self.getArray(path, 'uEx') + self.getArray(path, 'uBy')
-    # Total energy density. 
+    # Total energy density.
     elif name=='u':
       return self.getArray(path, 'upol') + self.getArray(path, 'utor')
-    # Integrated magnetic energy. 
+    # Integrated magnetic energy.
     elif name=='UB':
       ux, uy = self.getArray(path, 'uBx'), self.getArray(path, 'uBy')
       dV = self.getArray(path, 'dV')
       return np.sum( np.sum( (ux + uy)*dV[:, :, None], 1), 0)
-    # Integrated electric energy. 
+    # Integrated electric energy.
     elif name=='UE':
       ux, uy = self.getArray(path, 'uEx'), self.getArray(path, 'uEy')
       dV = self.getArray(path, 'dV')
       return np.sum( np.sum( (ux + uy)*dV[:, :, None], 1), 0)
-    # Integrated poloidal energy. 
+    # Integrated poloidal energy.
     elif name=='Upol':
       ux, uy = self.getArray(path, 'uBx'), self.getArray(path, 'uEy')
       dV = self.getArray(path, 'dV')
       return np.sum( np.sum( (ux + uy)*dV[:, :, None], 1), 0)
-    # Integrated toroidal energy. 
+    # Integrated toroidal energy.
     elif name=='Utor':
       ux, uy = self.getArray(path, 'uEx'), self.getArray(path, 'uBy')
       dV = self.getArray(path, 'dV')
       return np.sum( np.sum( (ux + uy)*dV[:, :, None], 1), 0)
 
     # Integrated energy in each field component. This isn't really physical for
-    # the compressional magnetic field -- it's a tool for computing the RMS. 
+    # the compressional magnetic field -- it's a tool for computing the RMS.
     elif name=='UBx':
       u, dV = self.getArray(path, 'uBx'), self.getArray(path, 'dV')
       return np.sum( np.sum( u*dV[:, :, None], 1), 0)
@@ -512,22 +512,22 @@ class tunaPlotter:
       u, dV = self.getArray(path, 'uBz'), self.getArray(path, 'dV')
       return np.sum( np.sum( u*dV[:, :, None], 1), 0)
 
-    # Interated volume. 
+    # Interated volume.
     elif name=='V':
       return np.sum( self.getArray(path, 'dV') )
 
-    # Alfven speed. 
+    # Alfven speed.
     elif name=='vA' or name=='va':
       return 1/np.sqrt( self.getArray(path, 'epsp')*phys.mu0 )
-    # GSE X in RE. 
+    # GSE X in RE.
     elif name=='X':
       r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
       return r*np.sin(q)/phys.RE
-    # GSE Z in RE. 
+    # GSE Z in RE.
     elif name=='Z':
       r, q = self.getArray(path, 'r'), self.getArray(path, 'q')
       return r*np.cos(q)/phys.RE
-    # Keep an eye out for typos. 
+    # Keep an eye out for typos.
     else:
       print 'ERROR: Not sure how to get ' + name
       exit()
@@ -537,9 +537,9 @@ class tunaPlotter:
   # ===========================================================================
 
   # Helper for when we need to take a derivative. This gets the difference
-  # between adjacent values (which we then have to scale by dx, etc). 
+  # between adjacent values (which we then have to scale by dx, etc).
   def d(self, arr, axis=0):
-    darr = ( np.roll(arr, shift=-1, axis=axis) - 
+    darr = ( np.roll(arr, shift=-1, axis=axis) -
              np.roll(arr, shift=1, axis=axis) )/2
     darr[0], darr[-1] = darr[1], darr[-2]
     return darr
@@ -549,16 +549,16 @@ class tunaPlotter:
   # ===========================================================================
 
   # This function returns a dictionary of keyword arguments meant to be plugged
-  # straight into plotWindow.setParams(). 
+  # straight into plotWindow.setParams().
   def getCoords(self, path, xaxis='X', yaxis='Z', lim=None):
-    # The "unwrap" flag overwrites the dipole default coordinates. 
+    # The "unwrap" flag overwrites the dipole default coordinates.
     if '-u' in argv and xaxis=='X' and yaxis=='Z':
       xaxis, yaxis = 'C', 'L'
     coords = { 'x':self.getArray(path, xaxis), 'xlabel':tex(xaxis),
              'y':self.getArray(path, yaxis), 'ylabel':tex(yaxis) }
 
     # Let's stop worrying about generalizability and make sure these ticks and
-    # tick labels look good for the plots we need. 
+    # tick labels look good for the plots we need.
 
     if xaxis=='t':
       coords['xlims'] = (0, 300)
@@ -578,29 +578,29 @@ class tunaPlotter:
       coords['ylabelpad'] = -2
 
     # Latitude vs altitude isn't much good for plotting the whole dipole. Zoom
-    # in on the ionosphere. 
+    # in on the ionosphere.
     if xaxis=='lat' and yaxis=='alt':
       # Set the window range based on the latitudes seen at the northern
       # hemisphere boundary, and the altitudes we resolve at those latitudes.
       lat, alt = coords['x'], coords['y']
       xmin, xmax = np.min( lat[:, 0] ), np.max( lat[:, 0] )
       ymin = np.min(alt)
-      # Allow the altitude maximum to be overwritten to zoom in. 
+      # Allow the altitude maximum to be overwritten to zoom in.
       ymax = np.max( np.where(lat>xmin, alt, 0) ) if lim is None else lim
       coords['xlims'], coords['ylims'] = (xmin, xmax), (ymin, ymax)
-#    # The first time output is at 1s, but we want to start the axis at zero. 
+#    # The first time output is at 1s, but we want to start the axis at zero.
 #    if xaxis=='t':
 #      coords['x'] = coords['x'][:self.tmax]
 #      coords['xlims'] = (0, lim)
-    # Dipole plots need outlines drawn on them. 
+    # Dipole plots need outlines drawn on them.
     if xaxis=='X' and yaxis=='Z':
       coords['outline'] = True
     # If we're looking at electromagnetic energy on the y axis, we want a log
-    # scale, and we also need a minimum. 
+    # scale, and we also need a minimum.
     if yaxis=='U':
       coords['ylog'] = True
       coords['ylims'] = (10 if lim is None else lim, None)
-    # For line plots, the y axis is specified by the data. 
+    # For line plots, the y axis is specified by the data.
     if coords['y'] is None:
       del coords['y']
     return coords
@@ -611,14 +611,14 @@ class tunaPlotter:
 
 # The Plot Window is a wrapper around PyPlot which handles the high-level
 # commands -- subplot spacing, titles, labels, etc. It contains an array of
-# Plot Cell objects, which keep track of the actual data. 
+# Plot Cell objects, which keep track of the actual data.
 
 class plotWindow:
 
   # We keep a color axis for the color bar, a title axis, an array of header
   # axes for column labels, an array of side axes for row labels, a side header
   # axis to label the row labels, and a footer axis just in case. Data axes are
-  # stored by the individual Plot Cells. Also a unit axis. 
+  # stored by the individual Plot Cells. Also a unit axis.
   cax = None
   fax = None
   hax = None
@@ -629,17 +629,17 @@ class plotWindow:
 
   fax = None
 
-  # The Plot Window also holds an array of Plot Cells, one for each data axis. 
+  # The Plot Window also holds an array of Plot Cells, one for each data axis.
   cells = None
   # Keep track of the style of color bar, if any, we'll be using. Use 'log' for
   # a log scale, 'sym' for a symmetric log scale, and 'lin' for a linear scale.
-  # For no color bar, use False or None. 
+  # For no color bar, use False or None.
   colorbar = None
-  # Overwrite the default number of colors. 
+  # Overwrite the default number of colors.
   ncolors = 8
-  # Overwrite the automatically-determined color bar range. 
+  # Overwrite the automatically-determined color bar range.
   zmaxManual = None
-  # Do we want to specify units for the color bar tick labels? 
+  # Do we want to specify units for the color bar tick labels?
   unit = ''
 
 
@@ -651,37 +651,37 @@ class plotWindow:
   # ---------------------------------------------------------------------------
 
   def __init__(self, ncols=1, nrows=1, cells=None, square=False, joinlabel=None, footlabel=False, landscape=False, fontfactor=1., **kargs):
-    # If initialized with an array of cells, this isn't a real Plot Window... 
-    # it's a temporary object that allows the access of a slice of cells. 
+    # If initialized with an array of cells, this isn't a real Plot Window...
+    # it's a temporary object that allows the access of a slice of cells.
     if cells is not None:
       self.cells = cells
       return
     # If we're making a real Plot Window, make sure there's nothing lingering
-    # from a previous plot. 
+    # from a previous plot.
     plt.close('all')
-    # Set the font to match LaTeX. 
+    # Set the font to match LaTeX.
 
     self.fontfactor = fontfactor
 
     if not landscape:
       self.landscape = False
-      rc('font', **{'family':'sans-serif', 'sans-serif':['Helvetica'], 
+      rc('font', **{'family':'sans-serif', 'sans-serif':['Helvetica'],
                     'size':str(9*self.fontfactor)})
     else:
       self.landscape = True
-      rc('font', **{'family':'sans-serif', 'sans-serif':['Helvetica'], 
+      rc('font', **{'family':'sans-serif', 'sans-serif':['Helvetica'],
                     'size':str(12*self.fontfactor)})
     rc('text', usetex=True)
-    rc('text.latex', preamble='\usepackage{amsmath}, \usepackage{amssymb}, ' + 
+    rc('text.latex', preamble='\usepackage{amsmath}, \usepackage{amssymb}, ' +
                               '\usepackage{color}')
-    # The window width in inches is fixed to match the size of the page. 
+    # The window width in inches is fixed to match the size of the page.
     windowWidth = 5.75 if not self.landscape else 11.
     # A negative number of columns means that there should be just one column,
     # but extra "wide." For example, if asked for -3 columns, row heights are
-    # set up to accommodate 3 columns, then only one cell is put on each row. 
+    # set up to accommodate 3 columns, then only one cell is put on each row.
     ancols, oncols = abs(ncols), max(1, ncols)
     # The window will be broken up into some number of equally-sized tiles.
-    # That's the unit we use to specify the relative sizes of plot elements. 
+    # That's the unit we use to specify the relative sizes of plot elements.
     sideMargin = 40
     cellPadding = 5
     titleMargin = int(15*self.fontfactor)
@@ -690,20 +690,20 @@ class plotWindow:
     footMargin = int( ( 30 if footlabel is True else 20 )*self.fontfactor )
     # The size of each subplot depends on how many columns there are. The total
     # width of the subplot area (including padding) will always be the same.
-    # No more than four columns are allowed. 
+    # No more than four columns are allowed.
     cellWidth = {1:175, 2:80, 3:55, 4:40}[ancols]
     # Cells are proportioned to show a dipole plot, which is 10RE wide and 8RE
-    # tall, in proper proportion. 
-    cellHeight = cellWidth if square is True else 4*cellWidth/5 
-    # Tally up how many tiles we need. 
+    # tall, in proper proportion.
+    cellHeight = cellWidth if square is True else 4*cellWidth/5
+    # Tally up how many tiles we need.
     tileWidth = ancols*cellWidth + (ancols-1)*cellPadding + 2*sideMargin
     tileHeight = ( nrows*cellHeight + (nrows-1)*cellPadding + titleMargin +
                    headMargin + footMargin )
     # Set the window size in proportion with the number of tiles we need. This
-    # ensures that that tiles are square. 
+    # ensures that that tiles are square.
     windowHeight = tileHeight*windowWidth/tileWidth
     # Create the window. Tell it that we want the subplot area to go all the
-    # way to the edges, then break that area up into tiles. 
+    # way to the edges, then break that area up into tiles.
     fig = plt.figure(figsize=(windowWidth, windowHeight), facecolor='white')
     fig.canvas.set_window_title('Tuna Plotter')
     tiles = gridspec.GridSpec(tileHeight, tileWidth)
@@ -722,16 +722,16 @@ class plotWindow:
           right = left + cellWidth
           ax = plt.subplot( tiles[top:bot, left:right] )
           self.cells[row, col] = plotCell(ax)
-    # Space out the title axis. 
+    # Space out the title axis.
     self.tax = plt.subplot( tiles[:titleMargin, sideMargin:-sideMargin] )
-    # Space out an array of side axes to hold row labels. 
+    # Space out an array of side axes to hold row labels.
     self.sax = np.empty( (nrows,), dtype=object)
     left, right = 0, sideMargin - 3*cellPadding
     for row in range(nrows):
       top = titleMargin + headMargin + row*(cellHeight + cellPadding)
       bot = top + cellHeight
       self.sax[row] = plt.subplot( tiles[top:bot, left:right] )
-    # Space out an array of header axes on the top to hold column labels. 
+    # Space out an array of header axes on the top to hold column labels.
     if joinlabel is True:
       self.hax = np.empty( (1,), dtype=object)
       top, bot = titleMargin, titleMargin + headMargin
@@ -743,28 +743,28 @@ class plotWindow:
         left = sideMargin + col*(cellWidth + cellPadding)
         right = left + cellWidth
         self.hax[col] = plt.subplot( tiles[top:bot, left:right] )
-    # Side header axis, for the row label header. 
+    # Side header axis, for the row label header.
     top, bot = titleMargin, titleMargin + headMargin
     left, right = 0, sideMargin - 3*cellPadding
     self.shax = plt.subplot( tiles[top:bot, left:right] )
-    # Narrow axis on the right side for the color bar. 
+    # Narrow axis on the right side for the color bar.
     top, bot = titleMargin + headMargin, -footMargin
     left, right = -sideMargin + cellPadding, -sideMargin + 3*cellPadding
     self.cax = plt.subplot( tiles[top:bot, left:right] )
     # Space out a tiny axis above the color bar to indicate units. Size it to
     # line up with the column labels. If there's only one column, and so the
-    # column labels are compressed, still pretend they are sized normally. 
+    # column labels are compressed, still pretend they are sized normally.
     top, bot = titleMargin + headMargin - unitMargin, titleMargin + headMargin
     left, right = -sideMargin + cellPadding, -sideMargin + 3*cellPadding
     self.uax = plt.subplot( tiles[top:bot, left:right] )
 
     # Make room for a label at the bottom. If footlabel isn't True, this will
-    # probably overlap with x axis labels. 
+    # probably overlap with x axis labels.
     self.fax = plt.subplot( tiles[-15:-5, sideMargin:-sideMargin] )
 
     # The title, header, and side axes are for spacing text, not showing data.
     # The axes themselves need to be hidden. The colorbar axis is hidden by
-    # default as well, though it may be un-hidden later. 
+    # default as well, though it may be un-hidden later.
     self.tax.axis('off')
     self.shax.axis('off')
     self.cax.axis('off')
@@ -772,8 +772,8 @@ class plotWindow:
     self.fax.axis('off')
     [ x.axis('off') for x in self.sax ]
     [ x.axis('off') for x in self.hax ]
-    # We're done setting up the axes. If we were given any other arguments, 
-    # send them to the parameter handler. 
+    # We're done setting up the axes. If we were given any other arguments,
+    # send them to the parameter handler.
     return self.setParams(**kargs)
 
   # ---------------------------------------------------------------------------
@@ -781,59 +781,59 @@ class plotWindow:
   # ---------------------------------------------------------------------------
 
   def setParams(self, **kargs):
-    # Keyword parameters used for centering text in axes. 
-    targs = {'x':0.5, 'y':0.5, 'horizontalalignment':'center', 
+    # Keyword parameters used for centering text in axes.
+    targs = {'x':0.5, 'y':0.5, 'horizontalalignment':'center',
              'verticalalignment':'center'}
-    # Address the parameters one at a time. 
+    # Address the parameters one at a time.
     for key, val in kargs.items():
-      # Keys are caps insensitive. 
+      # Keys are caps insensitive.
       key = key.lower()
-      # Accept a list of strings as column labels. 
+      # Accept a list of strings as column labels.
       if key=='collabels':
         for col, label in enumerate(val):
-          self.hax[col].text(s='$' + label + '$', **targs)
-      # Turn on the color bar, and specify its scale. 
+          self.hax[col].text(s='$ ' + label + '$', **targs)
+      # Turn on the color bar, and specify its scale.
       elif key=='colorbar':
         self.colorbar = val
         if self.colorbar:
           self.cax.axis('on')
 
-      # Write something in the foot label. 
+      # Write something in the foot label.
       elif key=='footer':
-          self.fax.text(s='$' + val + '$', **targs)
+          self.fax.text(s='$ ' + val + '$', **targs)
 
-      # Overwrite the default number of colors. 
+      # Overwrite the default number of colors.
       elif key=='ncolors':
         self.ncolors = val
-      # Accept a list of strings as row labels. 
+      # Accept a list of strings as row labels.
       elif key=='rowlabels':
         for row, label in enumerate(val):
-          self.sax[row].text(s='$' + label + '$', **targs)
-      # Sometimes, we may want to label the row labels. 
+          self.sax[row].text(s='$ ' + label + '$', **targs)
+      # Sometimes, we may want to label the row labels.
       elif key=='rowlabellabel':
-        self.shax.text(s='$' + val + '$', **targs)
-      # By default, axis limits are common to all plots. 
+        self.shax.text(s='$ ' + val + '$', **targs)
+      # By default, axis limits are common to all plots.
       elif key=='sharelimits':
         self.sharelimits = bool(val)
-      # Put a sideways label in the color bar axis. 
+      # Put a sideways label in the color bar axis.
       elif key=='sidelabel':
         targs['horizontalalignment'] = 'left'
-        self.cax.text(s='$' + val + '$', rotation='vertical', **targs)
+        self.cax.text(s='$ ' + val + '$', rotation='vertical', **targs)
         targs['horizontalalignment'] = 'center'
-      # Accept a string as the window supertitle. 
+      # Accept a string as the window supertitle.
       elif key=='title':
         fontsize = ( 12 if not self.landscape else 24 )*self.fontfactor
-        self.tax.text(s='$' + val + '$', fontsize=fontsize, **targs)
-      # In case we want to put units on the color bar tick labels. 
+        self.tax.text(s='$ ' + val + '$', fontsize=fontsize, **targs)
+      # In case we want to put units on the color bar tick labels.
       elif key=='unit':
         self.unit = val
-      # Put a little label over the color bar indicating units. 
+      # Put a little label over the color bar indicating units.
       elif key=='unitlabel':
-        self.uax.text(s='$' + val + '$', **targs)
-      # Overwrite the automatically-determined color bar range. 
+        self.uax.text(s='$ ' + val + '$', **targs)
+      # Overwrite the automatically-determined color bar range.
       elif key=='zmax':
         self.zmaxManual = val
-      # Any other parameters get sent to the cells. 
+      # Any other parameters get sent to the cells.
       else:
         [ cell.setParams( **{key:val} ) for cell in self.cells.flatten() ]
     return
@@ -843,35 +843,35 @@ class plotWindow:
   # ---------------------------------------------------------------------------
 
   # The Plot Window doesn't actually handle any data. Individual cells should
-  # instead be accessed as array entries. 
+  # instead be accessed as array entries.
   def __getitem__(self, index):
-    # If we're asked for a single cell, return that cell. 
+    # If we're asked for a single cell, return that cell.
     if isinstance(index, int):
       return self.cells.flatten()[index]
     elif isinstance(index, tuple) and all( isinstance(x, int) for x in index ):
       return self.cells[index]
     # Otherwise, we were asked for a slice. In that case, return a Plot Window
     # object that has only the requested slice of cells. This allows parameters
-    # to be set for that whole slice of cells without touching the rest. 
+    # to be set for that whole slice of cells without touching the rest.
     if isinstance(index, tuple):
       cells = self.cells[index]
     else:
       self.cells.flatten()[index]
     return plotWindow(cells=cells)
 
-  # If the window gets passed a contour, just send it along to each cell. 
+  # If the window gets passed a contour, just send it along to each cell.
   def setContour(self, *args, **kargs):
     return [ cell.setContour(*args, **kargs) for cell in self.cells.flatten() ]
 
-  # If the window gets passed a line, just send it along to each cell. 
+  # If the window gets passed a line, just send it along to each cell.
   def setLine(self, *args, **kargs):
     return [ cell.setLine(*args, **kargs) for cell in self.cells.flatten() ]
 
-  # If the window gets passed a mesh, just send it along to each cell. 
+  # If the window gets passed a mesh, just send it along to each cell.
   def setMesh(self, *args, **kargs):
     return [ cell.setMesh(*args, **kargs) for cell in self.cells.flatten() ]
 
-  # If the window gets passed a bar plot, just send it along to each cell. 
+  # If the window gets passed a bar plot, just send it along to each cell.
   def setBars(self, *args, **kargs):
     return [ cell.setBars(*args, **kargs) for cell in self.cells.flatten() ]
 
@@ -891,7 +891,7 @@ class plotWindow:
     return max( cell.zmax() for cell in self.cells.flatten() )
 
   # Looking at minima is tricky, since some of them may be None, which is
-  # smaller than any number. 
+  # smaller than any number.
 
   def xmin(self):
     xmn = [ cell.xmin() for cell in self.cells.flatten() ]
@@ -910,10 +910,10 @@ class plotWindow:
   # ---------------------------------------------------------------------------
 
   # Once all of the contours are loaded, we can standardize the plot domain and
-  # color levels. 
+  # color levels.
   def render(self, filename=None):
     # Use the most extreme x and y values to set the plot domain. Snap to
-    # integers, but don't round based on tiny bits of numerical noise. 
+    # integers, but don't round based on tiny bits of numerical noise.
     xmin = None if self.xmin() is None else np.round( self.xmin() )
     xmax = None if self.xmax() is None else np.round( self.xmax() )
     ymin = None if self.ymin() is None else np.round( self.ymin() )
@@ -933,30 +933,30 @@ class plotWindow:
 #    ymin = np.floor( float( format(self.ymin(), '.4e') ) )
 #    ymax = np.ceil( float( format(self.ymax(), '.4e') ) )
     self.setParams( xlims=(xmin, xmax), ylims=(ymin, ymax) )
-    # Only the leftmost cells get y axis labels and tick labels. 
+    # Only the leftmost cells get y axis labels and tick labels.
     for cell in self.cells[:, 1:].flatten():
       if not cell.rightaxis:
         cell.setParams( ylabel='', yticklabels=() )
-    # Only the bottom cells get x axis labela and tick labels. 
+    # Only the bottom cells get x axis labela and tick labels.
     for cell in self.cells[:-1, :].flatten():
       cell.setParams( xlabel='', xticklabels=() )
-    # Use the most extreme contour value among all plots to set the color bar. 
+    # Use the most extreme contour value among all plots to set the color bar.
     kargs = {'cax':self.cax, 'colorbar':self.colorbar, 'ncolors':self.ncolors, 'unit':self.unit}
     if self.zmaxManual is not None:
       colors = plotColors(zmax=self.zmaxManual, **kargs)
     else:
       colors = plotColors(zmax=self.zmax(), **kargs)
-    # Send the color params to each cell. 
+    # Send the color params to each cell.
     [ cell.render(**colors) for cellRow in self.cells for cell in cellRow ]
-    # If given a filename, save the image. 
+    # If given a filename, save the image.
     if filename is not None:
-      # Make sure the folder exists. 
+      # Make sure the folder exists.
       if not os.path.exists( os.path.dirname(filename) ):
         os.makedirs( os.path.dirname(filename) )
-      # Silently save the image. 
+      # Silently save the image.
       plt.savefig(filename)
       return True
-    # Otherwise, display it. 
+    # Otherwise, display it.
     else:
       plt.show()
       return True
@@ -968,26 +968,26 @@ class plotWindow:
 class plotCell:
 
   # If this cell contains a contour, we'll need to hold the spatial coordinates
-  # and the data values. We also keep room for any arguments for contourf. 
+  # and the data values. We also keep room for any arguments for contourf.
   x, y, cz, mz, ckargs, mkargs = None, None, None, None, None, None
-  # A plot can have any number of lines drawn on it. Those will be stored here. 
+  # A plot can have any number of lines drawn on it. Those will be stored here.
   lines = None
 
   bars = None
 
 
   # If we manually set the axis limits, we want to ignore the automatically-set
-  # limits that come down the line later. 
+  # limits that come down the line later.
   xlims, ylims = (None, None), (None, None)
-  # If we're on a log scale, we need different rules for placing ticks. 
+  # If we're on a log scale, we need different rules for placing ticks.
   xlog, ylog = False, False
   # Keep track if we're supposed to be tracing the outline of our domain, such
-  # as if the data is dipole-shaped. Or the whole grid. 
+  # as if the data is dipole-shaped. Or the whole grid.
   grid, outline = False, False
   # Cells can be small. Let's try to keep the number of ticks under control.
   nxticks, nyticks = 3, 4
   # Sometimes we want an extra axis label on the right. Make sure the window
-  # doesn't delete it when it's cleaning up the non-edge ticks and labels. 
+  # doesn't delete it when it's cleaning up the non-edge ticks and labels.
   rightaxis = False
 
   xtickrelax, ytickrelax = False, False
@@ -1008,83 +1008,83 @@ class plotCell:
   # ---------------------------------------------------------------------------
 
   def setParams(self, **kargs):
-    # Scroll through the parameters one at a time. 
+    # Scroll through the parameters one at a time.
     for key, val in kargs.items():
-      # Keys are caps insensitive. 
+      # Keys are caps insensitive.
       key = key.lower()
-      # Sometimes we want to sneak in an extra axis of labels. 
+      # Sometimes we want to sneak in an extra axis of labels.
       if key=='axright' and bool(val) is True:
         self.rightaxis = True
         self.ax.yaxis.set_label_position('right')
         self.ax.yaxis.tick_right()
         self.ax.yaxis.set_ticks_position('both')
-      # Draw Earth. 
+      # Draw Earth.
       elif key=='earth':
         q = {'l':90, 'r':270, 't':0, 'b':180}[ val[0] ]
         self.ax.add_artist( Wedge( (0, 0), 1, q,       q + 180, fc='w') )
         self.ax.add_artist( Wedge( (0, 0), 1, q + 180, q + 360, fc='k') )
-      # Flip an axis. 
+      # Flip an axis.
       elif key=='flipx' and bool(val):
         self.flipx = True
 
-      # Put some text in the corner. 
+      # Put some text in the corner.
       elif key=='lcorner':
-        targs = {'x':0.03, 'y':0.03, 'horizontalalignment':'left', 
+        targs = {'x':0.03, 'y':0.03, 'horizontalalignment':'left',
                  'verticalalignment':'bottom', 'transform':self.ax.transAxes,
                  'fontsize':10}
-        self.ax.text(s='$' + val + '$', **targs)
+        self.ax.text(s='$ ' + val + '$', **targs)
 
-      # Put some text in the corner. 
+      # Put some text in the corner.
       elif key=='rcorner':
-        targs = {'x':0.97, 'y':0.03, 'horizontalalignment':'right', 
+        targs = {'x':0.97, 'y':0.03, 'horizontalalignment':'right',
                  'verticalalignment':'bottom', 'transform':self.ax.transAxes,
                  'fontsize':10}
-        self.ax.text(s='$' + val + '$', **targs)
+        self.ax.text(s='$ ' + val + '$', **targs)
 
-      # Draw the grid. 
+      # Draw the grid.
       elif key=='grid':
         self.grid = val
-      # Sometimes we have to finagle with the number of ticks. 
+      # Sometimes we have to finagle with the number of ticks.
       elif key=='nxticks':
         self.nxticks = val
       elif key=='nyticks':
         self.nyticks = val
-      # Draw an outline around the plot contents. 
+      # Draw an outline around the plot contents.
       elif key=='outline':
         self.outline = val
       # Add text inside the cell, along the top. If we want to do anything more
       # sophisticated with text, like control its position or rotation or
-      # color or size, we'll probably need to add a setText method. 
+      # color or size, we'll probably need to add a setText method.
       elif key=='text':
-        targs = {'x':0.5, 'y':0.5, 'horizontalalignment':'center', 
+        targs = {'x':0.5, 'y':0.5, 'horizontalalignment':'center',
                  'verticalalignment':'center', 'transform':self.ax.transAxes}
-        self.ax.text(s='$' + val + '$', **targs)
+        self.ax.text(s='$ ' + val + '$', **targs)
 
       elif key=='toptext':
-        targs = {'x':0.5, 'y':0.90, 'horizontalalignment':'center', 
+        targs = {'x':0.5, 'y':0.90, 'horizontalalignment':'center',
                  'verticalalignment':'top', 'transform':self.ax.transAxes}
-        self.ax.text(s='$' + val + '$', **targs)
+        self.ax.text(s='$ ' + val + '$', **targs)
 
-      # Horizontal axis coordinate. 
+      # Horizontal axis coordinate.
       elif key=='x':
         self.x = val
-      # Label the horizontal axis. 
+      # Label the horizontal axis.
       elif key=='xlabel':
-        self.ax.set_xlabel('' if not val else '$' + val + '$')
-      # Change padding between axis and label. 
+        self.ax.set_xlabel('' if not val else '$ ' + val + '$')
+      # Change padding between axis and label.
       elif key=='xlabelpad':
         self.ax.xaxis.labelpad = val
-      # Set horizontal axis domain. 
+      # Set horizontal axis domain.
       elif key.startswith('xlim'):
         # If the limits are set manually, we want to ignore the automatic
-        # limits that come down the line later. 
-        self.xlims = ( val[0] if self.xlims[0] is None else self.xlims[0], 
+        # limits that come down the line later.
+        self.xlims = ( val[0] if self.xlims[0] is None else self.xlims[0],
                        val[1] if self.xlims[1] is None else self.xlims[1] )
-      # Set log horizontal scale. 
+      # Set log horizontal scale.
       elif key=='xlog' and val is True:
         self.ax.set_xscale('log')
         self.xlog = True
-      # Set the horizontal axis tick labels manually. 
+      # Set the horizontal axis tick labels manually.
       elif key=='xticklabels':
         self.ax.set_xticklabels(val)
         self.nxticks = None
@@ -1092,30 +1092,30 @@ class plotCell:
       elif key=='xtickrelax':
         self.xtickrelax = val
 
-      # Set the horizontal axis ticks manually. 
+      # Set the horizontal axis ticks manually.
       elif key=='xticks':
         self.ax.set_xticks(val)
         self.nxticks = None
-      # Vertical axis coordinate. 
+      # Vertical axis coordinate.
       elif key=='y':
         self.y = val
-      # Label the vertical axis. 
+      # Label the vertical axis.
       elif key=='ylabel':
-        self.ax.set_ylabel('' if not val else '$' + val + '$')
-      # Change padding between axis and label. 
+        self.ax.set_ylabel('' if not val else '$ ' + val + '$')
+      # Change padding between axis and label.
       elif key=='ylabelpad':
         self.ax.yaxis.labelpad = val
-      # Set the vertical axis domain. 
+      # Set the vertical axis domain.
       elif key.startswith('ylim'):
         # If the limits are set manually, we want to ignore the automatic
-        # limits that come down the line later. 
-        self.ylims = ( val[0] if self.ylims[0] is None else self.ylims[0], 
+        # limits that come down the line later.
+        self.ylims = ( val[0] if self.ylims[0] is None else self.ylims[0],
                        val[1] if self.ylims[1] is None else self.ylims[1] )
-      # Set log vertical scale. 
+      # Set log vertical scale.
       elif key=='ylog' and val is True:
         self.ax.set_yscale('log')
         self.ylog = True
-      # Set the vertical axis tick labels manually. 
+      # Set the vertical axis tick labels manually.
       elif key=='yticklabels':
         self.ax.set_yticklabels(val)
         self.nyticks = None
@@ -1123,11 +1123,11 @@ class plotCell:
       elif key=='ytickrelax':
         self.ytickrelax = val
 
-      # Set the vertical axis ticks manually. 
+      # Set the vertical axis ticks manually.
       elif key=='yticks':
         self.ax.set_yticks(val)
         self.nyticks = None
-      # Report any unfamiliar parameters. 
+      # Report any unfamiliar parameters.
       else:
         print 'WARNING: Unknown param ', key, ' = ', val
     return
@@ -1137,58 +1137,58 @@ class plotCell:
   # ---------------------------------------------------------------------------
 
   def setContour(self, *args, **kargs):
-    # Store any keyword parameters meant for the contourf call. 
+    # Store any keyword parameters meant for the contourf call.
     self.ckargs = kargs
-    # Accept the contour with or without its spatial coordinates. 
+    # Accept the contour with or without its spatial coordinates.
     if len(args)==1:
       self.cz = args[0]
     elif len(args)==3:
       self.x, self.y, self.cz = args
-    # If we're passed a weird number of arguments, bail. 
+    # If we're passed a weird number of arguments, bail.
     else:
       print 'ERROR: Illegal number of arguments to plotCell.setContour '
       exit()
     return
 
   def setLine(self, *args, **kargs):
-    # Initialize line list. 
+    # Initialize line list.
     if self.lines is None:
       self.lines = []
-    # If we're given two numpy arrays, the first is the horizontal coordinate. 
+    # If we're given two numpy arrays, the first is the horizontal coordinate.
     if len(args)>1 and isinstance(args[1], np.ndarray):
       self.lines.append( (args, kargs) )
       if self.x is None:
         self.x = args[0]
-    # If only given one array, use self.x. 
+    # If only given one array, use self.x.
     else:
       self.lines.append( ( (self.x,) + args, kargs ) )
     return
 
   def setMesh(self, *args, **kargs):
-    # Store any keyword parameters meant for the contourf call. 
+    # Store any keyword parameters meant for the contourf call.
     self.mkargs = kargs
-    # Accept the contour with or without its spatial coordinates. 
+    # Accept the contour with or without its spatial coordinates.
     if len(args)==1:
       self.mz = args[0]
     elif len(args)==3:
       self.x, self.y, self.mz = args
-    # If we're passed a weird number of arguments, bail. 
+    # If we're passed a weird number of arguments, bail.
     else:
       print 'ERROR: Illegal number of arguments to plotCell.setMesh '
       exit()
     return
 
   def setBars(self, *args, **kargs):
-    # Initialize line list. 
+    # Initialize line list.
     if self.bars is None:
       self.bars = []
-    # If we're given two numpy arrays, the first is the horizontal coordinate. 
+    # If we're given two numpy arrays, the first is the horizontal coordinate.
     if len(args)>1 and isinstance(args[1], np.ndarray):
       self.bars.append( (args, kargs) )
-      # If we don't yet have a horizontal coordinate, keep this one. 
+      # If we don't yet have a horizontal coordinate, keep this one.
       if self.x is None:
         self.x = args[0]
-    # If only given one array, use self.x. 
+    # If only given one array, use self.x.
     else:
       self.bars.append( ( (self.x,) + args, kargs ) )
     return
@@ -1198,7 +1198,7 @@ class plotCell:
   # ---------------------------------------------------------------------------
 
   # Cells all share a color bar (for contour plots) and axis limits (for line
-  # plots). To manage that, the Plot Window asks each cell for its extrema. 
+  # plots). To manage that, the Plot Window asks each cell for its extrema.
 
   def xmax(self):
     return None if self.x is None else np.max(self.x)
@@ -1214,7 +1214,7 @@ class plotCell:
     mmax = None if self.mz is None else np.max(self.mz)
     return max(cmax, mmax)
 
-  # Minima are tricky, since None counts as smaller than any number. 
+  # Minima are tricky, since None counts as smaller than any number.
 
   def xmin(self):
     return None if self.x is None else np.min(self.x)
@@ -1237,42 +1237,42 @@ class plotCell:
   # ---------------------------------------------------------------------------
 
   def render(self, **colors):
-    # If this cell has a contour, lay that down first. 
+    # If this cell has a contour, lay that down first.
     if self.cz is not None:
       # Use the color params we were passed, but allow keyword arguments from
-      # the contour call to overwrite them. 
+      # the contour call to overwrite them.
       citems = [ ( key, colors[key] ) for key in ('ticks', 'levels', 'norm', 'cmap') ]
       kargs = dict( citems + self.ckargs.items() )
       self.ax.contourf(self.x, self.y, self.cz, **kargs)
-    # Same for a mesh. 
+    # Same for a mesh.
     if self.mz is not None:
-      citems = [ ( 'norm', colors['mnorm'] if 'mnorm' in colors else None ), 
+      citems = [ ( 'norm', colors['mnorm'] if 'mnorm' in colors else None ),
                  ( 'cmap', colors['mcmap'] if 'mcmap' in colors else None ) ]
       kargs = dict( citems + self.mkargs.items() )
       self.ax.pcolormesh(self.x, self.y, self.mz, **kargs)
 
-    # Draw the bars. 
+    # Draw the bars.
     if self.bars is not None:
       [ self.ax.bar(*args, **kargs) for args, kargs in self.bars ]
 
-    # Optionally, draw the outline of the data. 
+    # Optionally, draw the outline of the data.
     if self.outline and self.x is not None and self.y is not None:
       [ self.ax.plot(self.x[i, :], self.y[i, :], 'k') for i in (0, -1) ]
       [ self.ax.plot(self.x[:, k], self.y[:, k], 'k') for k in (0, -1) ]
-    # Or the whole grid. 
+    # Or the whole grid.
     if self.grid and self.x is not None and self.y is not None:
       x, y = self.x, self.y
       [ self.setLine(x[i, :], y[i, :], 'k') for i in range( x.shape[0] ) ]
       [ self.setLine(x[:, j], y[:, j], 'k') for j in range( x.shape[1] ) ]
 
-    # Draw any lines. 
+    # Draw any lines.
     if self.lines is not None:
       [ self.ax.plot(*args, **kargs) for args, kargs in self.lines ]
-    # Set axis limits. 
+    # Set axis limits.
     self.ax.set_xlim( self.xlims if not self.flipx else self.xlims[::-1] )
     self.ax.set_ylim(self.ylims)
 
-    # There can be a lot of cells. Try to be economical. 
+    # There can be a lot of cells. Try to be economical.
     if not self.xlog:
       if self.nxticks is not None:
         self.ax.xaxis.set_major_locator( plt.MaxNLocator(self.nxticks,
@@ -1284,7 +1284,7 @@ class plotCell:
 
     if not self.ylog:
       if self.nyticks is not None:
-        self.ax.yaxis.set_major_locator( plt.MaxNLocator(self.nyticks, 
+        self.ax.yaxis.set_major_locator( plt.MaxNLocator(self.nyticks,
                                                          integer=True) )
 
       if not self.ytickrelax:
@@ -1298,7 +1298,7 @@ class plotCell:
 
 # This class figures out the color levels and ticks to be used by all of the
 # contour plots. It draws the color bar, then serves as a keyword dictionary
-# for the contourf calls. 
+# for the contourf calls.
 
 class plotColors(dict):
 
@@ -1307,19 +1307,19 @@ class plotColors(dict):
   # ---------------------------------------------------------------------------
 
   def __init__(self, zmax, cax, colorbar=None, ncolors=None, unit=''):
-    # Some plots don't have contours. 
+    # Some plots don't have contours.
     if not zmax or not cax or not colorbar:
       return dict.__init__(self, {})
     # Store the data scale so that it can be hard-wired into our normalization
-    # functions. 
+    # functions.
     self.colorbar = colorbar
     self.ncolors = ncolors if ncolors is not None else 8
     self.nticks = self.ncolors - 1
     self.unit = unit
     # Assemble the keyword parameters in a temporary dictionary. We'll then use
-    # the dictionary constructor to build this object based on it. 
+    # the dictionary constructor to build this object based on it.
     temp = {}
-    # Determine location of contour color levels and color bar ticks. 
+    # Determine location of contour color levels and color bar ticks.
     if self.colorbar=='log':
       temp['ticks'], temp['levels'] = self.logTicksLevels(zmax)
       temp['norm'] = LogNorm()
@@ -1344,15 +1344,15 @@ class plotColors(dict):
       temp['ticks'], temp['levels'] = self.linTicksLevels(zmax)
       temp['norm'] = Normalize()
 
-    # Rework the color map to match the normalization of our ticks and levels. 
+    # Rework the color map to match the normalization of our ticks and levels.
     temp['cmap'] = self.getCmap()
 
-    # Kludge something together so this works for colormesh as well as contour. 
+    # Kludge something together so this works for colormesh as well as contour.
     temp['mcmap'], temp['mnorm'] = self.getMesh( temp )
 
-    # Draw the color bar. 
+    # Draw the color bar.
     self.setColorbar(cax, **temp)
-    # Become a dictionary of color parameters to be used by the contour plots. 
+    # Become a dictionary of color parameters to be used by the contour plots.
     return dict.__init__(self, temp)
 
   # ---------------------------------------------------------------------------
@@ -1361,18 +1361,18 @@ class plotColors(dict):
 
   def linTicksLevels(self, zmax):
     # We put zmax at the top of the top color level. Ticks go at the middle of
-    # color levels, as they do with symlog plots. 
+    # color levels, as they do with symlog plots.
     self.zmax = zmax
     levels = np.linspace(-self.zmax, self.zmax, self.ncolors)
     ticks = 0.5*( levels[1:] + levels[:-1] )
-    # Make sure that the middle tick is exactly zero. 
+    # Make sure that the middle tick is exactly zero.
     ticks[ len(ticks)/2 ] = 0.
     return ticks, levels
 
   def phaseTicksLevels(self, zmax):
     # This setup probably isn't very useful. But it'll be a good place to start
     # if we ever want a linear-scale color bar that bottoms out at zero. It
-    # also sets tick labels to be fractions of pi, which looks nice. 
+    # also sets tick labels to be fractions of pi, which looks nice.
     self.zmax = np.pi/2
     self.zmin = 0
     self.nticks = self.ncolors
@@ -1380,10 +1380,10 @@ class plotColors(dict):
     levels = np.linspace(self.zmin, self.zmax, self.ncolors)
     return ticks, levels
 
-  # Seems to work? Don't lean too heavily... it was just thrown together. 
+  # Seems to work? Don't lean too heavily... it was just thrown together.
   def posTicksLevels(self, zmax):
     # Linear scale from 0 to zmax. Tick at every other level. Put zmax at the
-    # center of the top bin, and 0 at the bottom edge of the bottom bin. 
+    # center of the top bin, and 0 at the bottom edge of the bottom bin.
     dz = zmax/(self.nticks - 0.5)
     self.zmax = zmax + dz/2
     levels = np.linspace(0, self.zmax, self.ncolors)
@@ -1392,16 +1392,16 @@ class plotColors(dict):
 
   def logTicksLevels(self, zmax):
     # Color levels are centered on ticks. The top tick is a power of ten. Each
-    # subsequent tick is down by sqrt(10). 
+    # subsequent tick is down by sqrt(10).
     power = np.ceil(np.log10(zmax) - 0.25)
     # Each color spans a factor of root ten. This is in contrast to the
     # symmetric log scale, where each color was a whole order of magnitude. The
     # goal is to, for each, have the same number of colors and the same number
-    # of orders of magnitude. 
+    # of orders of magnitude.
     # Symetric log scale with 7 colors will have three positive powers of ten,
     # three negative powers, and zero. The log scale will just have three
     # positive powers. Anything below there will automatically show 0, though
-    # it won't be marked explicitly on the color bar. 
+    # it won't be marked explicitly on the color bar.
     self.zmax = 10.**(power + 0.25)
     self.zmin = self.zmax/10**(self.nticks/2 + 0.5)
     ticks = [ 10**(power - 0.5*i) for i in range(self.nticks) ]
@@ -1413,7 +1413,7 @@ class plotColors(dict):
 
 
   def pctTicksLevels(self, zmax):
-    # Hard-coded to have ticks at 10%, 1%, 0.1%. Several color levels between each tick. 
+    # Hard-coded to have ticks at 10%, 1%, 0.1%. Several color levels between each tick.
     halves = np.logspace(-2, 1, self.ncolors - 1)
     self.zmin = halves[0]*np.sqrt( halves[0]/halves[1] )
     self.zmax = halves[-1]*np.sqrt(halves[-1]/halves[-2] )
@@ -1426,7 +1426,7 @@ class plotColors(dict):
 
 
   def lgTicksLevels(self, zmax):
-    # Same as log, but with base 2 instead of 10. 
+    # Same as log, but with base 2 instead of 10.
     power = np.ceil(np.log2(zmax) - 0.25)
     self.zmax = 2.**(power + 0.25)
     self.zmin = self.zmax/2**(self.nticks/2 + 0.5)
@@ -1436,16 +1436,16 @@ class plotColors(dict):
     return ticks, levels
 
   def symTicksLevels(self, zmax):
-    # Ticks are located at powers of ten. Color levels are centered on ticks. 
+    # Ticks are located at powers of ten. Color levels are centered on ticks.
     power = np.ceil( np.log10( zmax/np.sqrt(10.) ) )
     self.zmax = np.sqrt(10.)*10**power
-    # A tick at zero, then one per order of magnitude. 
+    # A tick at zero, then one per order of magnitude.
     norders = (self.nticks - 1)/2
     pticks = [ 10**(power - i) for i in range(norders) ]
     plevels = [ np.sqrt(10.)*10**(power - i) for i in range(norders + 1) ]
     # For uniform tick spacing, the log cutoff is a factor of 10 below the
     # lowest positive tick. That is, it's where the next tick would be, if we
-    # had one more tick. 
+    # had one more tick.
     self.zmin = min(pticks)/10.
     ticks = sorted( pticks + [0] + [ -tick for tick in pticks ] )
     levels = sorted( plevels + [ -level for level in plevels ] )
@@ -1455,31 +1455,31 @@ class plotColors(dict):
   # ----------------------------------------------- Data Interval Normalization
   # ---------------------------------------------------------------------------
 
-  # Map from the unit interval to the data scale via linear scale. 
+  # Map from the unit interval to the data scale via linear scale.
   def linNorm(self, x):
     return self.zmax*(2*x - 1)
 
-  # Map from the data scale to the unit interval via linear scale. 
+  # Map from the data scale to the unit interval via linear scale.
   def linMron(self, x):
     return 0.5 + 0.5*x/self.zmax
 
-  # Map from the unit interval to the data scale via linear scale. 
+  # Map from the unit interval to the data scale via linear scale.
   def phaseNorm(self, x):
     return x*self.zmax
 
-  # Map from the data scale to the unit interval via linear scale. 
+  # Map from the data scale to the unit interval via linear scale.
   def phaseMron(self, x):
     return x/self.zmax
 
-  # Map from the unit interval to the data scale via log scale. 
+  # Map from the unit interval to the data scale via log scale.
   def logNorm(self, x):
     return self.zmin*(self.zmax/self.zmin)**x
 
-  # Map from the log scaled data scale to the unit interval. 
+  # Map from the log scaled data scale to the unit interval.
   def logMron(self, x):
     return np.log10(x/self.zmin)/np.log10(self.zmax/self.zmin)
 
-  # Map from the unit interval to the data scale via symmetric log scale. 
+  # Map from the unit interval to the data scale via symmetric log scale.
   def symNorm(self, x):
     if x>0.5:
       return self.zmin*(self.zmax/self.zmin)**(2*x - 1)
@@ -1488,7 +1488,7 @@ class plotColors(dict):
     else:
       return 0
 
-  # Map from the symmetric log scaled data scale to the unit interval. 
+  # Map from the symmetric log scaled data scale to the unit interval.
   def symMron(self, x):
     if x>self.zmin:
       return 0.5 + 0.5*np.log10(x/self.zmin)/np.log10(self.zmax/self.zmin)
@@ -1501,7 +1501,7 @@ class plotColors(dict):
   # --------------------------------------------------- Mesh Norm and Color Map
   # ---------------------------------------------------------------------------
 
-  # This is SUPER kludgey. Sorry. No time to make it pretty while writing! 
+  # This is SUPER kludgey. Sorry. No time to make it pretty while writing!
   def getMesh(self, temp):
     clevs = np.array( temp['levels'] )
     if self.colorbar in ('lg', 'log', 'pct'):
@@ -1525,11 +1525,11 @@ class plotColors(dict):
 
   # A color map is really just a handful of RGB codes defined on the unit
   # interval. To show up nicely, we need to renormalize that unit interval to
-  # match the normalization of our ticks and color levels. 
+  # match the normalization of our ticks and color levels.
   def getCmap(self):
-    # Figure out the unit interval renormalization to use. 
+    # Figure out the unit interval renormalization to use.
     if self.colorbar in ('lg', 'log', 'pos', 'pct'):
-      # Kinda kludgey. See setColorbar for explanation. 
+      # Kinda kludgey. See setColorbar for explanation.
 
 
       return seq_cmap()
@@ -1538,8 +1538,8 @@ class plotColors(dict):
     elif self.colorbar=='sym':
       norm = self.symNorm
     elif self.colorbar=='phase':
-      # The physics machines at the U use an old version of Matplotlib. 
-      # Cubehelix was added in 1.5. It can also be obtained here: 
+      # The physics machines at the U use an old version of Matplotlib.
+      # Cubehelix was added in 1.5. It can also be obtained here:
       # https://github.com/jradavenport/cubehelix/blob/master/cubehelix.py
 
 
@@ -1549,7 +1549,7 @@ class plotColors(dict):
 
     else:
       norm = self.linNorm
-    # Get a fine sampling of the color map on the unit interval. 
+    # Get a fine sampling of the color map on the unit interval.
     N = 1000
     unitInterval = [ i/(N - 1.) for i in range(N) ]
     cmap = plt.get_cmap('seismic')
@@ -1557,21 +1557,21 @@ class plotColors(dict):
     cmap = div_cmap()
 
     rgb = [ cmap(u) for u in unitInterval ]
-    # Renormalize the unit interval. Make sure we get the end points right. 
+    # Renormalize the unit interval. Make sure we get the end points right.
     newInterval = [ self.linMron( norm(u) ) for u in unitInterval ]
     newInterval[0], newInterval[-1] = 0., 1.
     # The color dict contains three channels. Each of them is a list of tuples,
     # (u, rgbLeft, rgbRight). Between u values, colors are interpolated
     # linearly. Approaching u from the right, the color should approach
     # rgbRight, and vice versa. Since our color map is smooth and
-    # finely-resolved, we don't bother to distinguish.  
+    # finely-resolved, we don't bother to distinguish.
     red = [ (newInterval[i], rgb[i][0], rgb[i][0]) for i in range(N) ]
     grn = [ (newInterval[i], rgb[i][1], rgb[i][1]) for i in range(N) ]
     blu = [ (newInterval[i], rgb[i][2], rgb[i][2]) for i in range(N) ]
     # Return a LinearSegmentedColormap built from the color dictionary. We use
     # TONS of samples because the symmetric log normalization devotes very
     # little of the unit interval to zero... but that it the most important bin
-    # to have sharply defined. 
+    # to have sharply defined.
     return LSC('myMap', {'red':red, 'green':grn, 'blue':blu}, 1000000)
 
   # ---------------------------------------------------------------------------
@@ -1579,9 +1579,9 @@ class plotColors(dict):
   # ---------------------------------------------------------------------------
 
   # Without SymLogNorm, we can't very well use the built-in color bar
-  # functionality. Instead, we make our own: a tall, narrow contour plot. 
+  # functionality. Instead, we make our own: a tall, narrow contour plot.
   def setColorbar(self, cax, **colorParams):
-    # Unit interval axes. 
+    # Unit interval axes.
     X, Y = np.empty( (2, 1000) ), np.empty( (2, 1000) )
     for i in range(2):
       X[i, :] = i
@@ -1590,12 +1590,12 @@ class plotColors(dict):
     # linear, log, or symmetric log normalizer. We'll also need the inverse
     # normalizers, since we have the tick values in the data scale, and we map
     # them to the Y axis (which is on the unit interval). And the formatters,
-    # to make our ticks look pretty in LaTeX. 
+    # to make our ticks look pretty in LaTeX.
     if self.colorbar=='log':
       # This is kludgey right now. Sorry. We can't use a real color bar for the
       # symmetric norm plot, since since SymLogNorm isn't defined. But we can't
       # use a renormalized color map for the log plot due to sampling
-      # constraints. This is the odd case out right now. 
+      # constraints. This is the odd case out right now.
       norm, mron, fmtr = self.logNorm, self.logMron, self.logFormatter
       ColorbarBase(cax, boundaries=colorParams['levels'],
                    ticks=colorParams['ticks'], norm=colorParams['norm'],
@@ -1633,15 +1633,15 @@ class plotColors(dict):
       norm, mron, fmtr = self.phaseNorm, self.phaseMron, self.phaseFormatter
     else:
       norm, mron, fmtr = self.linNorm, self.linMron, self.linFormatter
-    # Draw the contour. 
+    # Draw the contour.
     Z = np.vectorize(norm)(Y)
     cax.contourf( X, Y, Z, **colorParams)
-    # Place the ticks appropriately on the unit interval (Y axis). 
+    # Place the ticks appropriately on the unit interval (Y axis).
     cax.set_yticks( [ mron(t) for t in colorParams['ticks'] ] )
-    # Format tick names nicely. 
+    # Format tick names nicely.
     cax.set_yticklabels( [ fmtr(t) for t in colorParams['ticks'] ] )
     # Put the color bar ticks on the right, get rid of the ticks on the bottom,
-    # and hide the little notches in the color bar. 
+    # and hide the little notches in the color bar.
     cax.yaxis.tick_right()
     cax.set_xticks( [] )
     cax.tick_params( width=0 )
@@ -1654,13 +1654,13 @@ class plotColors(dict):
   # We have to format the ticks for two reasons. First, because the color bar Y
   # axis is on the unit interval, not the data scale (and may not be normalized
   # properly). Second, because that's how we make sure to get dollar signs in
-  # there so LaTeX handles the font rendering. 
+  # there so LaTeX handles the font rendering.
   def linFormatter(self, x):
-    # Zero is always zero. 
+    # Zero is always zero.
     if x==0:
       return '$0' + self.unit + '$'
     # If our numbers are around order unity, the top tick should show two
-    # significant figures, and the rest should match that decimal place. 
+    # significant figures, and the rest should match that decimal place.
     elif 1e-3<self.zmax<1e4:
       sign = '' if x<0 else '+'
       power = int( format(self.zmax, '.1e').split('e')[-1] )
@@ -1672,21 +1672,21 @@ class plotColors(dict):
       else:
         digs = 1 - power
         fx = format(x, '.' + str(digs) + 'f')
-      return '$' + sign + fx + self.unit + '$'
+      return '$ ' + sign + fx + self.unit + '$'
     else:
-      # Cast the number in scientific notation. 
+      # Cast the number in scientific notation.
       s = format(x, '.1e').replace('e', ' \\cdot 10^{') + '}'
-      # If the number is positive, throw a plus sign on there. 
+      # If the number is positive, throw a plus sign on there.
       s = '+ ' + s if x>0 else s
-      # Before returning, get rid of any extra digits in the exponent. 
-      return '$' + s.replace('+0', '').replace('-0', '-') + self.unit + '$'
+      # Before returning, get rid of any extra digits in the exponent.
+      return '$ ' + s.replace('+0', '').replace('-0', '-') + self.unit + '$'
 
   def phaseFormatter(self, x):
-    # Zero is always zero. 
+    # Zero is always zero.
     if x==0:
       return '$0' + self.unit + '$'
     else:
-      # Fractions of pi. Don't put '1' in the numerator. 
+      # Fractions of pi. Don't put '1' in the numerator.
       numer, denom = (x/np.pi).as_integer_ratio()
       if numer==1:
         return '${\\displaystyle \\frac{\\pi}{' + str(denom) + '}}' + self.unit + '$'
@@ -1694,40 +1694,40 @@ class plotColors(dict):
         return '${\\displaystyle \\frac{' + str(numer) + ' \\pi}{' + str(denom) + '}}' + self.unit + '$'
 
   def logFormatter(self, x):
-    # Zero is always zero. 
+    # Zero is always zero.
     if x==0:
       return '$0$'
-    # Half-power ticks don't get labels. 
+    # Half-power ticks don't get labels.
     elif format(x, '.1e').startswith('3'):
       return ''
-    # Otherwise, just keep the power of ten. 
+    # Otherwise, just keep the power of ten.
     return '$ 10^{' + format(np.log10(x), '.0f') + '}' + self.unit + '$'
 
 
   def pctFormatter(self, x):
     if x == int(x):
-      return '$' + str( int(x) ) + '\\%$'
+      return '$ ' + str( int(x) ) + '\\%$'
     else:
-      return '$' + str(x) + '\\%$'
+      return '$ ' + str(x) + '\\%$'
 
 
   def lgFormatter(self, x):
-    # Zero is always zero. 
+    # Zero is always zero.
     if x==0:
       return '$0$'
-    # Half-power ticks don't get labels. 
+    # Half-power ticks don't get labels.
     elif np.log2(x) != np.int( np.log2(x) ):
       return ''
-    # Otherwise, just keep the power of ten. 
+    # Otherwise, just keep the power of ten.
     return '$ 2^{' + format(np.log2(x), '.0f') + '}' + self.unit + '$'
 
 
 
   def symFormatter(self, x):
-    # Zero is always zero. 
+    # Zero is always zero.
     if x==0:
       return '$0' + self.unit + '$'
-    # Otherwise, just keep the sign and the power of ten. 
+    # Otherwise, just keep the sign and the power of ten.
     power = format(np.log10( np.abs(x) ), '.0f')
     return '$ ' + ( '-' if x<0 else '+' ) + ' 10^{' + power + '}' + self.unit + '$'
 
@@ -1735,30 +1735,30 @@ class plotColors(dict):
 # ############################################################ Helper Functions
 # #############################################################################
 
-# Turns a list of numbers (1, 2, 3) into the string '1x2x3'. 
+# Turns a list of numbers (1, 2, 3) into the string '1x2x3'.
 def by(x):
   return str( x[0] ) + 'x' + by( x[1:] ) if len(x)>1 else str( x[0] )
 
-# Convert a string to a complex or float. 
+# Convert a string to a complex or float.
 def com(x):
   if ',' not in x:
     return float(x)
   else:
-    # Shave off the parentheses then split into real and imaginary parts. 
+    # Shave off the parentheses then split into real and imaginary parts.
     re, im = x[1:-1].split(',')
     return (float(re) + float(im)*1j)
 
 # Grab all files in the given directory. Remember that we always use absolute
-# paths, and that directory names always end with a slash. 
+# paths, and that directory names always end with a slash.
 def files(path=None, end=''):
   p = path if path is not None else os.getcwd()
-  # Grab all files in the directory. 
+  # Grab all files in the directory.
   f = [ p + x for x in os.listdir(p) if os.path.isfile(p + x) ]
-  # Only return the ones that end with our desired extension. 
+  # Only return the ones that end with our desired extension.
   return sorted( x for x in f if x.endswith(end) )
 
 # Given kargs full of lists, return a list of kargs (if we're making a series
-# of images) or just one of them (if we're looking at the plot). 
+# of images) or just one of them (if we're looking at the plot).
 def loopover(**kargs):
   lo = [ [] ]
   for key, vals in kargs.items():
@@ -1768,21 +1768,21 @@ def loopover(**kargs):
   else:
     return [ dict(l) for l in lo ]
 
-# Timestamp for labeling output. 
+# Timestamp for labeling output.
 def now():
   return ( znt(lt().tm_year, 4) + znt(lt().tm_mon, 2) + znt(lt().tm_mday, 2) +
            '_' + znt(lt().tm_hour, 2) + znt(lt().tm_min, 2) +
            znt(lt().tm_sec, 2) )
 
-# Turn a string into a float or integer. 
+# Turn a string into a float or integer.
 def num(x):
   return int( float(x) ) if float(x)==int( float(x) ) else float(x)
 
-# Turns the number 3 into '003'. If given a float, truncate it. 
+# Turns the number 3 into '003'. If given a float, truncate it.
 def znt(x, width=0):
   return str( int(x) ).zfill(width)
 
-# Two decimal places. If it's a number bigger than one, that's two sig figs. Less than one, only one sig fig, to save space. 
+# Two decimal places. If it's a number bigger than one, that's two sig figs. Less than one, only one sig fig, to save space.
 def tdp(x):
 
 #  if not isinstance(x, np.float) or not isinstance(x, np.int) or not np.isfinite(x):
@@ -1802,11 +1802,11 @@ def tdp(x):
 
 
 
-# Make sure we don't throw anything infinite on the plot. 
+# Make sure we don't throw anything infinite on the plot.
 def fmask(x):
   return masked_where(np.logical_not( np.isfinite(x) ), x)
 
-# Also leave out any zeros. 
+# Also leave out any zeros.
 def zmask(x, thr=0):
   return masked_where(np.abs(x) <= thr, x)
 
@@ -1818,80 +1818,80 @@ def zmask(x, thr=0):
 
 # Read a file of values into an array. We expect the first line to give the
 # array dimensions. The rest of the file should just be real or complex
-# numbers, and is agnostic to whitespace and newlines. 
+# numbers, and is agnostic to whitespace and newlines.
 def readArray(filename):
   # The out prefix is just an older convention for dat files, Fortran output.
-  # We ultimately want to use the Python data format, pickles. 
+  # We ultimately want to use the Python data format, pickles.
   name = filename[ :filename.rfind('.') ]
   datname, outname, pklname = name + '.dat', name + '.out', name + '.pkl'
 
-  # Allow epsp.dat, but rename to epsPerp.dat. 
+  # Allow epsp.dat, but rename to epsPerp.dat.
   if os.path.exists( datname.replace('epsPerp', 'epsp') ):
     outname = outname.replace('epsPerp.out', 'epsp.dat')
 
-  # Allow jz.out, but rename to Jz.dat (change in capitalization). 
+  # Allow jz.out, but rename to Jz.dat (change in capitalization).
   outname = outname.replace('Jz', 'jz')
 
-  # If we see a old file (.out) move it to the new convention (.dat). 
+  # If we see a old file (.out) move it to the new convention (.dat).
   if os.path.isfile(outname) and not os.path.exists(datname):
     os.rename(outname, datname)
     print 'Renamed ' + basename(outname) + ' to ' + basename(datname)
 
-  # If a pickle is available, read that instead of parsing the Fortran output. 
+  # If a pickle is available, read that instead of parsing the Fortran output.
   if os.path.isfile(pklname):
     print 'Reading ' + basename(pklname) + ' ... ',
     stdout.flush()
-    # Note how long it takes to read the file. 
+    # Note how long it takes to read the file.
     start = time()
     with open(pklname, 'rb') as handle:
       inputArray = pickle.load(handle)
     print format(time() - start, '5.1f') + 's' + ' ... ' + by(inputArray.shape)
     return inputArray
-  # If the pickle doesn't exist yet, parse the Fortran output. 
+  # If the pickle doesn't exist yet, parse the Fortran output.
   elif os.path.isfile(datname):
     print 'Reading ' + basename(datname) + ' ... ',
     stdout.flush()
-    # Note how long it takes to read the file. 
+    # Note how long it takes to read the file.
     start = time()
-    # Grab the data as a list of strings. 
+    # Grab the data as a list of strings.
     with open(datname, 'r') as f:
       arrayLines = f.readlines()
-    # The first line is the dimensions of the array. 
+    # The first line is the dimensions of the array.
     dims = [ int(x) for x in arrayLines.pop(0).split() ]
     # Assemble a one-dimensional array large enough to hold all of the values.
     # (This is much faster than appending as we go.) This means figuring out if
     # we want reals or complexes. We check by looking for a comma, since
-    # complex values are listed as ordered pairs. 
+    # complex values are listed as ordered pairs.
     if len(arrayLines)>0 and ',' in arrayLines[0]:
       dtype = np.complex
     else:
       dtype = np.float
-    # Create the empty array. 
+    # Create the empty array.
     nVals = np.prod(dims)
     vals = np.empty(nVals, dtype=dtype)
     # Now fill the array with values one at a time. Stop when it's full, or
-    # when we run out of values. 
+    # when we run out of values.
     i = 0
     for line in arrayLines:
       for val in line.split():
-        # Check if the array is full. 
+        # Check if the array is full.
         if i==nVals:
           break
-        # If it's not, grab the next value. 
+        # If it's not, grab the next value.
         else:
           vals[i] = com(val)
           i = i + 1
     # Reshape and transpose the array. Fortran and Python have opposite
-    # indexing conventions. 
+    # indexing conventions.
     inputArray = np.transpose( np.reshape( vals, dims[::-1] ) )
-    # Check the array dimensions. If it's not full, the run may have crashed. 
-    # In that case we return only the time steps that exist. 
+    # Check the array dimensions. If it's not full, the run may have crashed.
+    # In that case we return only the time steps that exist.
     actualDims = dims[:-1] + [ np.int( i/np.prod(dims[:-1]) ) ]
     if dims!=actualDims:
       inputArray = inputArray[ ..., :actualDims[-1] ]
-    # Report how long this all took. 
+    # Report how long this all took.
     print format(time() - start, '5.1f') + 's'
-    # Dump a pickle for next time. 
+    # Dump a pickle for next time.
     print '\tCreating ' + basename(pklname) + ' ... ',
     stdout.flush()
     start = time()
@@ -1899,8 +1899,6 @@ def readArray(filename):
       pickle.dump(inputArray, handle, protocol=-1)
     print format(time() - start, '5.1f') + 's'
     return inputArray
-  # If the pickle doesn't exist and there's no Fortran output, return nothing. 
+  # If the pickle doesn't exist and there's no Fortran output, return nothing.
   else:
     print 'WARNING: ' + datname + ' not found. '
-
-
